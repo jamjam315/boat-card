@@ -72,6 +72,20 @@ body{background:var(--bg); color:var(--ink);
 .bar{height:4px; background:var(--bg); border-radius:2px; margin-top:4px; overflow:hidden;}
 .bar i{display:block; height:100%; background:var(--accent);}
 
+.trend{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:14px 18px;}
+.trend-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
+.trend-ttl{font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px;}
+.trend-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
+.trend-sub{font-size:11.5px; color:var(--muted);}
+.trow{display:grid; grid-template-columns:74px 1fr 44px; align-items:center; gap:10px; padding:3px 0;}
+.tcourse{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2);}
+.tdot{width:10px; height:10px; border-radius:3px; border:1px solid rgba(125,125,125,.4); flex:0 0 auto;}
+.tbar{height:8px; background:var(--bg); border-radius:4px; overflow:hidden;}
+.tbar i{display:block; height:100%; background:var(--accent);}
+.tval{font-size:13px; font-weight:600; text-align:right;}
+.thint{font-size:12px; color:var(--ink2); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2); line-height:1.55;}
+.tna{font-size:12.5px; color:var(--muted); padding:4px 0;}
+
 .legend{font-size:11.5px; color:var(--muted); margin:12px 4px 0; display:flex; flex-wrap:wrap; gap:4px 12px;}
 .legend span{display:inline-flex; align-items:center; gap:5px;}
 .legend b{width:11px; height:11px; border-radius:3px; border:1px solid rgba(125,125,125,.3); display:inline-block;}
@@ -107,10 +121,11 @@ body{background:var(--bg); color:var(--ink);
     <span><b style="background:#d83a36"></b>3</span><span><b style="background:#2f6fd0"></b>4</span>
     <span><b style="background:#f2c200"></b>5</span><span><b style="background:#1f9e54"></b>6</span>
   </p>
-  <p class="foot"><b>予想印（◎○▲）は出していません。</b>全国・当地の勝率とモーター2連率を並べるので、見て自分で決めるための道具です。<br>出典：公式番組表（2026年6月29日）を整形して表示。</p>
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向を添えるので、見て自分で決めるための道具です。<br>出典：公式の番組表・競走成績を整形して表示。「この会場のクセ」は直近の結果データの集計です。</p>
 </div>
 
 <script src="data.js"></script>
+<script src="stats.js" onerror="window.STATS=null"></script>
 <script>
 const LANES = {
  1:{bg:"#ffffff",fg:"#1a1a1a"},2:{bg:"#2b2b2b",fg:"#ffffff"},3:{bg:"#d83a36",fg:"#ffffff"},
@@ -140,6 +155,36 @@ function renderRaces(){
     box.appendChild(c);
   });
 }
+function trendPanel(venueName){
+  const S=window.STATS;
+  if(!S || !S.venues || !S.venues[venueName]){
+    return `<div class="trend"><div class="trend-head"><span class="trend-ttl"><span class="pin"></span>この会場のクセ</span></div>
+      <div class="tna">傾向データは集計中です（毎晩たまっていきます）。</div></div>`;
+  }
+  const vs=S.venues[venueName], nat=S.overall;
+  let rows="";
+  for(let c=1;c<=6;c++){
+    const x=vs[c]; if(!x) continue;
+    rows+=`<div class="trow">
+      <span class="tcourse"><span class="tdot" style="background:${LANES[c].bg}"></span>${c}コース</span>
+      <span class="tbar"><i style="width:${x.win}%"></i></span>
+      <span class="tval nums">${x.win}%</span>
+    </div>`;
+  }
+  const v1=vs[1].win, n1=nat[1].win;
+  let hint;
+  if(v1>=n1+3) hint=`1コースの1着率が全国平均(${n1}%)より高め。インが信頼されやすい場。`;
+  else if(v1<=n1-3) hint=`1コースの1着率が全国平均(${n1}%)より低め。波乱（外の差し・まくり）が起きやすい場。`;
+  else hint=`1コースの強さはほぼ全国平均(${n1}%)どおり。`;
+  return `<div class="trend">
+    <div class="trend-head">
+      <span class="trend-ttl"><span class="pin"></span>この会場のクセ</span>
+      <span class="trend-sub">進入コース別 1着率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
+    </div>
+    ${rows}
+    <div class="thint">${hint}</div>
+  </div>`;
+}
 function renderCard(){
   const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);
   const rows=r.boats.map(b=>{
@@ -162,7 +207,8 @@ function renderCard(){
     `<div class="card"><div class="card-head">
        <div class="ttl">${v.name} <span>${r.no}R</span></div>
        <div class="dl nums">締切 ${r.dl||"—"}</div>
-     </div>${rows}</div>`;
+     </div>${rows}</div>`
+    + trendPanel(v.name);
 }
 renderVenues(); renderRaces(); renderCard();
 </script>
