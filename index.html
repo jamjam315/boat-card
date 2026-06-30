@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>艇読み — ボートレース データカード</title>
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.6;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.brand{display:flex; align-items:center; gap:11px; position:relative; z-index:1;}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px;}
+.lanes i{display:block; border-radius:2px;}
+.brand h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em;}
+.brand p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em;}
+.datepill{position:relative; z-index:1; font-size:12.5px; color:#cfe6df; white-space:nowrap;
+  border:1px solid rgba(255,255,255,.18); border-radius:999px; padding:4px 11px;}
+
+.seg{margin-top:18px;}
+.seg-label{font-size:11.5px; color:var(--muted); letter-spacing:.08em; margin:0 0 7px 2px;}
+.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:thin;}
+.chips::-webkit-scrollbar{height:5px} .chips::-webkit-scrollbar-thumb{background:var(--line2); border-radius:3px}
+.chip{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font:inherit; font-size:13.5px; padding:7px 13px; border-radius:999px; cursor:pointer; white-space:nowrap;
+  transition:background .12s,border-color .12s,color .12s;}
+.chip:hover{border-color:var(--accent)}
+.chip:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.chip[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+.chips.races .chip{min-width:46px; text-align:center; padding:7px 10px;}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:18px; overflow:hidden;}
+.card-head{padding:14px 18px; border-bottom:1px solid var(--line); display:flex;
+  align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+.card-head .ttl{font-size:16px; font-weight:600;}
+.card-head .ttl span{font-weight:400; color:var(--ink2); font-size:13.5px; margin-left:6px;}
+.card-head .dl{font-size:12.5px; color:var(--muted);}
+
+.boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
+  padding:13px 18px; border-bottom:1px solid var(--line);}
+.boat:last-child{border-bottom:none}
+.badge{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  font-size:17px; font-weight:700; border:1px solid rgba(125,125,125,.3);}
+.bname{font-size:15px; font-weight:600;}
+.bk{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
+  border-radius:5px; padding:1px 6px; margin-left:5px;}
+.bmeta{font-size:12.5px; color:var(--ink2); margin-top:2px;}
+.stats{display:flex; gap:15px; align-items:flex-start;}
+.stat{text-align:right;}
+.stat .l{font-size:10.5px; color:var(--muted);}
+.stat .v{font-size:15px; font-weight:600;}
+.stat.mo{min-width:62px;}
+.bar{height:4px; background:var(--bg); border-radius:2px; margin-top:4px; overflow:hidden;}
+.bar i{display:block; height:100%; background:var(--accent);}
+
+.legend{font-size:11.5px; color:var(--muted); margin:12px 4px 0; display:flex; flex-wrap:wrap; gap:4px 12px;}
+.legend span{display:inline-flex; align-items:center; gap:5px;}
+.legend b{width:11px; height:11px; border-radius:3px; border:1px solid rgba(125,125,125,.3); display:inline-block;}
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot b{color:var(--ink2); font-weight:600;}
+@media (max-width:460px){
+  .stats{gap:11px} .stat .v{font-size:14px} .stat.mo{min-width:54px}
+  .boat{grid-template-columns:36px 1fr auto; gap:10px; padding:12px 14px}
+  .bname{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <div class="lanes" aria-hidden="true">
+        <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+        <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+      </div>
+      <div><h1>艇読み</h1><p>公式番組表を、読める形に。</p></div>
+    </div>
+    <div class="datepill nums" id="datepill"></div>
+  </header>
+
+  <div class="seg"><p class="seg-label">レース場</p><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
+  <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
+
+  <main id="card"></main>
+
+  <p class="legend" aria-label="枠番の色">枠の色＝艇番（公式の枠番カラー）：
+    <span><b style="background:#fff"></b>1</span><span><b style="background:#2b2b2b"></b>2</span>
+    <span><b style="background:#d83a36"></b>3</span><span><b style="background:#2f6fd0"></b>4</span>
+    <span><b style="background:#f2c200"></b>5</span><span><b style="background:#1f9e54"></b>6</span>
+  </p>
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>全国・当地の勝率とモーター2連率を並べるので、見て自分で決めるための道具です。<br>出典：公式番組表（2026年6月29日）を整形して表示。</p>
+</div>
+
+<script src="data.js"></script>
+<script>
+const LANES = {
+ 1:{bg:"#ffffff",fg:"#1a1a1a"},2:{bg:"#2b2b2b",fg:"#ffffff"},3:{bg:"#d83a36",fg:"#ffffff"},
+ 4:{bg:"#2f6fd0",fg:"#ffffff"},5:{bg:"#f2c200",fg:"#3a2e00"},6:{bg:"#1f9e54",fg:"#ffffff"}
+};
+if(!window.DATA){document.getElementById("card").innerHTML="<p style=\"padding:20px;color:#888\">データ読み込み中…</p>";}
+let vi=0, rno=null;
+document.getElementById("datepill").textContent = DATA.date;
+
+function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
+function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
+
+function renderVenues(){
+  const box=document.getElementById("venues"); box.innerHTML="";
+  DATA.venues.forEach((v,i)=>{
+    const c=el(`<button class="chip" role="tab" aria-selected="${i===vi}">${v.name}</button>`);
+    c.onclick=()=>{vi=i; rno=null; renderVenues(); renderRaces(); renderCard();};
+    box.appendChild(c);
+  });
+}
+function renderRaces(){
+  const v=DATA.venues[vi], box=document.getElementById("races"); box.innerHTML="";
+  if(rno==null) rno=v.races[0].no;
+  v.races.forEach(r=>{
+    const c=el(`<button class="chip" role="tab" aria-selected="${r.no===rno}">${r.no}R</button>`);
+    c.onclick=()=>{rno=r.no; renderRaces(); renderCard();};
+    box.appendChild(c);
+  });
+}
+function renderCard(){
+  const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);
+  const rows=r.boats.map(b=>{
+    const L=LANES[b.n], mo=(b.mo==null?0:Math.round(b.mo*10)/10);
+    return `<div class="boat">
+      <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
+      <div>
+        <div class="bname">${b.name}<span class="bk">${b.k}</span></div>
+        <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg</div>
+      </div>
+      <div class="stats nums">
+        <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
+        <div class="stat"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div></div>
+        <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
+          <div class="bar"><i style="width:${mo}%"></i></div></div>
+      </div>
+    </div>`;
+  }).join("");
+  document.getElementById("card").innerHTML=
+    `<div class="card"><div class="card-head">
+       <div class="ttl">${v.name} <span>${r.no}R</span></div>
+       <div class="dl nums">締切 ${r.dl||"—"}</div>
+     </div>${rows}</div>`;
+}
+renderVenues(); renderRaces(); renderCard();
+</script>
+</body>
+</html>
