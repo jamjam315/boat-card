@@ -64,6 +64,16 @@ body{background:var(--bg); color:var(--ink);
 .bk{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
   border-radius:5px; padding:1px 6px; margin-left:5px;}
 .bmeta{font-size:12.5px; color:var(--ink2); margin-top:2px;}
+.st-tag{display:inline-block; font-size:11px; font-weight:600; border-radius:5px; padding:1px 6px; margin-left:6px; border:1px solid transparent; vertical-align:1px;}
+.st-tag .stl{font-weight:400; margin-left:3px; opacity:.85;}
+.st-a{background:#fde7e7; color:#b32b2b; border-color:#f3c9c9;}
+.st-n{background:#eceef0; color:#54616a; border-color:#dde1e4;}
+.st-c{background:#e3eef0; color:#2b6b78; border-color:#cfe1e4;}
+@media (prefers-color-scheme: dark){
+  .st-a{background:#3a1d1d; color:#f3a3a3; border-color:#542a2a;}
+  .st-n{background:#222d32; color:#9fb0b6; border-color:#33424a;}
+  .st-c{background:#16323a; color:#7fcdd9; border-color:#234a54;}
+}
 .stats{display:flex; gap:15px; align-items:flex-start;}
 .stat{text-align:right;}
 .stat .l{font-size:10.5px; color:var(--muted);}
@@ -121,11 +131,12 @@ body{background:var(--bg); color:var(--ink);
     <span><b style="background:#d83a36"></b>3</span><span><b style="background:#2f6fd0"></b>4</span>
     <span><b style="background:#f2c200"></b>5</span><span><b style="background:#1f9e54"></b>6</span>
   </p>
-  <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向を添えるので、見て自分で決めるための道具です。<br>出典：公式の番組表・競走成績を整形して表示。「この会場のクセ」は直近の結果データの集計です。</p>
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向と選手のスタート傾向を添えるので、見て自分で決めるための道具です。<br>出典：公式の番組表・競走成績を整形して表示。「この会場のクセ」「選手のST癖（8走以上の平均ST）」は直近の結果データの集計です。</p>
 </div>
 
 <script src="data.js"></script>
 <script src="stats.js" onerror="window.STATS=null"></script>
+<script src="players.js" onerror="window.PLAYERS=null"></script>
 <script>
 const LANES = {
  1:{bg:"#ffffff",fg:"#1a1a1a"},2:{bg:"#2b2b2b",fg:"#ffffff"},3:{bg:"#d83a36",fg:"#ffffff"},
@@ -137,6 +148,17 @@ document.getElementById("datepill").textContent = DATA.date;
 
 function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
 function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
+function stTag(toban){
+  const P=window.PLAYERS;
+  if(!P||!P.players||!toban) return "";
+  const p=P.players[toban];
+  if(!p||p.n<(P.min||8)) return "";
+  const st=p.st;
+  let cls="st-n", label="標準";
+  if(st<=0.140){cls="st-a"; label="攻";}
+  else if(st>=0.185){cls="st-c"; label="慎重";}
+  return `<span class="st-tag ${cls}">ST ${st.toFixed(2)}<span class="stl">${label}</span></span>`;
+}
 
 function renderVenues(){
   const box=document.getElementById("venues"); box.innerHTML="";
@@ -193,7 +215,7 @@ function renderCard(){
       <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
       <div>
         <div class="bname">${b.name}<span class="bk">${b.k}</span></div>
-        <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg</div>
+        <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
       </div>
       <div class="stats nums">
         <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
