@@ -61,8 +61,13 @@ def append_from_txt(txt_path, date_iso, keys, fout):
             continue
         keys.add(key)
         rec = {"date": date_iso, "会場": r["会場"], "レース番号": r["レース番号"],
+               # ↓ 追加：レース単位の環境と決まり手（古いparserでも落ちないよう get で）
+               "天候": r.get("天候"), "風向": r.get("風向"),
+               "風速": r.get("風速"), "波高": r.get("波高"),
+               "決まり手": r.get("決まり手"),
                "結果": [{"着": x["着順"], "艇": x["艇番"], "進": x["進入コース"],
-                        "ST": x["ST"], "STt": x["ST種別"], "登番": x["登番"]}
+                        "ST": x["ST"], "STt": x["ST種別"], "登番": x["登番"],
+                        "展": x.get("展示")}   # ← 追加：展示タイム
                        for x in r["結果"]]}
         fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
         added += 1

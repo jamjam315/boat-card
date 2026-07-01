@@ -1,8 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-競走成績(K)パーサー
-公式の結果ファイル（固定長テキスト, cp932）から、1着〜6着の
-着順・艇番・選手・進入コース・スタートタイミング・レースタイムを取り出す。
+競走成績(K)パーサー  ―― 拡張版
+公式の結果ファイル（固定長テキスト, cp932）から取り出す。
+
+【従来からの項目（そのまま維持）】
+  着順・艇番・進入コース・スタートタイミング・レースタイム・登番・選手名
+
+【今回あらたに拾う項目】
+  レース単位: 天候・風向・風速(m)・波高(cm)・決まり手
+  艇単位   : 展示タイム（掴んでいたのに捨てていた分を復活）
+
+※ 既存の呼び出し側（collect_results.py / build_stats.py）を壊さないよう、
+   これまでのキー名は一切変えず、新しいキーを「追加」しただけ。
 
 使い方:
     from parse_results import parse_results
@@ -20,8 +29,9 @@ JCD = {
 ZEN = str.maketrans("０１２３４５６７８９：", "0123456789:")
 
 VENUE = re.compile(r'^(\d{2})KBGN')
-# レース見出し: "1R 予選 ... H1800m 晴 風 ..." （結果ファイルは半角R）
+# レース見出し: "1R 予選 ... H1800m 晴 風 南西 2m 波 1cm" （結果ファイルは半角R）
 RACE  = re.compile(r'^\s*(\d{1,2})R\s+(\S+)')
+
 # 結果行: 着 艇 登番 選手名 ﾓｰﾀｰ ﾎﾞｰﾄ 展示 進入 ST ﾚｰｽﾀｲﾑ
 RESULT = re.compile(
     r'^\s*(\d{2})\s+'      # 着順
@@ -36,6 +46,14 @@ RESULT = re.compile(
     r'(?:\s+(\S+))?'       # レースタイム（落水等は無い場合あり）
 )
 
+# 結果ヘッダ行（この行の末尾に決まり手が入っている）
+#   例) "  着 艇 登番 ...ﾚｰｽﾀｲﾑ 逃げ　　　"
+HEADER = re.compile(r'着\s*艇\s*登番')
+
+# 決まり手として認めるもの（長いものから順に照合する）
+KIMARITE = ["まくり差し", "抜き", "逃げ", "差し", "まくり", "恵まれ"]
+
+
 def parse_st(tok):
     """STを (種別, 値) に。'F.05'→('F',0.05) / '0.12'→('',0.12) / それ以外→(種別,None)"""
     t = tok.strip()
@@ -49,6 +67,56 @@ def parse_st(tok):
         return ("", float("0" + m.group(1)))
     return ("?", None)
 
+
+def parse_weather(line):
+    """レース見出し行から 天候・風向・風速・波高 を取り出す。
+    取れなかった項目は None。書式が違う年でも落ちないよう緩めに拾う。
+    """
+    # 全角スペースを半角に均して扱いやすくする
+    s = line.replace("\u3000", " ")
+    out = {"天候": None, "風向": None, "風速": None, "波高": None}
+
+    # 天候：晴 / 曇り / 雨 / 雪 / 霧。"風"の手前にある。
+    # 「曇り」のように送り仮名が付く年もあるので許容し、"曇" に正規化する。
+    mw = re.search(r'(晴|曇り|曇|雨|雪|霧)\s*風', s)
+    if not mw:
+        # 保険：距離(...m)と"風"の間にある語を天候とみなす（未知の書式対策）
+        mw = re.search(r'\dm\s+(\S+?)\s*風', s)
+    if mw:
+        t = mw.group(1)
+        out["天候"] = "曇" if t.startswith("曇") else t
+
+    # 風向 + 風速：  "風  南西  2m"  /  "風  無風 0m" など
+    md = re.search(r'風\s*([東西南北]+|無風|無)\s*(\d+)\s*m', s)
+    if md:
+        kaze = md.group(1)
+        out["風向"] = "無風" if kaze in ("無", "無風") else kaze
+        out["風速"] = int(md.group(2))
+    else:
+        # 風向が空でも風速だけ拾えるように保険
+        ms = re.search(r'風\D*?(\d+)\s*m', s)
+        if ms:
+            out["風速"] = int(ms.group(1))
+
+    # 波高： "波  1cm"
+    mh = re.search(r'波\s*(\d+)\s*cm', s)
+    if mh:
+        out["波高"] = int(mh.group(1))
+
+    return out
+
+
+def parse_kimarite(header_line):
+    """結果ヘッダ行の末尾から決まり手を取り出す。無ければ None。"""
+    s = header_line.replace("\u3000", " ")
+    # "ﾚｰｽﾀｲﾑ" より後ろに決まり手がある
+    tail = s.split("ﾚｰｽﾀｲﾑ")[-1].strip()
+    for k in KIMARITE:
+        if k in tail:
+            return k
+    return None
+
+
 def parse_results(path):
     lines = open(path, encoding="cp932").read().splitlines()
     races, jcd, jname, cur = [], None, None, None
@@ -56,25 +124,46 @@ def parse_results(path):
         mv = VENUE.match(line)
         if mv:
             jcd = mv.group(1); jname = JCD.get(jcd, jcd); continue
+
         mr = RACE.match(line)
         # レース見出しは結果ヘッダの前。締切や電話の行は除外
         if mr and "電話" not in line and "締切" not in line and ("m" in line):
+            weather = parse_weather(line)
             cur = {"会場コード": jcd, "会場": jname,
-                   "レース番号": int(mr.group(1)), "結果": []}
+                   "レース番号": int(mr.group(1)),
+                   "天候": weather["天候"], "風向": weather["風向"],
+                   "風速": weather["風速"], "波高": weather["波高"],
+                   "決まり手": None,          # 直後のヘッダ行で埋める
+                   "結果": []}
             races.append(cur); continue
+
+        # 結果ヘッダ行なら、決まり手を今のレースに入れる
+        if cur is not None and HEADER.search(line):
+            k = parse_kimarite(line)
+            if k:
+                cur["決まり手"] = k
+            continue
+
         mres = RESULT.match(line)
         if mres and cur is not None:
             chaku, tei, touban, name, mo, bo, tenji, course, st, rt = mres.groups()
             stype, sval = parse_st(st)
+            # 展示タイムは "6.92" のような文字列。数値化できないときは None。
+            try:
+                tenji_v = float(tenji)
+            except (TypeError, ValueError):
+                tenji_v = None
             cur["結果"].append({
                 "着順": int(chaku), "艇番": int(tei), "登番": touban,
                 "選手名": name.replace("\u3000", "").strip(),
                 "進入コース": int(course),
                 "ST種別": stype, "ST": sval,
+                "展示": tenji_v,          # ← 復活させた項目
                 "レースタイム": rt,
             })
     # 6艇そろったレースだけ返す（中止・特殊レースを除外）
     return [r for r in races if len(r["結果"]) == 6]
+
 
 if __name__ == "__main__":
     import sys
@@ -82,7 +171,10 @@ if __name__ == "__main__":
     print("有効レース数:", len(races))
     if races:
         r = races[0]
-        print(f"\n{r['会場']} {r['レース番号']}R の結果:")
+        print(f"\n{r['会場']} {r['レース番号']}R"
+              f"  天候:{r['天候']} 風:{r['風向']}{r['風速']}m 波:{r['波高']}cm"
+              f"  決まり手:{r['決まり手']}")
         for x in r["結果"]:
             st = f"{x['ST種別']}{x['ST']}" if x["ST"] is not None else x["ST種別"]
-            print(f"  {x['着順']}着 {x['艇番']}号艇 {x['選手名']}  進入{x['進入コース']}  ST {st}")
+            print(f"  {x['着順']}着 {x['艇番']}号艇 {x['選手名']}"
+                  f"  進入{x['進入コース']}  ST {st}  展示 {x['展示']}")
