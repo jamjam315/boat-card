@@ -96,6 +96,20 @@ body{background:var(--bg); color:var(--ink);
 .thint{font-size:12px; color:var(--ink2); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2); line-height:1.55;}
 .tna{font-size:12.5px; color:var(--muted); padding:4px 0;}
 
+.wsec{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line2);}
+.wsec-head{font-size:13px; font-weight:600; display:flex; align-items:baseline; gap:8px; margin-bottom:9px;}
+.wsec-head span{font-size:11px; color:var(--muted); font-weight:400;}
+.wgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.wcell{background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 6px 7px; text-align:center;}
+.wcell.wtop{border-color:var(--accent); background:var(--accent-soft);}
+.wemo{font-size:12px; color:var(--ink2);}
+.wwin{font-size:19px; font-weight:700; margin-top:2px;}
+.wn{font-size:10.5px; color:var(--muted); margin-top:1px;}
+.wcell.wthin{opacity:.5;}
+.whint{font-size:12px; color:var(--ink); margin-top:10px; line-height:1.55;}
+.whint b{color:var(--accent);}
+.wnote{font-size:11px; color:var(--muted); margin-top:6px;}
+
 .legend{font-size:11.5px; color:var(--muted); margin:12px 4px 0; display:flex; flex-wrap:wrap; gap:4px 12px;}
 .legend span{display:inline-flex; align-items:center; gap:5px;}
 .legend b{width:11px; height:11px; border-radius:3px; border:1px solid rgba(125,125,125,.3); display:inline-block;}
@@ -177,6 +191,57 @@ function renderRaces(){
     box.appendChild(c);
   });
 }
+const WEMO = {"晴":"☀️","曇":"☁️","雨":"☔"};
+function weatherBlock(venueName){
+  const S=window.STATS;
+  const wx = S.venues_wx && S.venues_wx[venueName];
+  if(!wx) return "";
+  const MIN=20;                       // これ以上の本数がある天候だけ「読み」に使う
+  const order=["晴","曇","雨"];
+  // 一番本数の多い天候をベースに、雨がどれだけ動くかを見る
+  let cells="", solid=[];
+  order.forEach(w=>{
+    const d = wx[w] && wx[w]["1"];    // 1コースの1着率で比べる（初心者が一番よりどころにする数字）
+    if(d){
+      const thin = d.n<MIN ? " wthin" : "";
+      cells += `<div class="wcell${thin}" data-w="${w}">
+        <div class="wemo">${WEMO[w]} ${w}</div>
+        <div class="wwin nums">${d.win}%</div>
+        <div class="wn nums">${d.n}走</div></div>`;
+      if(d.n>=MIN) solid.push({w, win:d.win, n:d.n});
+    }else{
+      cells += `<div class="wcell wthin"><div class="wemo">${WEMO[w]} ${w}</div>
+        <div class="wwin">—</div><div class="wn">少</div></div>`;
+    }
+  });
+  // 読み（お？を作る一文）：雨がベース天候からどれだけ動くかを主役にする
+  let hint;
+  const rain = solid.find(b=>b.w==="雨");
+  const base = solid.find(b=>b.w==="晴") || solid.find(b=>b.w==="曇");
+  if(rain && base){
+    const d = Math.round((rain.win-base.win)*10)/10;
+    if(d<=-8) hint=`<b>☔ 雨の${venueName}はインが崩れやすい。</b>1コース${rain.win}%（${WEMO[base.w]}${base.w}は${base.win}%）。荒れ（外の差し・まくり）が出やすい狙い目。`;
+    else if(d>=8) hint=`<b>☔ 雨の${venueName}はむしろインが堅い。</b>1コース${rain.win}%（${WEMO[base.w]}${base.w}は${base.win}%）。人の逆を行ける場面。`;
+    else hint=`☔ 雨でもインの強さはあまり変わらない（1コース${rain.win}% / ${WEMO[base.w]}${base.w}${base.win}%）。`;
+  }else if(solid.length>=2){
+    const hi=solid.reduce((a,b)=>b.win>a.win?b:a), lo=solid.reduce((a,b)=>b.win<a.win?b:a);
+    if(hi.win-lo.win>=8) hint=`<b>${WEMO[lo.w]}${lo.w}はインが落ちやすく（1コース${lo.win}%）、${WEMO[hi.w]}${hi.w}は堅い（${hi.win}%）。</b>天候で狙い方を変えられる場。`;
+    else hint=`天候によるインの強さの差は今のところ小さめ。`;
+  }else{
+    hint=`天候別はまだデータが少なめ。毎晩たまって、この会場の「雨のクセ」が見えてきます。`;
+  }
+  // 本数が十分な天候のうち、1着率が最も高いセルを強調（wtop）
+  if(solid.length){
+    const best=solid.reduce((a,b)=>b.win>a.win?b:a).w;
+    cells=cells.replace(`<div class="wcell" data-w="${best}">`, `<div class="wcell wtop" data-w="${best}">`);
+  }
+  return `<div class="wsec">
+    <div class="wsec-head">🌦️ 天候でこう変わる <span>1コースの1着率</span></div>
+    <div class="wgrid">${cells}</div>
+    <div class="whint">${hint}</div>
+    <div class="wnote">直近${S.days}日の集計。本数が少ない天候（薄い表示）は参考程度に。日々たまって精度が上がります。</div>
+  </div>`;
+}
 function trendPanel(venueName){
   const S=window.STATS;
   if(!S || !S.venues || !S.venues[venueName]){
@@ -205,6 +270,7 @@ function trendPanel(venueName){
     </div>
     ${rows}
     <div class="thint">${hint}</div>
+    ${weatherBlock(venueName)}
   </div>`;
 }
 function renderCard(){
