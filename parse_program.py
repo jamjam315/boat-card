@@ -3,6 +3,12 @@
 番組表(B)パーサー  ステップ1
 公式の固定長テキスト(.lzh解凍後, cp932)を、ラベル付きの構造化データ(JSON/CSV)に変換する。
 
+【今節成績について】
+勝率など8項目のあとに続く欄には、選手の「今節、これまでに走った各日の着順」が
+1文字ずつ(古い日→新しい日の順)で入っている。数字(1-6)=着順、S=妨害、F=フライング、
+K=欠場、空白(詰め物)は無視してよい。実データと公式サイトの表示を突き合わせて確認済み。
+末尾の1文字は「今節成績」とは別の「早見」欄(意味は本パーサーでは未使用)。
+
 使い方:
     python3 parse_program.py B260629.TXT
 """
@@ -23,6 +29,7 @@ JCD = {
 ZEN2HAN = str.maketrans("０１２３４５６７８９：", "0123456789:")
 
 # 1選手ぶんの行(例: "1 4164岩永節也44長崎52B1 3.86 17.20 ...")
+# 級別より後ろ(勝率〜今節成績)は丸ごと rest として受け取り、parse_boat 側で分解する。
 ROW = re.compile(
     r'^\s*([1-6])\s+'      # 艇番
     r'(\d{4})'             # 登番
@@ -31,14 +38,30 @@ ROW = re.compile(
     r'(\D+?)'              # 支部
     r'(\d{2})'             # 体重
     r'(A[12]|B[12])\s+'    # 級別
-    r'(.*)$'               # 勝率以降
+    r'(.*)$'               # 勝率〜今節成績(生のまま)
 )
+# 全国勝率〜ボート2連率(8項目)を厳密に消費し、その後ろ(今節成績+早見)は生のまま残す。
+TAIL = re.compile(r'^\s*(\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+)(.*)$')
 
 RATE_LABELS = ["全国勝率", "全国2連率", "当地勝率", "当地2連率",
                "モーター番号", "モーター2連率", "ボート番号", "ボート2連率"]
 
 VENUE = re.compile(r'^(\d{2})BBGN')
-RACE  = re.compile(r'^[\s\u3000]*([０-９]+)Ｒ')   # 全角レース番号
+RACE  = re.compile(r'^[\s　]*([０-９]+)Ｒ')   # 全角レース番号
+DAY   = re.compile(r'第[\s　]*([０-９]+)日')   # 開催の何日目か
+
+KIMARITE_CODES = set("123456SFK")   # 今節成績で使われる文字(着順・妨害・フライング・欠場)
+HAYAMI_WIDTH = 2   # 「早見」欄は右詰め・最大2桁の固定幅(実データで確認済み)
+
+
+def parse_kon_shosei(tail):
+    """今節成績+早見の生文字列(パディング込み)から、今節の着順推移(古い日→新しい日)を取り出す。
+    早見欄はtailの右端2文字に右詰めで入っているので、それを除いた左側だけを今節成績として読む。
+    """
+    if not tail:
+        return []
+    body = tail[:-HAYAMI_WIDTH] if len(tail) > HAYAMI_WIDTH else ""
+    return [c for c in body if c in KIMARITE_CODES]
 
 
 def parse_boat(line):
@@ -46,45 +69,52 @@ def parse_boat(line):
     if not m:
         return None
     teiban, touban, name, age, branch, weight, klass, rest = m.groups()
-    # 念のため 率(x.xx)と番号 がくっついていたら剥がす(古い形式対策)
+    # 「xx.xx」の直後に番号が続き、間のスペースが無いケースがある(例:"11.63148"=モーター2連率11.63+ボート番号148)。
+    # 8項目の区切りを壊さないよう、先にスペースを補う。
     rest = re.sub(r'(\d\.\d{2})(\d)', r'\1 \2', rest)
-    toks = rest.split()
+    mt = TAIL.match(rest)
+    if not mt:
+        return None
+    rates, tail = mt.groups()
     rec = {
         "艇番": int(teiban),
         "登番": touban,
-        "選手名": name.replace("\u3000", "").strip(),
+        "選手名": name.replace("　", "").strip(),
         "年齢": int(age),
-        "支部": branch.replace("\u3000", "").strip(),
+        "支部": branch.replace("　", "").strip(),
         "体重": int(weight),
         "級別": klass,
     }
-    for i, lab in enumerate(RATE_LABELS):
-        if i < len(toks):
-            v = toks[i]
-            rec[lab] = float(v) if "." in v else int(v)
-    # 残り(今節成績など)は生のまま保持
-    rec["今節成績_raw"] = " ".join(toks[len(RATE_LABELS):]).strip()
+    for lab, v in zip(RATE_LABELS, rates.split()):
+        rec[lab] = float(v) if "." in v else int(v)
+    rec["今節着順"] = parse_kon_shosei(tail)   # 例: ["5","5","1","5","6"]
     return rec
 
 
 def parse_program(path):
     lines = open(path, encoding="cp932").read().splitlines()
     races = []
-    jcd, jname = None, None
+    jcd, jname, day = None, None, None
     cur = None
     for line in lines:
         mv = VENUE.match(line)
         if mv:
             jcd = mv.group(1)
             jname = JCD.get(jcd, jcd)
+            day = None   # 新しい会場に入ったら、次に出てくる「第◯日」を拾い直す
             continue
+        if day is None:
+            md = DAY.search(line)
+            if md:
+                day = int(md.group(1).translate(ZEN2HAN))
         mr = RACE.match(line)
         if mr:
             rno = int(mr.group(1).translate(ZEN2HAN))
-            meta = re.sub(r'[\s\u3000]+', ' ', line).strip()
+            meta = re.sub(r'[\s　]+', ' ', line).strip()
             締切 = re.search(r'締切予定([０-９：]+)', line)
             cur = {
                 "会場コード": jcd, "会場": jname, "レース番号": rno,
+                "開催日目": day,
                 "締切予定": 締切.group(1).translate(ZEN2HAN) if 締切 else None,
                 "レース条件": meta, "艇": [],
             }
@@ -114,14 +144,15 @@ if __name__ == "__main__":
     with open(f"{base}.json", "w", encoding="utf-8") as f:
         json.dump(races, f, ensure_ascii=False, indent=2)
     # CSV出力(1行=1艇)
-    cols = ["会場", "レース番号", "締切予定", "艇番", "登番", "選手名", "年齢",
+    cols = ["会場", "レース番号", "開催日目", "締切予定", "艇番", "登番", "選手名", "年齢",
             "支部", "体重", "級別", "全国勝率", "全国2連率", "当地勝率",
-            "当地2連率", "モーター番号", "モーター2連率", "ボート番号", "ボート2連率"]
+            "当地2連率", "モーター番号", "モーター2連率", "ボート番号", "ボート2連率", "今節着順"]
     with open(f"{base}.csv", "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow(cols)
         for r in races:
             for b in r["艇"]:
-                w.writerow([r["会場"], r["レース番号"], r["締切予定"]] +
-                           [b.get(c, "") for c in cols[3:]])
+                row = {**r, **b}
+                w.writerow([row.get(c, "") if c != "今節着順" else "".join(row.get(c, []))
+                            for c in cols])
     print(f"\n→ {base}.json と {base}.csv を出力しました")

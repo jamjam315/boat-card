@@ -64,6 +64,9 @@ body{background:var(--bg); color:var(--ink);
 .bk{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
   border-radius:5px; padding:1px 6px; margin-left:5px;}
 .bmeta{font-size:12.5px; color:var(--ink2); margin-top:2px;}
+.kon{font-size:12px; color:var(--ink2); margin-top:3px;}
+.kon b{color:var(--ink); font-weight:600;}
+.kon.thin{color:var(--muted); font-style:italic;}
 .st-tag{display:inline-block; font-size:11px; font-weight:600; border-radius:5px; padding:1px 6px; margin-left:6px; border:1px solid transparent; vertical-align:1px;}
 .st-tag .stl{font-weight:400; margin-left:3px; opacity:.85;}
 .st-a{background:#fde7e7; color:#b32b2b; border-color:#f3c9c9;}
@@ -182,6 +185,33 @@ function stTag(toban){
   if(st<=0.140){cls="st-a"; label="攻";}
   else if(st>=0.185){cls="st-c"; label="慎重";}
   return `<span class="st-tag ${cls}">ST ${st.toFixed(2)}<span class="stl">${label}</span></span>`;
+}
+
+function konSetsuLine(ks){
+  if(!ks || !ks.r || ks.r.length===0) return `<div class="kon thin">今節データ少なめ（まだ出走なし）</div>`;
+  const n=ks.r.length;
+  if(n<2) return `<div class="kon thin">今節データ少なめ（${n}走）</div>`;
+
+  // 着順の流れ(直近3走を新しい順に見せる)
+  const flow = ks.r.slice(-3).map(c => c<=3 ? `${c}着` : "着外").join("→");
+
+  // 進入の傾向(平均コース)
+  const avgC = ks.c.reduce((a,b)=>a+b,0)/ks.c.length;
+  let courseHint;
+  if(avgC<=1.6) courseHint="進入ほぼイン";
+  else if(avgC>=4)  courseHint="進入は外めが多い";
+  else courseHint="進入まちまち";
+
+  // STの安定度(標準偏差)
+  const sts = ks.s.filter(s=>s!=null);
+  let stHint="";
+  if(sts.length>=2){
+    const avgS=sts.reduce((a,b)=>a+b,0)/sts.length;
+    const sd=Math.sqrt(sts.reduce((a,b)=>a+(b-avgS)**2,0)/sts.length);
+    stHint = sd<=0.02 ? "ST安定" : "STにばらつき";
+  }
+  const tail = n<4 ? `<span class="thin">（今節${n}走）</span>` : "";
+  return `<div class="kon"><b>今節</b> ${flow} / ${courseHint}${stHint?" / "+stHint:""} ${tail}</div>`;
 }
 
 function renderVenues(){
@@ -328,6 +358,7 @@ function renderCard(){
       <div>
         <div class="bname">${b.name}<span class="bk">${b.k}</span></div>
         <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
+        ${konSetsuLine(b.ks)}
       </div>
       <div class="stats nums">
         <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
