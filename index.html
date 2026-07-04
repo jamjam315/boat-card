@@ -188,9 +188,10 @@ function stTag(toban){
 }
 
 function konSetsuLine(ks){
-  if(!ks || !ks.r || ks.r.length===0) return `<div class="kon thin">今節データ少なめ（まだ出走なし）</div>`;
+  const label = (ks && ks.which) || "今節";
+  if(!ks || !ks.r || ks.r.length===0) return `<div class="kon thin">${label}の走行データが見当たりません</div>`;
   const n=ks.r.length;
-  if(n<2) return `<div class="kon thin">今節データ少なめ（${n}走）</div>`;
+  if(n<2) return `<div class="kon thin">${label}データ少なめ（${n}走）</div>`;
 
   // 着順の流れ(直近3走を新しい順に見せる)
   const flow = ks.r.slice(-3).map(c => c<=3 ? `${c}着` : "着外").join("→");
@@ -210,8 +211,8 @@ function konSetsuLine(ks){
     const sd=Math.sqrt(sts.reduce((a,b)=>a+(b-avgS)**2,0)/sts.length);
     stHint = sd<=0.02 ? "ST安定" : "STにばらつき";
   }
-  const tail = n<4 ? `<span class="thin">（今節${n}走）</span>` : "";
-  return `<div class="kon"><b>今節</b> ${flow} / ${courseHint}${stHint?" / "+stHint:""} ${tail}</div>`;
+  const tail = n<4 ? `<span class="thin">（${label}${n}走）</span>` : "";
+  return `<div class="kon"><b>${label}</b> ${flow} / ${courseHint}${stHint?" / "+stHint:""} ${tail}</div>`;
 }
 
 function renderVenues(){
