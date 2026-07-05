@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>島田賢人 — 艇読み 選手図鑑</title>
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif; line-height:1.6;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
+.topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:#9fc3ba;}
+.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px 20px; text-align:center; margin-top:14px;}
+.hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.hero .catch{font-size:21px; font-weight:800; color:var(--accent); margin-top:14px;}
+.hero .catch-basis{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:16px 18px;}
+.card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
+.card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
+.card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
+.trow{display:grid; grid-template-columns:74px 1fr 44px 60px; align-items:center; gap:10px; padding:4px 0;}
+.tcourse{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2);}
+.tdot{width:10px; height:10px; border-radius:3px; border:1px solid rgba(125,125,125,.4); flex:0 0 auto;}
+.tbar{height:8px; background:var(--bg); border-radius:4px; overflow:hidden;} .tbar i{display:block; height:100%; background:var(--accent);}
+.tval{font-size:13px; font-weight:600; text-align:right;} .tn{font-size:11px; color:var(--muted); text-align:right;}
+.krow{display:grid; grid-template-columns:74px 1fr 60px; align-items:center; gap:10px; padding:4px 0;}
+.kname{font-size:12.5px; color:var(--ink2);}
+.kbar{height:8px; background:var(--bg); border-radius:4px; overflow:hidden;} .kbar i{display:block; height:100%; background:var(--line2);}
+.krow.ktop .kbar i{background:var(--accent);} .krow.ktop .kname{color:var(--ink); font-weight:600;}
+.kval{font-size:13px; font-weight:600; text-align:right;}
+.homebox{background:var(--accent-soft); border:1px solid var(--accent); border-radius:10px; padding:10px 14px; font-size:13px;}
+.nohome{font-size:12.5px; color:var(--muted); font-style:italic;}
+.kon{font-size:13px; color:var(--ink2);} .kon b{color:var(--ink); font-weight:600;}
+.note{font-size:11.5px; color:var(--muted); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2); line-height:1.6;}
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <h1>艇読み — 選手図鑑</h1>
+    <p>公式番組表・成績を、読める形に。</p>
+  </header>
+  <section class="hero">
+    <div class="pname">島田賢人 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span></div>
+    <div class="pmeta">38歳 ・ 埼玉支部 ・ 55kg</div>
+    <div class="catch">「堅実タイプ（勝ちパターンは平均的）」</div>
+    <div class="catch-basis">決まり手の傾向が全国平均に近い（抜き12.5% / 全国6.5%）</div>
+  </section>
+  <section class="card">
+    <div class="card-ttl"><span class="pin"></span>通算の進入コース傾向<span class="card-sub">直近半年(公式集計)</span></div>
+    <div class="trow"><span class="tcourse"><span class="tdot" style="background:#ffffff"></span>1コース</span><span class="tbar"><i style="width:84.2%"></i></span><span class="tval nums">84.2%</span><span class="tn nums">19走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#2b2b2b"></span>2コース</span><span class="tbar"><i style="width:17.6%"></i></span><span class="tval nums">17.6%</span><span class="tn nums">17走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#d83a36"></span>3コース</span><span class="tbar"><i style="width:14.3%"></i></span><span class="tval nums">14.3%</span><span class="tn nums">14走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#2f6fd0"></span>4コース</span><span class="tbar"><i style="width:36.8%"></i></span><span class="tval nums">36.8%</span><span class="tn nums">19走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#f2c200"></span>5コース</span><span class="tbar"><i style="width:16.7%"></i></span><span class="tval nums">16.7%</span><span class="tn nums">12走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#1f9e54"></span>6コース</span><span class="tbar"><i style="width:0.0%"></i></span><span class="tval nums">0.0%</span><span class="tn nums">15走</span></div><div class="note">数字は各コースからの1着率（直近半年・公式集計）。</div>
+  </section>
+  <section class="card">
+    <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:46.4%"></i></span><span class="kval nums">46.4%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:19.6%"></i></span><span class="kval nums">19.6%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:10.7%"></i></span><span class="kval nums">10.7%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.7%"></i></span><span class="kval nums">10.7%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:12.5%"></i></span><span class="kval nums">12.5%</span></div><div class="note">直近1年・勝ち56件の内訳です。</div>
+  </section>
+  <section class="card">
+    <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
+    <div class="nohome">特に際立って強い会場は、まだ見つかっていません。</div>
+  </section>
+  <section class="card">
+    <div class="card-ttl"><span class="pin"></span>今の調子</div>
+    <div class="kon"><b>直近</b> 3着→1着→1着 / 進入まちまち / STにばらつき </div>
+  </section>
+  <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。</p>
+</div>
+</body>
+</html>
