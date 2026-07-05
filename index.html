@@ -106,12 +106,21 @@ body{background:var(--bg); color:var(--ink);
 .trend-ttl{font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px;}
 .trend-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
 .trend-sub{font-size:11.5px; color:var(--muted);}
-.trow{display:grid; grid-template-columns:74px 1fr 44px; align-items:center; gap:10px; padding:3px 0;}
+.trow{display:grid; grid-template-columns:74px 1fr 58px; align-items:center; gap:10px; padding:4px 0;}
+.trow.tthin{opacity:.55;}
 .tcourse{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2);}
 .tdot{width:10px; height:10px; border-radius:3px; border:1px solid rgba(125,125,125,.4); flex:0 0 auto;}
-.tbar{height:8px; background:var(--bg); border-radius:4px; overflow:hidden;}
-.tbar i{display:block; height:100%; background:var(--accent);}
+.tbar{height:8px; background:var(--bg); border-radius:4px; overflow:hidden; position:relative;}
+.tbar i{display:block; height:100%; position:absolute; left:0; top:0; border-radius:4px;}
+.tbar i.p3{background:var(--accent); opacity:.32;}
+.tbar i.win{background:var(--accent);}
+.tval-wrap{display:flex; flex-direction:column; align-items:flex-end; line-height:1.3;}
 .tval{font-size:13px; font-weight:600; text-align:right;}
+.tval-sub{font-size:10.5px; font-weight:400; color:var(--muted);}
+.tlegend{font-size:11px; color:var(--muted); margin:0 0 8px; display:flex; flex-wrap:wrap; gap:4px 14px;}
+.tlegend span{display:inline-flex; align-items:center; gap:5px;}
+.tlegend b{width:10px; height:10px; border-radius:3px; display:inline-block; background:var(--accent);}
+.tlegend b.p3{opacity:.32;}
 .thint{font-size:12px; color:var(--ink2); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2); line-height:1.55;}
 .tna{font-size:12.5px; color:var(--muted); padding:4px 0;}
 
@@ -358,27 +367,35 @@ function trendPanel(venueName){
       <div class="tna">傾向データは集計中です（毎晩たまっていきます）。</div></div>`;
   }
   const vs=S.venues[venueName], nat=S.overall;
-  let rows="";
+  const MIN_N=20;   // 天候・決まり手ブロックと同じ基準：これ未満は薄く表示＋参考程度
+  let rows="", thin1 = vs[1].n<MIN_N, anyThin=false;
   for(let c=1;c<=6;c++){
     const x=vs[c]; if(!x) continue;
-    rows+=`<div class="trow">
+    const thin = x.n<MIN_N; if(thin) anyThin=true;
+    rows+=`<div class="trow${thin?" tthin":""}">
       <span class="tcourse"><span class="tdot" style="background:${LANES[c].bg}"></span>${c}コース</span>
-      <span class="tbar"><i style="width:${x.win}%"></i></span>
-      <span class="tval nums">${x.win}%</span>
+      <span class="tbar"><i class="p3" style="width:${x.p3}%"></i><i class="win" style="width:${x.win}%"></i></span>
+      <span class="tval-wrap">
+        <span class="tval nums">${x.win}%</span>
+        <span class="tval-sub nums">3着内${x.p3}%</span>
+      </span>
     </div>`;
   }
-  const v1=vs[1].win, n1=nat[1].win;
+  const v1=vs[1].win, n1=nat[1].win, v1p3=vs[1].p3, n1p3=nat[1].p3;
   let hint;
   if(v1>=n1+3) hint=`1コースの1着率が全国平均(${n1}%)より高め。インが信頼されやすい場。`;
   else if(v1<=n1-3) hint=`1コースの1着率が全国平均(${n1}%)より低め。波乱（外の差し・まくり）が起きやすい場。`;
   else hint=`1コースの強さはほぼ全国平均(${n1}%)どおり。`;
+  hint += ` 1コースの3着以内率は${v1p3}%${thin1?"（本数少なめ・参考程度）":`（全国平均${n1p3}%）`}。`;
   return `<div class="trend">
     <div class="trend-head">
       <span class="trend-ttl"><span class="pin"></span>この会場のクセ</span>
-      <span class="trend-sub">進入コース別 1着率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
+      <span class="trend-sub">進入コース別 1着率・3着以内率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
     </div>
+    <div class="tlegend"><span><b class="win"></b>1着率</span><span><b class="p3"></b>3着以内率（1〜3着に入った割合）</span></div>
     ${rows}
     <div class="thint">${hint}</div>
+    ${anyThin?'<div class="tna">本数が少ないコース(20走未満)は薄く表示・参考程度に。</div>':""}
     ${weatherBlock(venueName)}
     ${kimariteBlock(venueName)}
   </div>`;
