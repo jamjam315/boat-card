@@ -100,7 +100,7 @@ NAV_JS = """
     var lane = '<span class="lane" style="background:'+col[0]+';color:'+col[1]+'">'+person.n+'</span>';
     var name = '<span class="nm">'+person.name+'</span>';
     var arrow = dir === "prev" ? '<span class="arrow">‹</span>' : '<span class="arrow">›</span>';
-    el.innerHTML = dir === "prev" ? (arrow+lane+name) : (lane+name+arrow);
+    el.innerHTML = arrow+lane+name;
   }
   fill(document.getElementById("heroPrev"), prev, "prev");
   fill(document.getElementById("heroNext"), next, "next");
