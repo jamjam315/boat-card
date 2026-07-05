@@ -118,11 +118,16 @@ def build():
     by_venue, by_player = load_results_index()
 
     # 表示用にフィールドを絞る（index.html が読む形）
-    order, venues = [], {}
+    order, venues, venue_kstart = [], {}, {}
     for r in races:
         venues.setdefault(r["会場"], [])
         if r["会場"] not in order:
             order.append(r["会場"])
+        if r["会場"] not in venue_kstart:
+            day = r["開催日目"]
+            # 「今節はいつ始まったか」= 今日 - (開催◯日目 - 1)。前回モーター使用者の割り出しで、
+            # 同じ節の中の記録を「前回」と誤認しないための境界線として使う。
+            venue_kstart[r["会場"]] = (d - datetime.timedelta(days=day - 1)).isoformat() if day else None
         venues[r["会場"]].append({
             "no": r["レース番号"], "dl": r["締切予定"],
             "boats": [{
@@ -131,11 +136,12 @@ def build():
                 "nw": b.get("全国勝率"), "nw2": b.get("全国2連率"),
                 "lw": b.get("当地勝率"), "lw2": b.get("当地2連率"),
                 "mo": b.get("モーター2連率"), "bo": b.get("ボート2連率"),
+                "mno": b.get("モーター番号"),
                 "ks": player_flow(by_venue, by_player, b["登番"], r["会場"], r["開催日目"], d),
             } for b in r["艇"]],
         })
     label = f"{d.year}年{d.month}月{d.day}日"
-    out = {"date": label, "venues": [{"name": n, "races": venues[n]} for n in order]}
+    out = {"date": label, "venues": [{"name": n, "races": venues[n], "kstart": venue_kstart[n]} for n in order]}
 
     js = "window.DATA = " + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open("data.js", "w", encoding="utf-8").write(js)

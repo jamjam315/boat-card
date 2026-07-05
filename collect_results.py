@@ -67,7 +67,8 @@ def append_from_txt(txt_path, date_iso, keys, fout):
                "決まり手": r.get("決まり手"),
                "結果": [{"着": x["着順"], "艇": x["艇番"], "進": x["進入コース"],
                         "ST": x["ST"], "STt": x["ST種別"], "登番": x["登番"],
-                        "展": x.get("展示")}   # ← 追加：展示タイム
+                        "展": x.get("展示"),   # ← 追加：展示タイム
+                        "モ": x.get("モーター番号"), "名": x["選手名"]}   # ← 追加：前回使用者の割り出し用
                        for x in r["結果"]]}
         fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
         added += 1

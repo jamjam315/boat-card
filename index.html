@@ -100,6 +100,9 @@ body{background:var(--bg); color:var(--ink);
 .stat.mo{min-width:62px;}
 .bar{height:4px; background:var(--bg); border-radius:2px; margin-top:4px; overflow:hidden;}
 .bar i{display:block; height:100%; background:var(--accent);}
+.mprev{font-size:10px; color:var(--ink2); margin-top:4px; white-space:nowrap;}
+.mprev.thin{color:var(--muted); font-style:italic;}
+.mprev a{color:inherit; text-decoration:underline; text-decoration-color:var(--line2); text-underline-offset:2px;}
 
 .trend{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:14px 18px;}
 .trend-head{display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
@@ -193,6 +196,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="players.js" onerror="window.PLAYERS=null"></script>
 <script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
 <script src="featured.js" onerror="window.FEATURED=null"></script>
+<script src="motors.js" onerror="window.MOTORS=null"></script>
 <script>
 const LANES = {
  1:{bg:"#ffffff",fg:"#1a1a1a"},2:{bg:"#2b2b2b",fg:"#ffffff"},3:{bg:"#d83a36",fg:"#ffffff"},
@@ -211,6 +215,17 @@ function playerName(name,toban,crewParam){
     return `<a href="players/${toban}.html${q}" target="_blank" rel="noopener">${name}</a>`;
   }
   return name;
+}
+function motorPrevLine(venueName, mno){
+  const M=window.MOTORS;
+  if(!M || mno==null) return "";
+  const rec = M[`${venueName}:${mno}`];
+  if(rec===undefined) return "";
+  if(!rec) return `<div class="mprev thin">前回：データなし（新機の可能性）</div>`;
+  const nameHtml = PLAYER_PAGES.has(rec.touban)
+    ? `<a href="players/${rec.touban}.html" target="_blank" rel="noopener">${rec.name}</a>`
+    : rec.name;
+  return `<div class="mprev">前回：${rec.k?rec.k+" ":""}${nameHtml}</div>`;
 }
 function stTag(toban){
   const P=window.PLAYERS;
@@ -418,7 +433,8 @@ function renderCard(){
         <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
         <div class="stat"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div></div>
         <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
-          <div class="bar"><i style="width:${mo}%"></i></div></div>
+          <div class="bar"><i style="width:${mo}%"></i></div>
+          ${motorPrevLine(v.name, b.mno)}</div>
       </div>
     </div>`;
   }).join("");
