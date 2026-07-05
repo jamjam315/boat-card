@@ -157,9 +157,27 @@ body{background:var(--bg); color:var(--ink);
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot b{color:var(--ink2); font-weight:600;}
 @media (max-width:460px){
-  .stats{gap:11px} .stat .v{font-size:14px} .stat.mo{min-width:54px}
-  .boat{grid-template-columns:36px 1fr auto; gap:10px; padding:12px 14px}
+  /* スマホ幅だけ：バッジ+選手情報を上段、勝率・モーター欄は下段に全幅で並べ替える。
+     PC側のルール(.boat/.stats等の基本定義)は一切変更せず、ここで上書きするだけ。 */
+  .boat{
+    grid-template-columns:36px 1fr;
+    grid-auto-rows:auto;
+    gap:10px;
+    padding:12px 14px;
+  }
   .bname{font-size:14px}
+  .stats{
+    grid-column:1 / -1;
+    justify-content:space-between;
+    gap:8px;
+    margin-top:2px;
+    padding-top:10px;
+    border-top:1px dashed var(--line2);
+  }
+  .stat{flex:1; text-align:center;}
+  .stat .v{font-size:14px}
+  .stat.mo{min-width:0;}
+  .mprev{white-space:normal; text-align:center;}
 }
 </style>
 </head>
