@@ -249,12 +249,20 @@ function stTag(toban){
   const P=window.PLAYERS;
   if(!P||!P.players||!toban) return "";
   const p=P.players[toban];
-  if(!p||p.n<(P.min||8)) return "";
+  if(!p||!p.n||p.n<(P.min||8)) return "";
   const st=p.st;
   let cls="st-n", label="標準";
   if(st<=0.140){cls="st-a"; label="攻";}
   else if(st>=0.185){cls="st-c"; label="慎重";}
   return `<span class="st-tag ${cls}">ST ${st.toFixed(2)}<span class="stl">${label}</span></span>`;
+}
+function p3Line(toban){
+  const P=window.PLAYERS;
+  if(!P||!P.players||!toban) return "";
+  const p=P.players[toban];
+  if(!p||!p.p3n) return `<div class="mprev thin">全国3着内：蓄積中</div>`;
+  if(p.p3n<20) return `<div class="mprev thin">全国3着内 ${p.p3}%（${p.p3n}走）</div>`;
+  return `<div class="mprev">全国3着内 ${p.p3}%</div>`;
 }
 
 function konSetsuLine(ks){
@@ -449,7 +457,7 @@ function renderCard(){
       </div>
       <div class="stats nums">
         <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
-        <div class="stat"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div></div>
+        <div class="stat"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div>${p3Line(b.t)}</div>
         <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
           <div class="bar"><i style="width:${mo}%"></i></div>
           ${motorPrevLine(v.name, b.mno)}</div>
