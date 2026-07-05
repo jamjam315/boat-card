@@ -25,10 +25,13 @@ jobs:
       - name: 今日の番組表を取得して data.js を作る
         run: python fetch_update.py
 
+      - name: 今日の注目選手を選んで featured.js を作る
+        run: python build_featured.py
+
       - name: 変化があればコミット
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add data.js
+          git add data.js featured.js
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push

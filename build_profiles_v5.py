@@ -5,10 +5,12 @@
 - 決まり手・当地(会場別) → fanには無いため、引き続きK(results.jsonl)から算出。
 - 今節/直近の流れ → 既存のfetch_update.py(player_flow)ロジックをそのまま流用。
 """
-import json, statistics
+import json, os, statistics
 from collections import Counter, defaultdict
 
-CLONE = r"C:\Users\jam\AppData\Local\Temp\claude\F--claudeMemory\5d0a507f-f90d-4b5d-b3d9-83bfc6bce64d\scratchpad\boat-card"
+# リポジトリのチェックアウト先がどこでも(ローカルWindows・GitHub ActionsのUbuntu等)
+# fan2604.json/results.jsonlをこのファイルと同じディレクトリから読めるようにする。
+CLONE = os.path.dirname(os.path.abspath(__file__))
 
 MIN_WIN_N = 3
 MIN_DIFF = 10
@@ -190,4 +192,8 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
         "touban": touban, "profile": fan_p, "catch": catch, "catch_basis": "。".join(basis_parts),
         "course": course_out, "kimarite_pct": kimarite_pct, "kimarite_total_wins": total_wins,
         "home": home, "ks": ks,
+        # 二つ名の「際立ちの強さ」を他選手と比較するための値(トップページの注目選手選びで使う)。
+        # best_diffは決まり手が全国平均よりどれだけ際立つか(pt)。total_wins<MIN_WIN_Nの時はNone(蓄積中)。
+        "best_diff": best_diff if total_wins >= MIN_WIN_N else None,
+        "home_master": bool(home and home["win"] >= VENUE_MASTER_WIN and home["diff"] >= VENUE_MASTER_DIFF),
     }
