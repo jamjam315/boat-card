@@ -171,16 +171,14 @@ def kon_block(prof):
         return f'<div class="kon">{label}データ少なめ（{n}走）</div>'
     flow = ks["r"][-3:]
     flow_str = "→".join(f"{c}着" if c <= 3 else "着外" for c in flow)
+    # 進入は際立つ時だけ一言添える(「進入まちまち」=特徴なしは出さない)。
+    # STの安定度はカードのSTバッジと二重表現かつほぼ常に「ばらつき」で情報にならないため出さない。
     avgc = sum(ks["c"]) / len(ks["c"])
-    course_hint = "進入ほぼイン" if avgc <= 1.6 else ("進入は外めが多い" if avgc >= 4 else "進入まちまち")
-    sts = [s for s in ks["s"] if s is not None]
-    st_hint = ""
-    if len(sts) >= 2:
-        avg_s = sum(sts) / len(sts)
-        sd = (sum((s - avg_s) ** 2 for s in sts) / len(sts)) ** 0.5
-        st_hint = " / ST安定" if sd <= 0.02 else " / STにばらつき"
+    course_hint = ""
+    if avgc <= 1.6: course_hint = " / 進入ほぼイン"
+    elif avgc >= 4: course_hint = " / 進入は外めが多い"
     tail = f'<span style="color:var(--muted);font-style:italic;">（{label}{n}走）</span>' if n < 10 else ""
-    return f'<div class="kon"><b>{label}</b> {flow_str} / {course_hint}{st_hint} {tail}</div>'
+    return f'<div class="kon"><b>{label}</b> {flow_str}{course_hint} {tail}</div>'
 
 
 def render_page(prof):

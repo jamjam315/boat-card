@@ -224,23 +224,15 @@ function konSetsuLine(ks){
   // 着順の流れ(直近3走を新しい順に見せる)
   const flow = ks.r.slice(-3).map(c => c<=3 ? `${c}着` : "着外").join("→");
 
-  // 進入の傾向(平均コース)
+  // 進入の傾向(平均コース)。際立つ時だけ一言添える(「進入まちまち」=特徴なしは出さない)。
+  // STの安定度はカードに既にSTバッジがあり二重表現かつほぼ常に「ばらつき」で情報にならないため、ここには出さない。
   const avgC = ks.c.reduce((a,b)=>a+b,0)/ks.c.length;
-  let courseHint;
+  let courseHint = "";
   if(avgC<=1.6) courseHint="進入ほぼイン";
-  else if(avgC>=4)  courseHint="進入は外めが多い";
-  else courseHint="進入まちまち";
+  else if(avgC>=4) courseHint="進入は外めが多い";
 
-  // STの安定度(標準偏差)
-  const sts = ks.s.filter(s=>s!=null);
-  let stHint="";
-  if(sts.length>=2){
-    const avgS=sts.reduce((a,b)=>a+b,0)/sts.length;
-    const sd=Math.sqrt(sts.reduce((a,b)=>a+(b-avgS)**2,0)/sts.length);
-    stHint = sd<=0.02 ? "ST安定" : "STにばらつき";
-  }
   const tail = n<4 ? `<span class="thin">（${label}${n}走）</span>` : "";
-  return `<div class="kon"><b>${label}</b> ${flow} / ${courseHint}${stHint?" / "+stHint:""} ${tail}</div>`;
+  return `<div class="kon"><b>${label}</b> ${flow}${courseHint?" / "+courseHint:""} ${tail}</div>`;
 }
 
 function renderFeatured(){
