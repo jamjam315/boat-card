@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-07-05", "toban": "4778", "name": "堤啓輔", "k": "B1", "age": 40, "br": "佐賀", "catch": "尼崎巧者", "basis": "尼崎で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "尼崎", "races": [5, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-07-06", "toban": "5330", "name": "安河内鈴之介", "k": "A2", "age": 22, "br": "福岡", "catch": "若き蒲郡の主", "basis": "蒲郡で圧倒的な強さを見せているため（詳しくは下の「当地」欄）。22歳", "venue": "蒲郡", "races": [12], "reason": "home"};
