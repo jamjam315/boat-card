@@ -61,6 +61,10 @@ body{background:var(--bg); color:var(--ink);
 .badge{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
   font-size:17px; font-weight:700; border:1px solid rgba(125,125,125,.3);}
 .bname{font-size:15px; font-weight:600;}
+.bname a{color:inherit; text-decoration:underline; text-decoration-color:var(--line2);
+  text-decoration-thickness:1.5px; text-underline-offset:3px; display:inline-block; padding:3px 0;}
+.bname a:active{opacity:.6;}
+.bname a::after{content:"›"; display:inline-block; margin-left:2px; color:var(--accent); font-weight:700;}
 .bk{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
   border-radius:5px; padding:1px 6px; margin-left:5px;}
 .bmeta{font-size:12.5px; color:var(--ink2); margin-top:2px;}
@@ -164,17 +168,25 @@ body{background:var(--bg); color:var(--ink);
 <script src="data.js"></script>
 <script src="stats.js" onerror="window.STATS=null"></script>
 <script src="players.js" onerror="window.PLAYERS=null"></script>
+<script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
 <script>
 const LANES = {
  1:{bg:"#ffffff",fg:"#1a1a1a"},2:{bg:"#2b2b2b",fg:"#ffffff"},3:{bg:"#d83a36",fg:"#ffffff"},
  4:{bg:"#2f6fd0",fg:"#ffffff"},5:{bg:"#f2c200",fg:"#3a2e00"},6:{bg:"#1f9e54",fg:"#ffffff"}
 };
 if(!window.DATA){document.getElementById("card").innerHTML="<p style=\"padding:20px;color:#888\">データ読み込み中…</p>";}
+const PLAYER_PAGES = new Set(window.PLAYER_PAGES || []);
 let vi=0, rno=null;
 document.getElementById("datepill").textContent = DATA.date;
 
 function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
 function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
+function playerName(name,toban){
+  if(toban && PLAYER_PAGES.has(toban)){
+    return `<a href="players/${toban}.html" target="_blank" rel="noopener">${name}</a>`;
+  }
+  return name;
+}
 function stTag(toban){
   const P=window.PLAYERS;
   if(!P||!P.players||!toban) return "";
@@ -357,7 +369,7 @@ function renderCard(){
     return `<div class="boat">
       <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
       <div>
-        <div class="bname">${b.name}<span class="bk">${b.k}</span></div>
+        <div class="bname">${playerName(b.name,b.t)}<span class="bk">${b.k}</span></div>
         <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
         ${konSetsuLine(b.ks)}
       </div>

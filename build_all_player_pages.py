@@ -7,7 +7,7 @@ fan(コース傾向・属性・母数厚い公式集計) + K(決まり手・当�
 【今回の範囲】ページ生成のみ。トップページ・レースカードからのリンク、URL構造の変更はしない
 (このスクリプトは既存サイトのどこからも参照されない、独立した出力)。
 """
-import os, statistics
+import os, json, statistics
 from build_profiles_v5 import load_fan_master, load_k_stats, build_profile
 
 OUT_DIR = "players"
@@ -172,6 +172,7 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     n_ok = 0
     n_err = 0
+    written = []
     for t in both:
         try:
             fp = fan_master[t]; kp = players_k[t]
@@ -181,11 +182,18 @@ def main():
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
             n_ok += 1
+            written.append(t)
         except Exception as e:
             n_err += 1
             print(f"[error] 登番{t}: {e}")
 
-    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ")
+    # players/{登番}.html が実際に書けた登番の一覧を index.html 側へ渡す。
+    # 生成できたページと完全に同じ集合(written)から作るので、このスクリプトを
+    # 再実行するたびに players/ の中身と players_index.js が必ず一致する。
+    with open("players_index.js", "w", encoding="utf-8") as f:
+        f.write("window.PLAYER_PAGES = " + json.dumps(sorted(written)) + ";\n")
+
+    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ、players_index.js")
 
 if __name__ == "__main__":
     main()
