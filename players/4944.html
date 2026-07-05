@@ -20,10 +20,26 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nums{font-variant-numeric:tabular-nums lining-nums;}
 .topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
 .topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:#9fc3ba;}
-.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px 20px; text-align:center; margin-top:14px;}
+.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
+  display:flex; align-items:stretch;}
+.hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
 .hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .hero .catch{font-size:21px; font-weight:800; color:var(--accent); margin-top:14px;}
 .hero .catch-basis{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
+.hero-nav{flex:0 0 56px; display:none; flex-direction:column; align-items:center; justify-content:center;
+  gap:4px; text-decoration:none; color:var(--ink2); -webkit-tap-highlight-color:transparent;}
+.hero-nav:active{background:var(--bg);}
+.hero-nav.prev{border-radius:var(--radius) 0 0 var(--radius);}
+.hero-nav.next{border-radius:0 var(--radius) var(--radius) 0;}
+.hero-nav .arrow{font-size:22px; font-weight:700; color:var(--accent); line-height:1;}
+.hero-nav .lane{width:19px; height:19px; border-radius:5px; font-size:10.5px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
+.hero-nav .nm{font-size:9.5px; color:var(--muted); max-width:50px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+@media (max-width:380px){
+  .hero-nav{flex-basis:44px;}
+  .hero-nav .nm{max-width:38px;}
+  .hero-body{padding:20px 8px;}
+}
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:16px 18px;}
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
@@ -52,10 +68,14 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
-    <div class="pname">田代達也 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span></div>
-    <div class="pmeta">35歳 ・ 東京支部 ・ 57kg</div>
-    <div class="catch">「差し屋」</div>
-    <div class="catch-basis">差しでの1着が26.7%（全国平均11.8%より+14.9pt）</div>
+    <a class="hero-nav prev" id="heroPrev" aria-label="前の選手"></a>
+    <div class="hero-body">
+      <div class="pname">田代達也 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span></div>
+      <div class="pmeta">35歳 ・ 東京支部 ・ 57kg</div>
+      <div class="catch">「差し屋」</div>
+      <div class="catch-basis">差しでの1着が26.7%（全国平均11.8%より+14.9pt）</div>
+    </div>
+    <a class="hero-nav next" id="heroNext" aria-label="次の選手"></a>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>通算の進入コース傾向<span class="card-sub">直近半年(公式集計)</span></div>
@@ -75,5 +95,47 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。</p>
 </div>
+
+<script>
+(function(){
+  var MY_TOBAN = "4944";
+  var crew = new URLSearchParams(location.search).get("crew");
+  if(!crew) return;
+  var list = crew.split(",").map(function(s){
+    var parts = s.split(":");
+    return {t: parts[0], n: parts[1], name: parts.slice(2).join(":")};
+  }).filter(function(x){ return x.t; });
+  var idx = -1;
+  for(var i=0;i<list.length;i++){ if(list[i].t === MY_TOBAN){ idx = i; break; } }
+  if(idx === -1 || list.length < 2) return;
+  var prev = list[(idx - 1 + list.length) % list.length];
+  var next = list[(idx + 1) % list.length];
+  var LANE = {"1":["#ffffff","#1a1a1a"],"2":["#2b2b2b","#ffffff"],"3":["#d83a36","#ffffff"],
+    "4":["#2f6fd0","#ffffff"],"5":["#f2c200","#3a2e00"],"6":["#1f9e54","#ffffff"]};
+  function fill(el, person, dir){
+    if(!el) return;
+    el.href = person.t + ".html?crew=" + encodeURIComponent(crew);
+    el.style.display = "flex";
+    var col = LANE[person.n] || ["#ccc","#333"];
+    var lane = '<span class="lane" style="background:'+col[0]+';color:'+col[1]+'">'+person.n+'</span>';
+    var name = '<span class="nm">'+person.name+'</span>';
+    var arrow = dir === "prev" ? '<span class="arrow">‹</span>' : '<span class="arrow">›</span>';
+    el.innerHTML = dir === "prev" ? (arrow+lane+name) : (lane+name+arrow);
+  }
+  fill(document.getElementById("heroPrev"), prev, "prev");
+  fill(document.getElementById("heroNext"), next, "next");
+
+  var startX = null;
+  document.addEventListener("touchstart", function(e){ startX = e.touches[0].clientX; }, {passive:true});
+  document.addEventListener("touchend", function(e){
+    if(startX === null) return;
+    var dx = e.changedTouches[0].clientX - startX;
+    startX = null;
+    if(Math.abs(dx) < 60) return;
+    var target = dx < 0 ? document.getElementById("heroNext") : document.getElementById("heroPrev");
+    if(target && target.getAttribute("href")) window.location.href = target.getAttribute("href");
+  }, {passive:true});
+})();
+</script>
 </body>
 </html>

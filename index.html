@@ -181,9 +181,10 @@ document.getElementById("datepill").textContent = DATA.date;
 
 function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
 function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
-function playerName(name,toban){
+function playerName(name,toban,crewParam){
   if(toban && PLAYER_PAGES.has(toban)){
-    return `<a href="players/${toban}.html" target="_blank" rel="noopener">${name}</a>`;
+    const q = crewParam ? `?crew=${crewParam}` : "";
+    return `<a href="players/${toban}.html${q}" target="_blank" rel="noopener">${name}</a>`;
   }
   return name;
 }
@@ -364,12 +365,15 @@ function trendPanel(venueName){
 }
 function renderCard(){
   const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);
+  const crewParam = encodeURIComponent(
+    r.boats.filter(x=>PLAYER_PAGES.has(x.t)).map(x=>`${x.t}:${x.n}:${x.name}`).join(",")
+  );
   const rows=r.boats.map(b=>{
     const L=LANES[b.n], mo=(b.mo==null?0:Math.round(b.mo*10)/10);
     return `<div class="boat">
       <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
       <div>
-        <div class="bname">${playerName(b.name,b.t)}<span class="bk">${b.k}</span></div>
+        <div class="bname">${playerName(b.name,b.t,crewParam)}<span class="bk">${b.k}</span></div>
         <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
         ${konSetsuLine(b.ks)}
       </div>
