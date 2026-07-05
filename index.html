@@ -179,6 +179,12 @@ body{background:var(--bg); color:var(--ink);
   .stat.mo{min-width:0;}
   .mprev{white-space:normal; text-align:center;}
 }
+@media (min-width:461px){
+  /* PC幅だけ：成績ブロック(全国勝率/当地勝率/モーター2率)の列幅を固定し、
+     選手名やプロフィールの文字数・前回使用者名の長さで横位置がズレないようにする。
+     スマホ側(上のmax-width:460pxブロック)には一切触れない。 */
+  .boat{grid-template-columns:40px 1fr 270px;}
+}
 </style>
 </head>
 <body>
