@@ -182,8 +182,13 @@ body{background:var(--bg); color:var(--ink);
 @media (min-width:461px){
   /* PC幅だけ：成績ブロック(全国勝率/当地勝率/モーター2率)の列幅を固定し、
      選手名やプロフィールの文字数・前回使用者名の長さで横位置がズレないようにする。
+     さらに各列自身も固定幅にし、「全国3着内」「前回：〜」等の付随テキストの
+     長さで当地勝率・モーター2率の数字が個別にズレないようにする。
      スマホ側(上のmax-width:460pxブロック)には一切触れない。 */
-  .boat{grid-template-columns:40px 1fr 270px;}
+  .boat{grid-template-columns:40px 1fr 276px;}
+  .stat.nw{width:46px; flex:0 0 auto;}
+  .stat.lw{width:82px; flex:0 0 auto;}
+  .stat.mo{width:112px; min-width:0; flex:0 0 auto;}
 }
 </style>
 </head>
@@ -462,8 +467,8 @@ function renderCard(){
         ${konSetsuLine(b.ks)}
       </div>
       <div class="stats nums">
-        <div class="stat"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
-        <div class="stat"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div>${p3Line(b.t)}</div>
+        <div class="stat nw"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
+        <div class="stat lw"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div>${p3Line(b.t)}</div>
         <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
           <div class="bar"><i style="width:${mo}%"></i></div>
           ${motorPrevLine(v.name, b.mno)}</div>
