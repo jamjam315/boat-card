@@ -247,7 +247,8 @@ function renderFeatured(){
   const box=document.getElementById("featured");
   const F=window.FEATURED;
   if(!F || !PLAYER_PAGES.has(F.toban)){ box.innerHTML=""; return; }
-  const racesTxt = F.races.length>1 ? `${F.races[0]}Rなど${F.races.length}走` : `${F.races[0]}R`;
+  const racesTxt = F.races.length<=1 ? `${F.races[0]}R`
+    : F.races.slice(0,-1).map(r=>`${r}R`).join("・") + "と" + F.races[F.races.length-1] + "R";
   box.innerHTML = `<a class="feat" href="players/${F.toban}.html" target="_blank" rel="noopener">
     <div class="feat-eyebrow">📖 今日の注目選手</div>
     <div class="feat-catch">「${F.catch}」</div>
