@@ -157,11 +157,15 @@ def build():
             } for b in r["艇"]],
         })
     label = f"{d.year}年{d.month}月{d.day}日"
-    out = {"date": label, "venues": [{"name": n, "races": venues[n], "kstart": venue_kstart[n]} for n in order]}
+    # 実際にこのdata.jsを作った時刻(JST)。ハードコードの"7:30"ではなく、遅延・手動再実行の
+    # 実時刻を記録する(将来の「データが古い/取得失敗」警告の土台にもなる)。
+    generated_at = datetime.datetime.now(JST).strftime("%Y-%m-%d %H:%M")
+    out = {"date": label, "generated_at": generated_at,
+           "venues": [{"name": n, "races": venues[n], "kstart": venue_kstart[n]} for n in order]}
 
     js = "window.DATA = " + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open("data.js", "w", encoding="utf-8").write(js)
-    print(f"[done] data.js 更新: {len(order)}会場 / {len(races)}レース / {label}")
+    print(f"[done] data.js 更新: {len(order)}会場 / {len(races)}レース / {label} / 生成時刻{generated_at}")
 
 if __name__ == "__main__":
     build()
