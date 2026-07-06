@@ -183,6 +183,9 @@ body{background:var(--bg); color:var(--ink);
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot b{color:var(--ink2); font-weight:600;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+.seg-row{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+.guide-link{font-size:12px; color:var(--ink2); text-decoration:none; white-space:nowrap; margin:0 2px 7px 0;}
+.guide-link:hover{color:var(--accent)}
 @media (max-width:460px){
   /* スマホ幅だけ：バッジ+選手情報を上段、勝率・モーター欄は下段に全幅で並べ替える。
      PC側のルール(.boat/.stats等の基本定義)は一切変更せず、ここで上書きするだけ。 */
@@ -237,7 +240,7 @@ body{background:var(--bg); color:var(--ink);
 
   <div id="featured"></div>
 
-  <div class="seg"><p class="seg-label">レース場</p><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
+  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><a class="guide-link" href="guide.html">📖 読み方ガイド</a></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
   <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
 
   <main id="card"></main>

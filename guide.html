@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>読み方ガイド — 艇読み</title>
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.intro p{margin:0; font-size:15px; font-weight:600; color:var(--ink); line-height:1.75;}
+.intro p+p{margin-top:8px; font-size:12.5px; font-weight:400; color:var(--ink2);}
+
+.step{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.step-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.step-num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff;
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.step-ttl{font-size:15.5px; font-weight:700;}
+.step-body{font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.step-body b{color:var(--ink);}
+
+.demo{background:var(--bg); border:1px solid var(--line); border-radius:10px; margin:13px 0; padding:12px 14px;}
+.demo-cap{font-size:10.5px; color:var(--muted); margin-bottom:9px; letter-spacing:.02em;}
+
+.trow{display:grid; grid-template-columns:70px 1fr 46px; align-items:center; gap:9px; padding:3px 0;}
+.tcourse{font-size:12px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.tbar{height:8px; background:var(--surface); border-radius:4px; overflow:hidden;}
+.tbar i{display:block; height:100%; background:var(--accent);}
+.tval{font-size:12.5px; font-weight:600; text-align:right;}
+
+.krow{display:grid; grid-template-columns:70px 1fr 40px; align-items:center; gap:9px; padding:3px 0;}
+.kname{font-size:12px; color:var(--ink2);}
+.kbar{height:8px; background:var(--surface); border-radius:4px; overflow:hidden;}
+.kbar i{display:block; height:100%; background:var(--line2);}
+.krow.ktop .kbar i{background:var(--accent);}
+.krow.ktop .kname{color:var(--ink); font-weight:600;}
+.kval{font-size:12.5px; font-weight:600; text-align:right;}
+.kgroup+.kgroup{margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2);}
+.kgroup-ttl{font-size:11.5px; font-weight:600; color:var(--ink); margin-bottom:4px;}
+
+.chiprow{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+.st-tag{display:inline-block; font-size:11px; font-weight:600; border-radius:5px; padding:2px 7px; border:1px solid transparent;}
+.st-tag .stl{font-weight:400; margin-left:3px; opacity:.85;}
+.st-a{background:#fde7e7; color:#b32b2b; border-color:#f3c9c9;}
+.st-n{background:#eceef0; color:#54616a; border-color:#dde1e4;}
+.st-c{background:#e3eef0; color:#2b6b78; border-color:#cfe1e4;}
+.fbadge{font-size:11px; font-weight:700; background:#fde7e7; color:#b32b2b; border:1px solid #f3c9c9;
+  border-radius:5px; padding:2px 7px;}
+@media (prefers-color-scheme: dark){
+  .st-a{background:#3a1d1d; color:#f3a3a3; border-color:#542a2a;}
+  .st-n{background:#222d32; color:#9fb0b6; border-color:#33424a;}
+  .st-c{background:#16323a; color:#7fcdd9; border-color:#234a54;}
+  .fbadge{background:#3a1d1d; color:#f3a3a3; border-color:#542a2a;}
+}
+.chipcap{font-size:11.5px; color:var(--muted); margin-top:3px;}
+
+.lineup{display:flex; gap:7px; justify-content:space-between;}
+.lane{flex:1; text-align:center;}
+.lane .badge{width:100%; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:700; border:1px solid rgba(125,125,125,.3);}
+.lane .lst{display:block; font-size:9.5px; margin-top:4px; color:var(--ink2); white-space:nowrap;}
+
+.linktip{font-size:12px; color:var(--accent); margin-top:11px; padding-top:11px; border-top:1px dashed var(--line2);}
+
+.closing{background:var(--accent-soft); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.closing p{margin:0; font-size:14.5px; font-weight:600; color:var(--ink); line-height:1.8;}
+.closing p+p{margin-top:9px; font-size:12.5px; font-weight:400; color:var(--ink2);}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>読み方ガイド</p></div>
+  </header>
+  <a class="back" href="index.html">← トップに戻る</a>
+
+  <section class="intro">
+    <p>艇読みは、予想印（◎○▲）を出しません。<br>かわりに、レースを読む順番をお渡しします。</p>
+    <p>答え合わせではなく、自分の目で流れを追えるようになるための4つのステップです。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><span class="step-ttl">まず、インが有利という土台を知る</span></div>
+    <div class="step-body">
+      競艇は、いちばん内側の1コースの選手が1着になりやすい競技です。直近1年の全国平均では、1コースの1着率は<b>55.9%</b>。6艇のうち1艇なのに、半分以上を占めます。
+      <br><br>
+      ただしこの傾向は会場によって差があります。<b>徳山は62.9%</b>とさらにインが強く、<b>戸田は43.0%</b>までインの優位が薄れます。同じ「1コース」でも、会場によって信頼度が変わるということです。
+      <div class="demo">
+        <div class="demo-cap">1コースの1着率（直近1年・実データ）</div>
+        <div class="trow"><span class="tcourse">全国平均</span><span class="tbar"><i style="width:55.9%"></i></span><span class="tval nums">55.9%</span></div>
+        <div class="trow"><span class="tcourse">徳山</span><span class="tbar"><i style="width:62.9%"></i></span><span class="tval nums">62.9%</span></div>
+        <div class="trow"><span class="tcourse">戸田</span><span class="tbar"><i style="width:43.0%"></i></span><span class="tval nums">43.0%</span></div>
+      </div>
+      <div class="linktip">→ トップページの「🌊 この会場のクセ」ブロックで、今日選んだ会場の実際の数字を確認できます。</div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">スタート（ST）を見る</span></div>
+    <div class="step-body">
+      ST（スタートタイミング）は、合図から何秒後に出走したかを表す数字。<b>0に近いほどスタートが上手い</b>とされます。艇読みでは0.140秒以下を「攻」、0.185秒以上を「慎重」、その間を「標準」として色分けしています。
+      <br><br>
+      また、フライング（スタートの早出）の経験がある選手には赤い「F」バッジが付きます。F持ちの選手は次のスタートで様子を見て、やや慎重になりやすい傾向があります。
+      <div class="demo">
+        <div class="demo-cap">レースカードで実際に見えるバッジ</div>
+        <div class="chiprow">
+          <span class="st-tag st-a">ST 0.12<span class="stl">攻</span></span>
+          <span class="st-tag st-n">ST 0.16<span class="stl">標準</span></span>
+          <span class="st-tag st-c">ST 0.20<span class="stl">慎重</span></span>
+          <span class="fbadge">F1</span>
+        </div>
+        <div class="chipcap">F持ちの選手は次走、様子見でやや慎重になりやすい傾向があります。</div>
+      </div>
+      <div class="linktip">→ レースカードの選手名の横にあるSTバッジ・赤いFバッジで、その選手の傾向を確認できます。</div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">第1ターンの展開を想像する</span></div>
+    <div class="step-body">
+      進入コースとSTが分かったら、次はそれを頭の中で組み合わせます。「1コースの選手はスタートが速いか」「外のコースにスタートの得意な選手がいないか」——この組み合わせから、最初のコーナー（第1ターン）で誰が前に出そうかを想像します。
+      <br><br>
+      たとえば下のような並びなら、1号艇と4号艇がスタートで前に出そうです。1号艇はイン、4号艇はやや外——第1ターンで1号艇が先に回れれば逃げの形、4号艇が並びかければまくりの形になります。
+      <div class="demo">
+        <div class="demo-cap">たとえば、こんな並びなら（架空の例）</div>
+        <div class="lineup">
+          <div class="lane"><div class="badge" style="background:#fff;color:#1a1a1a">1</div><span class="lst">攻</span></div>
+          <div class="lane"><div class="badge" style="background:#2b2b2b;color:#fff">2</div><span class="lst">標準</span></div>
+          <div class="lane"><div class="badge" style="background:#d83a36;color:#fff">3</div><span class="lst">標準</span></div>
+          <div class="lane"><div class="badge" style="background:#2f6fd0;color:#fff">4</div><span class="lst">攻</span></div>
+          <div class="lane"><div class="badge" style="background:#f2c200;color:#3a2e00">5</div><span class="lst">標準</span></div>
+          <div class="lane"><div class="badge" style="background:#1f9e54;color:#fff">6</div><span class="lst">慎重</span></div>
+        </div>
+      </div>
+      ここが艇読みでいちばん面白いところです。数字を眺めるだけでなく、そこから実際のレースの絵を思い浮かべる。答えは決まっていないからこそ、自分なりの読みが生まれます。
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">決まり手で仕上げる</span></div>
+    <div class="step-body">
+      最後は「勝ち方」の視点を足します。決まり手とは、1着の艇がどう勝ったかの型（逃げ・差し・まくり・まくり差し・抜き）。会場ごとにクセがあり、たとえば<b>徳山は逃げが60.1%</b>（全国平均53.5%）と堅く決まりやすい場。逆に<b>戸田は逃げが41.2%</b>にとどまり、まくり系（まくり＋まくり差し）が38.3%と多い、荒れやすい場です。
+      <div class="demo">
+        <div class="demo-cap">決まり手の内訳（直近1年・実データ）</div>
+        <div class="kgroup">
+          <div class="kgroup-ttl">徳山（堅い場）</div>
+          <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:60.1%"></i></span><span class="kval nums">60.1%</span></div>
+          <div class="krow"><span class="kname">まくり系</span><span class="kbar"><i style="width:21.7%"></i></span><span class="kval nums">21.7%</span></div>
+        </div>
+        <div class="kgroup">
+          <div class="kgroup-ttl">戸田（荒れる場）</div>
+          <div class="krow"><span class="kname">逃げ</span><span class="kbar"><i style="width:41.2%"></i></span><span class="kval nums">41.2%</span></div>
+          <div class="krow ktop"><span class="kname">まくり系</span><span class="kbar"><i style="width:38.3%"></i></span><span class="kval nums">38.3%</span></div>
+        </div>
+      </div>
+      そこに選手個人の得意な勝ち方を重ねます。艇読みの選手図鑑では「イン逃げ屋」「まくり十八番」のような二つ名で、その選手がどう勝つタイプかを表しています。会場のクセと選手の得意技が噛み合っているかを見ると、読みの精度が上がります。
+      <div class="linktip">→ トップページの「🎯 決まり手のクセ」ブロックと、選手名のリンク先（図鑑ページの二つ名）を見比べてみましょう。</div>
+    </div>
+  </section>
+
+  <section class="closing">
+    <p>このサイトに答え（買い目）は書いていません。ここまで読めたら、もう自分で読めています。</p>
+    <p>あとは会場を選んで、実際の数字と選手を見ながら、自分なりの読みを組み立ててみてください。楽しみ方は人それぞれ。舟券は余裕資金の範囲で、無理なく。</p>
+  </section>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。</p>
+</div>
+</body>
+</html>
