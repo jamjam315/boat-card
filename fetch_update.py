@@ -73,6 +73,18 @@ def player_flow(by_venue, by_player, touban, venue, day, today):
         "r": [rec[4] for rec in rows],   # 着順
     }
 
+def load_fan_weights():
+    """fan(期別集計)の体重を登番→体重(kg)で引けるようにする。
+    選手図鑑(build_all_player_pages.py)もfanの体重を使っているため、レースカードと
+    図鑑で体重が食い違わないよう、こちらもfan基準に揃える(Bの体重は当日計量で日々変動する)。
+    fanファイルが無い/該当が無い選手はBの体重にフォールバックする。
+    """
+    try:
+        fan = json.load(open("fan2604.json", encoding="utf-8"))
+        return {p["登番"]: p.get("体重") for p in fan}
+    except FileNotFoundError:
+        return {}
+
 def download(url, dest, tries=3):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     for i in range(tries):
@@ -116,6 +128,7 @@ def build():
         sys.exit(1)
 
     by_venue, by_player = load_results_index()
+    fan_weights = load_fan_weights()
 
     # 表示用にフィールドを絞る（index.html が読む形）
     order, venues, venue_kstart = [], {}, {}
@@ -132,9 +145,12 @@ def build():
             "no": r["レース番号"], "dl": r["締切予定"],
             "boats": [{
                 "n": b["艇番"], "t": b["登番"], "name": b["選手名"], "k": b["級別"], "age": b["年齢"],
-                "br": b["支部"], "wt": b["体重"],
+                "br": b["支部"], "wt": fan_weights.get(b["登番"], b["体重"]),
                 "nw": b.get("全国勝率"), "nw2": b.get("全国2連率"),
                 "lw": b.get("当地勝率"), "lw2": b.get("当地2連率"),
+                # 当地の出走実績数(1年分のK)。当地勝率0.00が「本当に走って0点」か
+                # 「そもそも当地未出走」かを見分けるために使う(表示側の判定用)。
+                "lwn": len(by_venue.get((b["登番"], r["会場"]), [])),
                 "mo": b.get("モーター2連率"), "bo": b.get("ボート2連率"),
                 "mno": b.get("モーター番号"),
                 "ks": player_flow(by_venue, by_player, b["登番"], r["会場"], r["開催日目"], d),

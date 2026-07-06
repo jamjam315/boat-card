@@ -97,6 +97,7 @@ body{background:var(--bg); color:var(--ink);
 .stat{text-align:right;}
 .stat .l{font-size:10.5px; color:var(--muted);}
 .stat .v{font-size:15px; font-weight:600;}
+.stat .v.lwthin{color:var(--muted); font-weight:400; font-style:italic;}
 .stat.mo{min-width:62px;}
 .bar{height:4px; background:var(--bg); border-radius:2px; margin-top:4px; overflow:hidden;}
 .bar i{display:block; height:100%; background:var(--accent);}
@@ -238,6 +239,16 @@ document.getElementById("datepill").textContent = DATA.date;
 
 function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
 function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
+function lwDisplay(lw,lwn){
+  // 当地勝率0.00は「実際に走って0点」と「そもそも当地未出走」を見分けて表示する。
+  // lwn=当地(1年分のK)での出走数。走行数が薄い(10走未満)場合は参考程度と分かる薄字にする。
+  if(lw==null) return `<div class="v">—</div>`;
+  if(lw===0){
+    if(!lwn) return `<div class="v lwthin">当地初</div>`;
+    if(lwn<10) return `<div class="v lwthin">0.00</div>`;
+  }
+  return `<div class="v">${Number(lw).toFixed(2)}</div>`;
+}
 function playerName(name,toban,crewParam){
   if(toban && PLAYER_PAGES.has(toban)){
     const q = crewParam ? `?crew=${crewParam}` : "";
@@ -468,7 +479,7 @@ function renderCard(){
       </div>
       <div class="stats nums">
         <div class="stat nw"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
-        <div class="stat lw"><div class="l">当地勝率</div><div class="v">${num(b.lw,2)}</div>${p3Line(b.t)}</div>
+        <div class="stat lw"><div class="l">当地勝率</div>${lwDisplay(b.lw,b.lwn)}${p3Line(b.t)}</div>
         <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
           <div class="bar"><i style="width:${mo}%"></i></div>
           ${motorPrevLine(v.name, b.mno)}</div>
