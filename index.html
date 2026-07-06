@@ -86,6 +86,11 @@ body{background:var(--bg); color:var(--ink);
 .bname a::after{content:"›"; display:inline-block; margin-left:2px; color:var(--accent); font-weight:700;}
 .bk{font-size:11px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
   border-radius:5px; padding:1px 6px; margin-left:5px;}
+.fbadge{font-size:11px; font-weight:700; background:#fde7e7; color:#b32b2b; border:1px solid #f3c9c9;
+  border-radius:5px; padding:1px 6px; margin-left:5px; cursor:help;}
+@media (prefers-color-scheme: dark){
+  .fbadge{background:#3a1d1d; color:#f3a3a3; border-color:#542a2a;}
+}
 .bmeta{font-size:12.5px; color:var(--ink2); margin-top:2px;}
 .kon{font-size:12px; color:var(--ink2); margin-top:3px;}
 .kon b{color:var(--ink); font-weight:600;}
@@ -229,7 +234,7 @@ body{background:var(--bg); color:var(--ink);
     <span><b style="background:#d83a36"></b>3</span><span><b style="background:#2f6fd0"></b>4</span>
     <span><b style="background:#f2c200"></b>5</span><span><b style="background:#1f9e54"></b>6</span>
   </p>
-  <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向と選手のスタート傾向を添えるので、見て自分で決めるための道具です。<br>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。「この会場のクセ」「選手のST癖（8走以上の平均ST）」は直近の結果データの集計です。</p>
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向と選手のスタート傾向を添えるので、見て自分で決めるための道具です。<br>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。「この会場のクセ」「選手のST癖（8走以上の平均ST）」は直近の結果データの集計です。<br>「F1」等の赤いバッジは、直近半年のフライング回数です。持っている選手は次のスタートを警戒し慎重になりやすい傾向があります。</p>
 </div>
 
 <script src="data.js"></script>
@@ -303,6 +308,11 @@ function motorPrevLine(venueName, mno){
     ? `<a href="players/${rec.touban}.html" target="_blank" rel="noopener">${rec.name}</a>`
     : rec.name;
   return `<div class="mprev">前回：${rec.k?rec.k+" ":""}${nameHtml}</div>`;
+}
+function fBadge(f){
+  // F持ち(直近半年でフライング歴あり)だけ、控えめな赤バッジを名前の近くに出す。0人には何も出さない。
+  if(!f) return "";
+  return `<span class="fbadge" title="F＝フライング(スタート事故)。直近半年でF${f}回。持っていると次のスタートを警戒し慎重になりやすい">F${f}</span>`;
 }
 function stTag(toban){
   const P=window.PLAYERS;
@@ -510,7 +520,7 @@ function renderCard(){
     return `<div class="boat">
       <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
       <div>
-        <div class="bname">${playerName(b.name,b.t,crewParam)}<span class="bk">${b.k}</span></div>
+        <div class="bname">${playerName(b.name,b.t,crewParam)}<span class="bk">${b.k}</span>${fBadge(b.f)}</div>
         <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
         ${konSetsuLine(b.ks)}
       </div>
