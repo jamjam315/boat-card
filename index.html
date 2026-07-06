@@ -167,6 +167,19 @@ body{background:var(--bg); color:var(--ink);
 .legend{font-size:11.5px; color:var(--muted); margin:12px 4px 0; display:flex; flex-wrap:wrap; gap:4px 12px;}
 .legend span{display:inline-flex; align-items:center; gap:5px;}
 .legend b{width:11px; height:11px; border-radius:3px; border:1px solid rgba(125,125,125,.3); display:inline-block;}
+
+.glossary{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:0 18px;}
+.glossary summary{cursor:pointer; padding:13px 0; font-size:13px; font-weight:600; color:var(--ink2); list-style:none; position:relative;}
+.glossary summary::-webkit-details-marker{display:none;}
+.glossary summary::after{content:"もっと見る ▾"; position:absolute; right:0; top:13px; font-size:11.5px; font-weight:400; color:var(--muted);}
+.glossary[open] summary::after{content:"閉じる ▴";}
+.glossary-body{margin:0; padding:2px 0 14px; font-size:12.5px; color:var(--ink2); line-height:1.6;}
+.glossary-body dt{font-weight:600; color:var(--ink); margin-top:11px;}
+.glossary-body dt:first-child{margin-top:0;}
+.glossary-body dd{margin:2px 0 0;}
+.glossary-sub{margin:4px 0 0; padding-left:18px; list-style:disc;}
+.glossary-sub li{margin-top:2px;}
+.term{cursor:help;}
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot b{color:var(--ink2); font-weight:600;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
@@ -234,6 +247,41 @@ body{background:var(--bg); color:var(--ink);
     <span><b style="background:#d83a36"></b>3</span><span><b style="background:#2f6fd0"></b>4</span>
     <span><b style="background:#f2c200"></b>5</span><span><b style="background:#1f9e54"></b>6</span>
   </p>
+
+  <details class="glossary">
+    <summary>📖 用語解説</summary>
+    <dl class="glossary-body">
+      <dt>級別（A1/A2/B1/B2）</dt>
+      <dd>選手のランク。強い順にA1＞A2＞B1＞B2。半年ごとの成績で見直されます。</dd>
+      <dt>全国勝率・当地勝率</dt>
+      <dd>％ではなく、成績を点数化した競艇独自の指数です。数字が大きいほど好成績。「当地」はこの会場だけに絞った成績です。</dd>
+      <dt>モーター2連率</dt>
+      <dd>このモーター（船外機）が過去に2着以内に入った割合。エンジンの調子の目安です。</dd>
+      <dt>ST（スタートタイミング）</dt>
+      <dd>スタートで合図から何秒後に出たかの平均。0に近いほどスタートが上手いとされます。</dd>
+      <dt>F（フライング）</dt>
+      <dd>スタート事故（早出）のこと。持っていると次のスタートを警戒し、慎重になりやすい傾向があります。</dd>
+      <dt>全国3着以内率</dt>
+      <dd>全国のレースのうち、1〜3着に入った割合。3連単は3着以内かどうかが大事なので、勝率とあわせて見る材料です。</dd>
+      <dt>決まり手</dt>
+      <dd>1着の艇がどう勝ったかの型。
+        <ul class="glossary-sub">
+          <li><b>逃げ</b>：そのまま先頭を守って勝つ</li>
+          <li><b>差し</b>：内側から前の艇をかわす</li>
+          <li><b>まくり</b>：外から回り込んでまとめてかわす</li>
+          <li><b>まくり差し</b>：まくりと差しを組み合わせた形</li>
+          <li><b>抜き</b>：直線などで単独の艇を追い抜く</li>
+        </ul>
+      </dd>
+      <dt>進入コース</dt>
+      <dd>スタート時に何コース（1〜6）に入ったか。内側（1コース）ほど有利とされます。</dd>
+      <dt>今節・直近</dt>
+      <dd>「今節」は今の開催中の成績、「直近」は過去1か月・全会場の成績（今節の走行数が少ない時に表示）。</dd>
+      <dt>締切</dt>
+      <dd>そのレースの投票締切時刻。</dd>
+    </dl>
+  </details>
+
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向と選手のスタート傾向を添えるので、見て自分で決めるための道具です。<br>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。「この会場のクセ」「選手のST癖（8走以上の平均ST）」は直近の結果データの集計です。<br>「F1」等の赤いバッジは、直近半年のフライング回数です。持っている選手は次のスタートを警戒し慎重になりやすい傾向があります。</p>
 </div>
 
@@ -323,15 +371,16 @@ function stTag(toban){
   let cls="st-n", label="標準";
   if(st<=0.140){cls="st-a"; label="攻";}
   else if(st>=0.185){cls="st-c"; label="慎重";}
-  return `<span class="st-tag ${cls}">ST ${st.toFixed(2)}<span class="stl">${label}</span></span>`;
+  return `<span class="st-tag ${cls} term" title="ST＝スタートタイミング。0に近いほどスタートが上手い">ST ${st.toFixed(2)}<span class="stl">${label}</span></span>`;
 }
 function p3Line(toban){
   const P=window.PLAYERS;
+  const t = "全国3着以内率＝全国のレースで1〜3着に入った割合";
   if(!P||!P.players||!toban) return "";
   const p=P.players[toban];
-  if(!p||!p.p3n) return `<div class="mprev thin">全国3着内：蓄積中</div>`;
-  if(p.p3n<20) return `<div class="mprev thin">全国3着内 ${p.p3}%（${p.p3n}走）</div>`;
-  return `<div class="mprev">全国3着内 ${p.p3}%</div>`;
+  if(!p||!p.p3n) return `<div class="mprev thin term" title="${t}">全国3着内：蓄積中</div>`;
+  if(p.p3n<20) return `<div class="mprev thin term" title="${t}">全国3着内 ${p.p3}%（${p.p3n}走）</div>`;
+  return `<div class="mprev term" title="${t}">全国3着内 ${p.p3}%</div>`;
 }
 
 function konSetsuLine(ks){
@@ -351,7 +400,8 @@ function konSetsuLine(ks){
   else if(avgC>=4) courseHint="進入は外めが多い";
 
   const tail = n<4 ? `<span class="thin">（${label}${n}走）</span>` : "";
-  return `<div class="kon"><b>${label}</b> ${flow}${courseHint?" / "+courseHint:""} ${tail}</div>`;
+  const konTitle = label==="今節" ? "今節＝今の開催中の成績" : "直近＝過去1か月・全会場の成績(今節の走行数が少ない時に表示)";
+  return `<div class="kon"><b class="term" title="${konTitle}">${label}</b> ${flow}${courseHint?" / "+courseHint:""} ${tail}</div>`;
 }
 
 function renderFeatured(){
@@ -436,6 +486,11 @@ function weatherBlock(venueName){
   </div>`;
 }
 const KIMARITE_ORDER = ["逃げ","まくり","差し","まくり差し","抜き"];
+const KIMARITE_DEFS = {
+  "逃げ":"先頭のまま押し切って勝つ", "差し":"内側から前の艇をかわす",
+  "まくり":"外から回り込んでまとめてかわす", "まくり差し":"まくりと差しを組み合わせた形",
+  "抜き":"直線などで単独の艇を追い抜く",
+};
 function kimariteBlock(venueName){
   const S=window.STATS;
   const k = S.venues_kimarite && S.venues_kimarite[venueName];
@@ -447,7 +502,7 @@ function kimariteBlock(venueName){
   const rows = KIMARITE_ORDER.map(name=>{
     const cls = "krow" + thin + (name===top ? " ktop":"");
     return `<div class="${cls}">
-      <span class="kname">${name}</span>
+      <span class="kname term" title="${name}＝${KIMARITE_DEFS[name]}">${name}</span>
       <span class="kbar"><i style="width:${k[name]}%"></i></span>
       <span class="kval nums">${k[name]}%</span>
     </div>`;
@@ -500,7 +555,7 @@ function trendPanel(venueName){
   return `<div class="trend">
     <div class="trend-head">
       <span class="trend-ttl"><span class="pin"></span>この会場のクセ</span>
-      <span class="trend-sub">進入コース別 1着率・3着以内率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
+      <span class="trend-sub"><span class="term" title="進入コース＝スタート時に何コース(1〜6)に入ったか。内側(1コース)ほど有利とされる">進入コース</span>別 1着率・3着以内率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
     </div>
     <div class="tlegend"><span><b class="win"></b>1着率</span><span><b class="p3"></b>3着以内率（1〜3着に入った割合）</span></div>
     ${rows}
@@ -520,14 +575,14 @@ function renderCard(){
     return `<div class="boat">
       <div class="badge" style="background:${L.bg};color:${L.fg}">${b.n}</div>
       <div>
-        <div class="bname">${playerName(b.name,b.t,crewParam)}<span class="bk">${b.k}</span>${fBadge(b.f)}</div>
+        <div class="bname">${playerName(b.name,b.t,crewParam)}<span class="bk term" title="級別＝選手のランク。強い順にA1＞A2＞B1＞B2">${b.k}</span>${fBadge(b.f)}</div>
         <div class="bmeta">${b.age}歳 · ${b.br} · ${b.wt}kg${stTag(b.t)}</div>
         ${konSetsuLine(b.ks)}
       </div>
       <div class="stats nums">
-        <div class="stat nw"><div class="l">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
-        <div class="stat lw"><div class="l">当地勝率</div>${lwDisplay(b.lw,b.lwn)}${p3Line(b.t)}</div>
-        <div class="stat mo"><div class="l">モーター2率</div><div class="v">${mo}%</div>
+        <div class="stat nw"><div class="l term" title="全国勝率＝全国での成績を点数化した競艇独自の指数(％ではありません)">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
+        <div class="stat lw"><div class="l term" title="当地勝率＝この会場だけに絞った、全国勝率と同じ仕組みの指数">当地勝率</div>${lwDisplay(b.lw,b.lwn)}${p3Line(b.t)}</div>
+        <div class="stat mo"><div class="l term" title="モーター2連率＝このモーターが過去に2着以内に入った割合">モーター2率</div><div class="v">${mo}%</div>
           <div class="bar"><i style="width:${mo}%"></i></div>
           ${motorPrevLine(v.name, b.mno)}</div>
       </div>
@@ -536,7 +591,7 @@ function renderCard(){
   document.getElementById("card").innerHTML=
     `<div class="card"><div class="card-head">
        <div class="ttl">${v.name} <span>${r.no}R</span></div>
-       <div class="dl nums">締切 ${r.dl||"—"}</div>
+       <div class="dl nums term" title="締切＝このレースの投票締切時刻">締切 ${r.dl||"—"}</div>
      </div>${rows}</div>`
     + trendPanel(v.name);
 }
