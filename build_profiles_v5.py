@@ -87,6 +87,22 @@ def home_venue(p_k):
     return best
 
 
+def top_rates_from_fan(fan_p):
+    """コース別のchaku配列(1〜3着の内訳)を6コース分合計し、fan(直近半年)基準の
+    1着率・3着以内率を算出する。分母はコース別nの合計ではなくトップレベルの出走回数を使う
+    (コース別n合計は事故欠場等で稀に本来より少なく、出走回数の方が正確なため)。"""
+    n = fan_p.get("出走回数", 0)
+    if not n:
+        return {"n": 0, "win1_n": 0, "win1": None, "p3_n": 0, "p3": None}
+    c0 = c1 = c2 = 0
+    for d in fan_p["コース別"].values():
+        chaku = d.get("chaku")
+        if not chaku: continue
+        c0 += chaku[0]; c1 += chaku[1]; c2 += chaku[2]
+    p3_n = c0 + c1 + c2
+    return {"n": n, "win1_n": c0, "win1": round(c0 / n * 100, 1), "p3_n": p3_n, "p3": round(p3_n / n * 100, 1)}
+
+
 def course_tag_from_fan(course_data):
     """fanのコース別1着回数から「1着を取った時の進入コース」の分布を再現し、自在さを判定する。"""
     win_courses = []
@@ -191,7 +207,7 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
     return {
         "touban": touban, "profile": fan_p, "catch": catch, "catch_basis": "。".join(basis_parts),
         "course": course_out, "kimarite_pct": kimarite_pct, "kimarite_total_wins": total_wins,
-        "home": home, "ks": ks,
+        "home": home, "ks": ks, "top_rates": top_rates_from_fan(fan_p),
         # 二つ名の「際立ちの強さ」を他選手と比較するための値(トップページの注目選手選びで使う)。
         # best_diffは決まり手が全国平均よりどれだけ際立つか(pt)。total_wins<MIN_WIN_Nの時はNone(蓄積中)。
         "best_diff": best_diff if total_wins >= MIN_WIN_N else None,

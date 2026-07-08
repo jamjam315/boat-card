@@ -173,6 +173,20 @@ def kimarite_block(prof):
     return rows + f'<div class="note">直近1年・勝ち{tw}件の内訳です。</div>'
 
 
+def top_rates_block(prof):
+    tr = prof["top_rates"]
+    if tr["n"] == 0:
+        return '<div style="font-size:11.5px;color:var(--muted);font-style:italic;">全国1着率・3着以内率：蓄積中</div>'
+    thin = tr["n"] < 10
+    style = ' style="opacity:.55"' if thin else ""
+    ref = "（参考程度）" if thin else ""
+    line = (f'<div{style}><b>1着率 {tr["win1"]}%</b>（{tr["win1_n"]}走）'
+            f'　│　<b>3着以内率 {tr["p3"]}%</b>（{tr["p3_n"]}走）{ref}</div>')
+    note = ('<div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6;">'
+            '1着率と3着以内率をあわせて見ると、勝ちきる力と上位に食い込む粘り強さの両方が読めます。</div>')
+    return line + note
+
+
 def course_block(prof):
     course = prof["course"]
     rows = ""
@@ -257,6 +271,7 @@ def render_page(prof):
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>通算の進入コース傾向<span class="card-sub">直近半年(公式集計)</span></div>
+    {top_rates_block(prof)}
     {course_block(prof)}
   </section>
   <section class="card">
