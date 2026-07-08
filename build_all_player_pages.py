@@ -121,6 +121,27 @@ NAV_JS = """
 """
 
 
+def meta_title(prof):
+    fp = prof["profile"]
+    if prof["best_diff"] is None:
+        return f"{fp['氏名']}（{fp['支部']}・{fp['級別']}）の成績データ｜艇読み選手図鑑"
+    return f"{fp['氏名']}の二つ名「{prof['catch']}」と成績｜艇読み選手図鑑"
+
+
+def meta_description(prof):
+    fp = prof["profile"]
+    name, kyu, shibu, age = fp["氏名"], fp["級別"], fp["支部"], fp["年齢"]
+    if prof["best_diff"] is None:
+        return (f"{name}選手（{kyu}・{shibu}支部、{age}歳）の通算成績・進入コース傾向をデータで紹介。"
+                f"まだ出走数が少なく成績は蓄積中ですが、今後のレースごとにこのページの数字も更新されます。"
+                f"予想印は出さず、数字の推移をそのまま読める形でお届けします。")
+    home = prof["home"]
+    home_sentence = f"、当地{home['venue']}での勝率は{home['win']:.1f}%。" if home else "。"
+    return (f"{name}選手（{kyu}・{shibu}支部、{age}歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。"
+            f"二つ名は「{prof['catch']}」{home_sentence}"
+            f"予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。")
+
+
 def kimarite_block(prof):
     tw = prof["kimarite_total_wins"]
     if tw < 3:
@@ -184,12 +205,21 @@ def kon_block(prof):
 
 def render_page(prof):
     fp = prof["profile"]
+    title = meta_title(prof)
+    description = meta_description(prof)
+    url = f"https://teiyomi.com/players/{prof['touban']}.html"
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{fp['氏名']} — 艇読み 選手図鑑</title>
+<title>{title}</title>
+<meta name="description" content="{description}">
+<link rel="canonical" href="{url}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{url}">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
 <style>{CSS}</style>
 </head>
 <body>
