@@ -7,7 +7,8 @@ fan(コース傾向・属性・母数厚い公式集計) + K(決まり手・当�
 【今回の範囲】ページ生成のみ。トップページ・レースカードからのリンク、URL構造の変更はしない
 (このスクリプトは既存サイトのどこからも参照されない、独立した出力)。
 """
-import os, json, statistics
+import os, json, statistics, datetime
+from xml.sax.saxutils import escape
 from build_profiles_v5 import load_fan_master, load_k_stats, build_profile
 
 OUT_DIR = "players"
@@ -140,6 +141,22 @@ def meta_description(prof):
     return (f"{name}選手（{kyu}・{shibu}支部、{age}歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。"
             f"二つ名は「{prof['catch']}」{home_sentence}"
             f"予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。")
+
+
+def build_sitemap(written):
+    """トップ・ガイド・全図鑑ページのsitemap.xmlを、実在する登番一覧(written)から自動生成する。
+    ページ数が増減しても、次回このスクリプトを実行するたびに追従する。"""
+    lastmod = datetime.date.today().isoformat()
+    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html"]
+    urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for url in urls:
+        lines.append(f"  <url><loc>{escape(url)}</loc><lastmod>{lastmod}</lastmod></url>")
+    lines.append("</urlset>")
+    with open("sitemap.xml", "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(urls)
 
 
 def kimarite_block(prof):
@@ -289,7 +306,9 @@ def main():
     with open("players_index.js", "w", encoding="utf-8") as f:
         f.write("window.PLAYER_PAGES = " + json.dumps(sorted(written)) + ";\n")
 
-    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ、players_index.js")
+    n_urls = build_sitemap(sorted(written))
+
+    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ、players_index.js、sitemap.xml({n_urls}URL)")
 
 if __name__ == "__main__":
     main()
