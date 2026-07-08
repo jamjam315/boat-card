@@ -56,6 +56,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
 .card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
+.toprates{display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; font-size:14px;}
+.toprates .tr-item{white-space:nowrap;}
+@media (max-width:460px){
+  .toprates{flex-direction:column; align-items:flex-start; gap:2px;}
+  .toprates .tr-sep{display:none;}
+}
 .trow{display:grid; grid-template-columns:74px 1fr 44px 60px; align-items:center; gap:10px; padding:4px 0;}
 .tcourse{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2);}
 .tdot{width:10px; height:10px; border-radius:3px; border:1px solid rgba(125,125,125,.4); flex:0 0 auto;}
@@ -180,8 +186,11 @@ def top_rates_block(prof):
     thin = tr["n"] < 10
     style = ' style="opacity:.55"' if thin else ""
     ref = "（参考程度）" if thin else ""
-    line = (f'<div{style}><b>1着率 {tr["win1"]}%</b>（{tr["win1_n"]}走）'
-            f'　│　<b>3着以内率 {tr["p3"]}%</b>（{tr["p3_n"]}走）{ref}</div>')
+    line = (f'<div class="toprates"{style}>'
+            f'<span class="tr-item"><b>1着率 {tr["win1"]}%</b>（{tr["win1_n"]}走）</span>'
+            f'<span class="tr-sep">　│　</span>'
+            f'<span class="tr-item"><b>3着以内率 {tr["p3"]}%</b>（{tr["p3_n"]}走）{ref}</span>'
+            f'</div>')
     note = ('<div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6;">'
             '1着率と3着以内率をあわせて見ると、勝ちきる力と上位に食い込む粘り強さの両方が読めます。</div>')
     return line + note

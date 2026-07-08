@@ -50,6 +50,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
 .card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
+.toprates{display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; font-size:14px;}
+.toprates .tr-item{white-space:nowrap;}
+@media (max-width:460px){
+  .toprates{flex-direction:column; align-items:flex-start; gap:2px;}
+  .toprates .tr-sep{display:none;}
+}
 .trow{display:grid; grid-template-columns:74px 1fr 44px 60px; align-items:center; gap:10px; padding:4px 0;}
 .tcourse{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2);}
 .tdot{width:10px; height:10px; border-radius:3px; border:1px solid rgba(125,125,125,.4); flex:0 0 auto;}
@@ -86,7 +92,7 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>通算の進入コース傾向<span class="card-sub">直近半年(公式集計)</span></div>
-    <div><b>1着率 12.3%</b>（9走）　│　<b>3着以内率 35.6%</b>（26走）</div><div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6;">1着率と3着以内率をあわせて見ると、勝ちきる力と上位に食い込む粘り強さの両方が読めます。</div>
+    <div class="toprates"><span class="tr-item"><b>1着率 12.3%</b>（9走）</span><span class="tr-sep">　│　</span><span class="tr-item"><b>3着以内率 35.6%</b>（26走）</span></div><div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.6;">1着率と3着以内率をあわせて見ると、勝ちきる力と上位に食い込む粘り強さの両方が読めます。</div>
     <div class="trow" style="opacity:.5"><span class="tcourse"><span class="tdot" style="background:#ffffff"></span>1コース</span><span class="tbar"><i style="width:50.0%"></i></span><span class="tval nums">50.0%</span><span class="tn nums">8走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#2b2b2b"></span>2コース</span><span class="tbar"><i style="width:7.7%"></i></span><span class="tval nums">7.7%</span><span class="tn nums">13走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#d83a36"></span>3コース</span><span class="tbar"><i style="width:7.1%"></i></span><span class="tval nums">7.1%</span><span class="tn nums">14走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#2f6fd0"></span>4コース</span><span class="tbar"><i style="width:23.1%"></i></span><span class="tval nums">23.1%</span><span class="tn nums">13走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#f2c200"></span>5コース</span><span class="tbar"><i style="width:0.0%"></i></span><span class="tval nums">0.0%</span><span class="tn nums">12走</span></div><div class="trow"><span class="tcourse"><span class="tdot" style="background:#1f9e54"></span>6コース</span><span class="tbar"><i style="width:0.0%"></i></span><span class="tval nums">0.0%</span><span class="tn nums">13走</span></div><div class="note">数字は各コースからの1着率（直近半年・公式集計）。1コースは母数が少なめのため参考程度に。</div>
   </section>
   <section class="card">
