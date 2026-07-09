@@ -7,7 +7,7 @@ fan(コース傾向・属性・母数厚い公式集計) + K(決まり手・当�
 【今回の範囲】ページ生成のみ。トップページ・レースカードからのリンク、URL構造の変更はしない
 (このスクリプトは既存サイトのどこからも参照されない、独立した出力)。
 """
-import os, json, statistics, datetime
+import os, json, re, statistics, datetime
 from xml.sax.saxutils import escape
 from build_profiles_v5 import load_fan_master, load_k_stats, build_profile
 
@@ -149,12 +149,36 @@ def meta_description(prof):
             f"予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。")
 
 
+def scan_race_urls():
+    """race/配下(日付/会場ローマ字/xR.html)を実際にスキャンしてURL一覧を作る。
+    build_race_pages.pyの7日ローリングで管理されているフォルダなので、ここでは
+    存在するものをそのまま数え上げるだけ(削除・生成は一切行わない)。"""
+    urls = []
+    if not os.path.isdir("race"):
+        return urls
+    for date_name in sorted(os.listdir("race")):
+        date_path = os.path.join("race", date_name)
+        if not os.path.isdir(date_path) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_name):
+            continue
+        for venue_name in sorted(os.listdir(date_path)):
+            venue_path = os.path.join(date_path, venue_name)
+            if not os.path.isdir(venue_path):
+                continue
+            for fname in sorted(os.listdir(venue_path)):
+                if fname.endswith(".html"):
+                    urls.append(f"https://teiyomi.com/race/{date_name}/{venue_name}/{fname}")
+    return urls
+
+
 def build_sitemap(written):
-    """トップ・ガイド・全図鑑ページのsitemap.xmlを、実在する登番一覧(written)から自動生成する。
-    ページ数が増減しても、次回このスクリプトを実行するたびに追従する。"""
+    """トップ・ガイド・全図鑑ページ・(存在すれば)race/配下の現存レースページから
+    sitemap.xmlを自動生成する。ページ数が増減しても、次回実行するたびに追従する。
+    race/はbuild_race_pages.py側の7日ローリングで管理されているため、ここではスキャンして
+    載せるだけ(このスクリプトの実行がレースページの生成・削除に影響することはない)。"""
     lastmod = datetime.date.today().isoformat()
     urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html"]
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
+    urls += scan_race_urls()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for url in urls:

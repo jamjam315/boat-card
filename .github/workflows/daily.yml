@@ -31,10 +31,14 @@ jobs:
       - name: モーターの前回使用者を選んで motors.js を作る
         run: python build_motors.py
 
+      - name: レース単位の固有ページを生成(7日ローリング・sitemap再生成込み)
+        run: python build_race_pages.py
+
       - name: 変化があればコミット
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add data.js featured.js motors.js
+          git add data.js featured.js motors.js sitemap.xml race.css
+          git add -A race/
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
