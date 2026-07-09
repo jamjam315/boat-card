@@ -219,3 +219,4 @@ body{background:var(--bg); color:var(--ink);
 
 .back{margin:0 4px 14px; font-size:13px;}
 .back a{color:var(--accent); text-decoration:underline;}
+.topbar .brand h1{white-space:nowrap;}

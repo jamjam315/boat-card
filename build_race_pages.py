@@ -63,7 +63,15 @@ def build_race_css():
     start = content.find("<style>") + len("<style>")
     end = content.find("</style>")
     css = content[start:end]
-    extra = '\n.back{margin:0 4px 14px; font-size:13px;}\n.back a{color:var(--accent); text-decoration:underline;}\n'
+    extra = (
+        '\n.back{margin:0 4px 14px; font-size:13px;}\n'
+        '.back a{color:var(--accent); text-decoration:underline;}\n'
+        # レースページのタイトル(会場+レース番号)は可変長かつ「1R」等を途中で
+        # 改行させたくないため、.brand h1に明示的にnowrapを足す(index.html本体は
+        # 「艇読み」固定の短い文字列のため元々nowrapが無くても困らないが、
+        # レースページ側だけの安全策としてここに追加する)。
+        '.topbar .brand h1{white-space:nowrap;}\n'
+    )
     with open(CSS_PATH, "w", encoding="utf-8") as f:
         f.write(css + extra)
 
@@ -343,8 +351,14 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>艇読み — {venue_name} {race['no']}R</h1>
-    <p>{date_jp}</p>
+    <div class="brand">
+      <div class="lanes" aria-hidden="true">
+        <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+        <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+      </div>
+      <div><h1>{venue_name} {race['no']}R</h1><p>艇読み — 出走表</p></div>
+    </div>
+    <div class="datepill nums">{date_jp}</div>
   </header>
   <p class="back"><a href="/index.html">← トップ（今日の出走表）に戻る</a></p>
   {card_html}
