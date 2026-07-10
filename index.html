@@ -80,6 +80,22 @@ body{background:var(--bg); color:var(--ink);
 .card-head .ttl span{font-weight:400; color:var(--ink2); font-size:13.5px; margin-left:6px;}
 .card-head .dl{font-size:12.5px; color:var(--muted);}
 
+/* 6艇を並べて比べる一覧。将来ここに列(展示タイム/オッズ/進入予定)を足しても
+   崩れないよう、固定ピクセル幅に頼らないtable+overflow-x:autoにしている。 */
+.cmp{padding:12px 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto;}
+.cmp-ttl{font-size:12.5px; font-weight:600; margin-bottom:7px; color:var(--ink2);}
+.cmp-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.cmp-table th{font-size:10.5px; font-weight:500; color:var(--muted); text-align:left;
+  padding:0 6px 5px; white-space:nowrap;}
+.cmp-table td{padding:5px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
+.cmp-nm{font-weight:600; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
+.cmp-na{color:var(--muted);}
+.cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
+.cmp-note{font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6;}
+
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
   padding:13px 18px; border-bottom:1px solid var(--line);}
 .boat:last-child{border-bottom:none}
@@ -412,6 +428,15 @@ function p3Line(toban){
   return `<div class="mprev term" title="${t}">全国3着内 ${p.p3}%</div>`;
 }
 
+function courseHint(ks){
+  // 今節/直近の実進入コース履歴(ks.c)の平均から、際立つ傾向があれば一言だけ返す。
+  // 閾値(1.6以下/4以上)の見直しは今回のスコープ外(別途検討)。
+  if(!ks || !ks.r || ks.r.length<2) return null;
+  const avgC = ks.c.reduce((a,b)=>a+b,0)/ks.c.length;
+  if(avgC<=1.6) return "進入ほぼイン";
+  if(avgC>=4) return "進入は外めが多い";
+  return null;
+}
 function konSetsuLine(ks){
   const label = (ks && ks.which) || "今節";
   if(!ks || !ks.r || ks.r.length===0) return `<div class="kon thin">${label}の走行データが見当たりません</div>`;
@@ -421,16 +446,12 @@ function konSetsuLine(ks){
   // 着順の流れ(直近3走を新しい順に見せる)
   const flow = ks.r.slice(-3).map(c => c<=3 ? `${c}着` : "着外").join("→");
 
-  // 進入の傾向(平均コース)。際立つ時だけ一言添える(「進入まちまち」=特徴なしは出さない)。
   // STの安定度はカードに既にSTバッジがあり二重表現かつほぼ常に「ばらつき」で情報にならないため、ここには出さない。
-  const avgC = ks.c.reduce((a,b)=>a+b,0)/ks.c.length;
-  let courseHint = "";
-  if(avgC<=1.6) courseHint="進入ほぼイン";
-  else if(avgC>=4) courseHint="進入は外めが多い";
+  const hint = courseHint(ks);
 
   const tail = n<4 ? `<span class="thin">（${label}${n}走）</span>` : "";
   const konTitle = label==="今節" ? "今節＝今の開催中の成績" : "直近＝過去1か月・全会場の成績(今節の走行数が少ない時に表示)";
-  return `<div class="kon"><b class="term" title="${konTitle}">${label}</b> ${flow}${courseHint?" / "+courseHint:""} ${tail}</div>`;
+  return `<div class="kon"><b class="term" title="${konTitle}">${label}</b> ${flow}${hint?" / "+hint:""} ${tail}</div>`;
 }
 
 function renderFeatured(){
@@ -594,6 +615,42 @@ function trendPanel(venueName){
     ${kimariteBlock(venueName)}
   </div>`;
 }
+function compareTable(r){
+  // 6艇を並べて比べる一覧(艇番/選手名/ST/F持ちの4列のみ)。進入傾向は列にせず、
+  // 際立つ艇がいる時だけ下の注記に回す(頻度調査の結果、列だと大半のレースで
+  // 空欄だらけになるため)。将来ここに展示タイム/オッズ/進入予定の列を足すことを
+  // 見込み、固定ピクセル幅に頼らないtable構造にしてある。
+  const P = window.PLAYERS;
+  let rows = "", notes = [];
+  r.boats.forEach(b=>{
+    const L = LANES[b.n];
+    const p = P && P.players ? P.players[b.t] : null;
+    let stHtml;
+    if(p && p.n && p.n>=(P.min||8)){
+      let label = "標準";
+      if(p.st<=0.140) label="攻";
+      else if(p.st>=0.185) label="慎重";
+      stHtml = `${p.st.toFixed(2)}<span class="cmp-stl">${label}</span>`;
+    }else{
+      stHtml = '<span class="cmp-na">—</span>';
+    }
+    const fHtml = b.f ? `<span class="cmp-f">F${b.f}</span>` : "";
+    rows += `<tr><td><span class="cmp-lane" style="background:${L.bg};color:${L.fg}">${b.n}</span></td>
+      <td class="cmp-nm">${b.name}</td><td class="nums">${stHtml}</td><td>${fHtml}</td></tr>`;
+    const hint = courseHint(b.ks);
+    if(hint){
+      const verb = hint==="進入ほぼイン" ? "直近ではイン寄りの進入がほとんどです" : "直近では外めからの進入が多いです";
+      notes.push(`※${b.n}号艇 ${b.name}選手は、${verb}。`);
+    }
+  });
+  let noteHtml = "";
+  if(notes.length){
+    noteHtml = `<div class="cmp-note">${notes.join("<br>")}<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>`;
+  }
+  return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
+    <table class="cmp-table"><thead><tr><th>艇</th><th>選手</th><th>ST</th><th>F</th></tr></thead>
+    <tbody>${rows}</tbody></table>${noteHtml}</div>`;
+}
 function renderCard(){
   const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);
   const crewParam = encodeURIComponent(
@@ -619,11 +676,12 @@ function renderCard(){
   }).join("");
   const rurl = raceUrl(v.name, r.no);
   const raceLinkHtml = rurl ? `<div class="racelink"><a href="${rurl}" target="_blank" rel="noopener">このレースのページ（共有用リンク）</a></div>` : "";
+  const cmpHtml = compareTable(r);
   document.getElementById("card").innerHTML=
     `<div class="card"><div class="card-head">
        <div class="ttl">${v.name} <span>${r.no}R</span></div>
        <div class="dl nums term" title="締切＝このレースの投票締切時刻">締切 ${r.dl||"—"}</div>
-     </div>${raceLinkHtml}${rows}</div>`
+     </div>${raceLinkHtml}${cmpHtml}${rows}</div>`
     + trendPanel(v.name);
 }
 renderFeatured(); renderVenues(); renderRaces(); renderCard();

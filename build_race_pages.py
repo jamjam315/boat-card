@@ -121,18 +121,21 @@ def f_badge(f):
             f'持っていると次のスタートを警戒し慎重になりやすい">F{f}</span>')
 
 
+def st_class_label(st):
+    if st <= 0.140:
+        return "st-a", "攻"
+    if st >= 0.185:
+        return "st-c", "慎重"
+    return "st-n", "標準"
+
+
 def st_tag(players, toban):
     p = players.get("players", {}).get(toban)
     if not p or not p.get("n") or p["n"] < players.get("min", 8):
         return ""
-    st = p["st"]
-    cls, label = "st-n", "標準"
-    if st <= 0.140:
-        cls, label = "st-a", "攻"
-    elif st >= 0.185:
-        cls, label = "st-c", "慎重"
+    cls, label = st_class_label(p["st"])
     return (f'<span class="st-tag {cls} term" title="ST＝スタートタイミング。0に近いほどスタートが上手い">'
-            f'ST {st:.2f}<span class="stl">{label}</span></span>')
+            f'ST {p["st"]:.2f}<span class="stl">{label}</span></span>')
 
 
 def p3_line(players, toban):
@@ -145,6 +148,19 @@ def p3_line(players, toban):
     return f'<div class="mprev term" title="{t}">全国3着内 {p["p3"]}%</div>'
 
 
+def course_hint(ks):
+    """今節/直近の実進入コース履歴(ks.c)の平均から、際立つ傾向があれば一言だけ返す。
+    閾値(1.6以下/4以上)の見直しは今回のスコープ外(別途検討)。"""
+    if not ks or not ks.get("r") or len(ks["r"]) < 2:
+        return None
+    avg_c = sum(ks["c"]) / len(ks["c"])
+    if avg_c <= 1.6:
+        return "進入ほぼイン"
+    if avg_c >= 4:
+        return "進入は外めが多い"
+    return None
+
+
 def kon_setsu_line(ks):
     label = (ks and ks.get("which")) or "今節"
     if not ks or not ks.get("r"):
@@ -153,16 +169,11 @@ def kon_setsu_line(ks):
     if n < 2:
         return f'<div class="kon thin">{label}データ少なめ（{n}走）</div>'
     flow = "→".join(f"{c}着" if c <= 3 else "着外" for c in ks["r"][-3:])
-    avg_c = sum(ks["c"]) / len(ks["c"])
-    course_hint = ""
-    if avg_c <= 1.6:
-        course_hint = "進入ほぼイン"
-    elif avg_c >= 4:
-        course_hint = "進入は外めが多い"
     tail = f'<span class="thin">（{label}{n}走）</span>' if n < 4 else ""
     kon_title = "今節＝今の開催中の成績" if label == "今節" else "直近＝過去1か月・全会場の成績(今節の走行数が少ない時に表示)"
-    hint = f" / {course_hint}" if course_hint else ""
-    return f'<div class="kon"><b class="term" title="{kon_title}">{label}</b> {flow}{hint} {tail}</div>'
+    hint = course_hint(ks)
+    hint_html = f" / {hint}" if hint else ""
+    return f'<div class="kon"><b class="term" title="{kon_title}">{label}</b> {flow}{hint_html} {tail}</div>'
 
 
 def weather_block(stats, venue_name):
@@ -296,6 +307,41 @@ def trend_panel(stats, venue_name):
             f'{weather_block(stats, venue_name)}{kimarite_block_venue(stats, venue_name)}</div>')
 
 
+def compare_table(race, players):
+    """6艇を横に並べて比べる一覧(艇番/選手名/ST/F持ちの4列のみ)。
+    進入傾向は列にせず、際立つ艇がいる時だけ下の注記に回す(頻度調査の結果、
+    列にすると大半のレースで空欄だらけになるため)。将来、展示タイム・オッズ・
+    進入予定を列として足すことを見込み、固定ピクセル幅に頼らないtable構造にしてある。"""
+    rows = ""
+    notes = []
+    for b in race["boats"]:
+        L = LANES[b["n"]]
+        p = players.get("players", {}).get(b.get("t"))
+        if p and p.get("n") and p["n"] >= players.get("min", 8):
+            _, label = st_class_label(p["st"])
+            st_html = f'{p["st"]:.2f}<span class="cmp-stl">{label}</span>'
+        else:
+            st_html = '<span class="cmp-na">—</span>'
+        f_html = f'<span class="cmp-f">F{b["f"]}</span>' if b.get("f") else ""
+        rows += (f'<tr><td><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'
+                  f'<td class="cmp-nm">{b["name"]}</td>'
+                  f'<td class="nums">{st_html}</td>'
+                  f'<td>{f_html}</td></tr>')
+        hint = course_hint(b.get("ks"))
+        if hint:
+            verb = "直近ではイン寄りの進入がほとんどです" if hint == "進入ほぼイン" else "直近では外めからの進入が多いです"
+            notes.append(f'※{b["n"]}号艇 {b["name"]}選手は、{verb}。')
+
+    note_html = ""
+    if notes:
+        note_html = ('<div class="cmp-note">' + "<br>".join(notes) +
+                     '<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>')
+
+    return (f'<div class="cmp"><div class="cmp-ttl">比べる一覧</div>'
+            f'<table class="cmp-table"><thead><tr><th>艇</th><th>選手</th><th>ST</th><th>F</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>{note_html}</div>')
+
+
 def render_boat(b, venue_name, motors, players, player_pages, crew):
     L = LANES[b["n"]]
     mo = 0 if b.get("mo") is None else round(b["mo"] * 10) / 10
@@ -319,11 +365,12 @@ def render_boat(b, venue_name, motors, players, player_pages, crew):
 
 def render_race_card(venue_name, race, motors, players, player_pages):
     crew = ",".join(f"{b['t']}:{b['n']}:{b['name']}" for b in race["boats"] if b.get("t") in player_pages)
+    cmp_html = compare_table(race, players)
     rows = "".join(render_boat(b, venue_name, motors, players, player_pages, crew) for b in race["boats"])
     return (f'<div class="card"><div class="card-head">'
             f'<div class="ttl">{venue_name} <span>{race["no"]}R</span></div>'
             f'<div class="dl nums term" title="締切＝このレースの投票締切時刻">締切 {race.get("dl") or "—"}</div>'
-            f'</div>{rows}</div>')
+            f'</div>{cmp_html}{rows}</div>')
 
 
 def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, players, player_pages, stats):

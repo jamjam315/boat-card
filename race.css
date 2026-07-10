@@ -68,6 +68,22 @@ body{background:var(--bg); color:var(--ink);
 .card-head .ttl span{font-weight:400; color:var(--ink2); font-size:13.5px; margin-left:6px;}
 .card-head .dl{font-size:12.5px; color:var(--muted);}
 
+/* 6艇を並べて比べる一覧。将来ここに列(展示タイム/オッズ/進入予定)を足しても
+   崩れないよう、固定ピクセル幅に頼らないtable+overflow-x:autoにしている。 */
+.cmp{padding:12px 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto;}
+.cmp-ttl{font-size:12.5px; font-weight:600; margin-bottom:7px; color:var(--ink2);}
+.cmp-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.cmp-table th{font-size:10.5px; font-weight:500; color:var(--muted); text-align:left;
+  padding:0 6px 5px; white-space:nowrap;}
+.cmp-table td{padding:5px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
+.cmp-nm{font-weight:600; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
+.cmp-na{color:var(--muted);}
+.cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
+.cmp-note{font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6;}
+
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
   padding:13px 18px; border-bottom:1px solid var(--line);}
 .boat:last-child{border-bottom:none}
