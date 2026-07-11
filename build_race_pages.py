@@ -410,7 +410,7 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
   <p class="back"><a href="/index.html">← トップ（今日の出走表）に戻る</a></p>
   {card_html}
   {trend_html}
-  <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。</p>
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
 </body>
 </html>"""
@@ -453,7 +453,7 @@ def refresh_sitemap():
     """トップ・ガイド・players_index.jsの選手・race/配下の現存ページ(ローリング後)から
     sitemap.xmlを再生成する。ローリングで消えたページはここで自動的にsitemapからも消える。"""
     lastmod = datetime.date.today().isoformat()
-    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html"]
+    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html", "https://teiyomi.com/about.html"]
     try:
         player_pages = load_js("players_index.js", "PLAYER_PAGES")
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]
