@@ -433,10 +433,11 @@ function p3Line(toban){
 
 function courseHint(ks){
   // 今節/直近の実進入コース履歴(ks.c)の平均から、際立つ傾向があれば一言だけ返す。
-  // 閾値(1.6以下/4以上)の見直しは今回のスコープ外(別途検討)。
+  // 内寄り側の閾値は分布調査(2026-07-13)を踏まえ1.6→2.0に変更済み。
+  // 外め側(4.0)は健全な頻度で機能しているため現状維持。
   if(!ks || !ks.r || ks.r.length<2) return null;
   const avgC = ks.c.reduce((a,b)=>a+b,0)/ks.c.length;
-  if(avgC<=1.6) return "進入ほぼイン";
+  if(avgC<=2.0) return "進入ほぼイン";
   if(avgC>=4) return "進入は外めが多い";
   return null;
 }
@@ -642,7 +643,7 @@ function compareTable(r){
       <td class="cmp-nm">${b.name}</td><td class="nums">${stHtml}</td><td>${fHtml}</td></tr>`;
     const hint = courseHint(b.ks);
     if(hint){
-      const verb = hint==="進入ほぼイン" ? "直近ではイン寄りの進入がほとんどです" : "直近では外めからの進入が多いです";
+      const verb = hint==="進入ほぼイン" ? "直近は内寄りの進入が続いています" : "直近は外めからの進入が続いています";
       notes.push(`※${b.n}号艇 ${b.name}選手は、${verb}。`);
     }
   });

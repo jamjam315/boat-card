@@ -150,11 +150,12 @@ def p3_line(players, toban):
 
 def course_hint(ks):
     """今節/直近の実進入コース履歴(ks.c)の平均から、際立つ傾向があれば一言だけ返す。
-    閾値(1.6以下/4以上)の見直しは今回のスコープ外(別途検討)。"""
+    内寄り側の閾値は分布調査(2026-07-13)を踏まえ1.6→2.0に変更済み。
+    外め側(4.0)は健全な頻度で機能しているため現状維持。"""
     if not ks or not ks.get("r") or len(ks["r"]) < 2:
         return None
     avg_c = sum(ks["c"]) / len(ks["c"])
-    if avg_c <= 1.6:
+    if avg_c <= 2.0:
         return "進入ほぼイン"
     if avg_c >= 4:
         return "進入は外めが多い"
@@ -329,7 +330,7 @@ def compare_table(race, players):
                   f'<td>{f_html}</td></tr>')
         hint = course_hint(b.get("ks"))
         if hint:
-            verb = "直近ではイン寄りの進入がほとんどです" if hint == "進入ほぼイン" else "直近では外めからの進入が多いです"
+            verb = "直近は内寄りの進入が続いています" if hint == "進入ほぼイン" else "直近は外めからの進入が続いています"
             notes.append(f'※{b["n"]}号艇 {b["name"]}選手は、{verb}。')
 
     note_html = ""
