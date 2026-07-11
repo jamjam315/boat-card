@@ -176,7 +176,8 @@ def build_sitemap(written):
     race/はbuild_race_pages.py側の7日ローリングで管理されているため、ここではスキャンして
     載せるだけ(このスクリプトの実行がレースページの生成・削除に影響することはない)。"""
     lastmod = datetime.date.today().isoformat()
-    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html", "https://teiyomi.com/about.html"]
+    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
+            "https://teiyomi.com/about.html", "https://teiyomi.com/players/"]
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
     urls += scan_race_urls()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -337,6 +338,7 @@ def main():
     n_ok = 0
     n_err = 0
     written = []
+    index_rows = []
     for t in both:
         try:
             fp = fan_master[t]; kp = players_k[t]
@@ -347,6 +349,18 @@ def main():
                 f.write(html)
             n_ok += 1
             written.append(t)
+            # 選手一覧ページ用の軽量インデックス。ここで既に持っている値を積むだけ
+            # (build_profiles_v5.py側の変更は不要)。平均STはfan側(半年公式集計・
+            # 欠損なし)を使う。カナは名前順(五十音)ソートのためだけに持たせる。
+            # 出走回数0の選手は平均STが実測ではなくダミーの0.0になっている
+            # (win1がNoneになるのと同じ原因)ため、STも同様にNone扱いにする
+            # (そうしないと「まだ走っていない選手」がST最速としてソート上位に来てしまう)。
+            has_starts = fp.get("出走回数", 0) > 0
+            index_rows.append({
+                "t": t, "name": fp["氏名"], "kana": fp["カナ"], "k": fp["級別"], "br": fp["支部"],
+                "age": fp["年齢"], "nw": fp["勝率"], "st": fp["平均ST"] if has_starts else None,
+                "catch": prof["catch"], "win1": prof["top_rates"]["win1"],
+            })
         except Exception as e:
             n_err += 1
             print(f"[error] 登番{t}: {e}")
@@ -357,9 +371,15 @@ def main():
     with open("players_index.js", "w", encoding="utf-8") as f:
         f.write("window.PLAYER_PAGES = " + json.dumps(sorted(written)) + ";\n")
 
+    # 選手一覧(検索・絞り込み・ソート)ページ用のインデックス。written(=players_index.js)と
+    # 完全に同じ集合から作るので、両者は常に一致する。
+    index_rows.sort(key=lambda r: r["t"])
+    with open("players_list.js", "w", encoding="utf-8") as f:
+        f.write("window.PLAYER_LIST = " + json.dumps(index_rows, ensure_ascii=False) + ";\n")
+
     n_urls = build_sitemap(sorted(written))
 
-    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ、players_index.js、sitemap.xml({n_urls}URL)")
+    print(f"[done] 生成完了: {n_ok}人 (エラー: {n_err}人) → {OUT_DIR}/ ディレクトリ、players_index.js、players_list.js、sitemap.xml({n_urls}URL)")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>選手一覧・検索｜艇読み選手図鑑</title>
+<meta name="description" content="艇読みの選手図鑑、全選手を名前検索・支部/級別で絞り込み、全国勝率・全国1着率・平均STなどで並べ替えて探せる一覧ページです。">
+<link rel="canonical" href="https://teiyomi.com/players/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teiyomi.com/players/">
+<meta property="og:title" content="選手一覧・検索｜艇読み選手図鑑">
+<meta property="og:description" content="艇読みの選手図鑑、全選手を名前検索・支部/級別で絞り込み、全国勝率・全国1着率・平均STなどで並べ替えて探せる一覧ページです。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.6;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.plist-panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:14px 16px;}
+.plist-input{width:100%; font:inherit; font-size:15px; padding:9px 12px; border-radius:10px;
+  border:1px solid var(--line2); background:var(--bg); color:var(--ink); -webkit-appearance:none; appearance:none;}
+.plist-input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+.plist-selects{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.plist-select{flex:1 1 140px; min-width:120px; font:inherit; font-size:13px; padding:7px 8px; border-radius:9px;
+  border:1px solid var(--line2); background:var(--bg); color:var(--ink); -webkit-appearance:none; appearance:none;}
+.plist-count{font-size:11.5px; color:var(--muted); margin-top:10px;}
+
+.plist-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; overflow:hidden;}
+.plist-row{display:block; padding:11px 16px; border-bottom:1px solid var(--line); text-decoration:none; color:inherit;}
+.plist-row:last-child{border-bottom:none;}
+.plist-row:active{background:var(--bg);}
+.plist-catch{font-size:11px; color:var(--accent); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.plist-name{font-size:14.5px; font-weight:700; margin-top:2px;}
+.plist-name .plist-k{font-size:10.5px; font-weight:500; color:var(--ink2); margin-left:6px;}
+.plist-meta{font-size:11.5px; color:var(--ink2); margin-top:2px;}
+.plist-meta .plist-val{color:var(--ink2); margin-left:8px;}
+.plist-meta .plist-na{color:var(--muted); font-style:italic;}
+.plist-empty{padding:24px 16px; text-align:center; font-size:13px; color:var(--muted);}
+
+.plist-more{display:block; width:100%; margin-top:12px; padding:11px; font:inherit; font-size:13.5px;
+  font-weight:600; color:var(--accent); background:var(--surface); border:1px solid var(--accent);
+  border-radius:var(--radius); cursor:pointer;}
+.plist-more:active{background:var(--accent-soft);}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>選手一覧・検索</p></div>
+  </header>
+  <a class="back" href="/index.html">← トップに戻る</a>
+
+  <section class="plist-panel">
+    <input type="search" id="plistSearch" class="plist-input" placeholder="選手名で検索" autocomplete="off">
+    <div class="plist-selects">
+      <select id="plistBranch" class="plist-select"><option value="">支部：すべて</option></select>
+      <select id="plistLevel" class="plist-select">
+        <option value="">級別：すべて</option>
+        <option value="A1">A1</option>
+        <option value="A2">A2</option>
+        <option value="B1">B1</option>
+        <option value="B2">B2</option>
+      </select>
+      <select id="plistSort" class="plist-select">
+        <option value="name">名前順</option>
+        <option value="branch">支部順</option>
+        <option value="nw">全国勝率順</option>
+        <option value="win1">全国1着率順</option>
+        <option value="st">平均ST順（速い順）</option>
+      </select>
+    </div>
+    <p class="plist-count nums" id="plistCount"></p>
+  </section>
+
+  <section class="plist-card">
+    <div id="plistRows"></div>
+  </section>
+  <button class="plist-more" id="plistMore" style="display:none"></button>
+
+  <p class="foot">数字の並べ替えは事実データの表示順であり、艇読みが選手を順位付けするランキングではありません。</p>
+</div>
+
+<script src="/players_list.js" onerror="window.PLAYER_LIST=[]"></script>
+<script>
+(function(){
+  const ALL = window.PLAYER_LIST || [];
+  const PAGE_SIZE = 100;
+  let shownCount = PAGE_SIZE;
+  let debounceTimer = null;
+
+  const searchEl = document.getElementById("plistSearch");
+  const branchEl = document.getElementById("plistBranch");
+  const levelEl = document.getElementById("plistLevel");
+  const sortEl = document.getElementById("plistSort");
+  const rowsEl = document.getElementById("plistRows");
+  const countEl = document.getElementById("plistCount");
+  const moreEl = document.getElementById("plistMore");
+
+  // 支部の選択肢は実データから動的に作る(公式の支部一覧を決め打ちしない)
+  const branches = Array.from(new Set(ALL.map(p => p.br))).sort((a,b)=>a<b?-1:a>b?1:0);
+  branches.forEach(b=>{
+    const opt = document.createElement("option");
+    opt.value = b; opt.textContent = b;
+    branchEl.appendChild(opt);
+  });
+
+  function filtered(){
+    const q = searchEl.value.trim();
+    const br = branchEl.value;
+    const k = levelEl.value;
+    let rows = ALL;
+    if(q) rows = rows.filter(p => p.name.includes(q));
+    if(br) rows = rows.filter(p => p.br === br);
+    if(k) rows = rows.filter(p => p.k === k);
+    return rows;
+  }
+
+  function sorted(rows, key){
+    const copy = rows.slice();
+    if(key === "name") copy.sort((a,b)=> a.kana < b.kana ? -1 : a.kana > b.kana ? 1 : 0);
+    else if(key === "branch") copy.sort((a,b)=> a.br < b.br ? -1 : a.br > b.br ? 1 : 0);
+    else if(key === "nw") copy.sort((a,b)=> (b.nw ?? -Infinity) - (a.nw ?? -Infinity));
+    else if(key === "win1") copy.sort((a,b)=> (b.win1 ?? -Infinity) - (a.win1 ?? -Infinity));
+    else if(key === "st") copy.sort((a,b)=> (a.st ?? Infinity) - (b.st ?? Infinity));
+    return copy;
+  }
+
+  function valueHtml(p, key){
+    // 現在のソート指標に対応する数値だけを添える。順位番号は一切付けない。
+    if(key === "nw") return `<span class="plist-val">全国勝率 ${p.nw.toFixed(2)}</span>`;
+    if(key === "win1"){
+      return p.win1 == null
+        ? `<span class="plist-val plist-na">全国1着率 蓄積中</span>`
+        : `<span class="plist-val">全国1着率 ${p.win1.toFixed(1)}%</span>`;
+    }
+    if(key === "st"){
+      return p.st == null
+        ? `<span class="plist-val plist-na">平均ST 蓄積中</span>`
+        : `<span class="plist-val">平均ST ${p.st.toFixed(2)}</span>`;
+    }
+    return "";
+  }
+
+  function render(){
+    const key = sortEl.value;
+    const rows = sorted(filtered(), key);
+    const slice = rows.slice(0, shownCount);
+
+    if(slice.length === 0){
+      rowsEl.innerHTML = '<div class="plist-empty">該当する選手が見つかりませんでした。</div>';
+    }else{
+      rowsEl.innerHTML = slice.map(p => `<a class="plist-row" href="/players/${p.t}.html" target="_blank" rel="noopener">
+        <div class="plist-catch">「${p.catch}」</div>
+        <div class="plist-name">${p.name}<span class="plist-k">${p.k}</span></div>
+        <div class="plist-meta">${p.br}・${p.age}歳${valueHtml(p, key)}</div>
+      </a>`).join("");
+    }
+
+    countEl.textContent = `${rows.length}人が該当（全${ALL.length}人中）`;
+    const remaining = rows.length - slice.length;
+    if(remaining > 0){
+      moreEl.style.display = "block";
+      moreEl.textContent = `もっと見る（あと${remaining}人）`;
+    }else{
+      moreEl.style.display = "none";
+    }
+  }
+
+  function resetAndRender(){
+    shownCount = PAGE_SIZE;
+    render();
+  }
+
+  searchEl.addEventListener("input", ()=>{
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(resetAndRender, 120);
+  });
+  branchEl.addEventListener("change", resetAndRender);
+  levelEl.addEventListener("change", resetAndRender);
+  sortEl.addEventListener("change", resetAndRender);
+  moreEl.addEventListener("click", ()=>{ shownCount += PAGE_SIZE; render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>
