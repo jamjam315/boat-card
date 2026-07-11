@@ -393,6 +393,9 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 <meta property="og:url" content="{url}">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
 <link rel="stylesheet" href="/race.css">
 </head>
 <body>
