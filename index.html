@@ -97,7 +97,7 @@ body{background:var(--bg); color:var(--ink);
 .cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
 .cmp-na{color:var(--muted);}
 .cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
-.cmp-note{font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6;}
+.cmp-note{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;}
 
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
   padding:13px 18px; border-bottom:1px solid var(--line);}
@@ -643,7 +643,7 @@ function compareTable(r){
       <td class="cmp-nm">${b.name}</td><td class="nums">${stHtml}</td><td>${fHtml}</td></tr>`;
     const hint = courseHint(b.ks);
     if(hint){
-      const verb = hint==="進入ほぼイン" ? "直近は内寄りの進入が続いています" : "直近は外めからの進入が続いています";
+      const verb = hint==="進入ほぼイン" ? "直近は内寄りの進入が続きます" : "直近は外めからの進入が続きます";
       notes.push(`※${b.n}号艇 ${b.name}選手は、${verb}。`);
     }
   });

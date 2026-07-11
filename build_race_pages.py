@@ -330,7 +330,7 @@ def compare_table(race, players):
                   f'<td>{f_html}</td></tr>')
         hint = course_hint(b.get("ks"))
         if hint:
-            verb = "直近は内寄りの進入が続いています" if hint == "進入ほぼイン" else "直近は外めからの進入が続いています"
+            verb = "直近は内寄りの進入が続きます" if hint == "進入ほぼイン" else "直近は外めからの進入が続きます"
             notes.append(f'※{b["n"]}号艇 {b["name"]}選手は、{verb}。')
 
     note_html = ""

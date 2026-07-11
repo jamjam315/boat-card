@@ -82,7 +82,7 @@ body{background:var(--bg); color:var(--ink);
 .cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
 .cmp-na{color:var(--muted);}
 .cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
-.cmp-note{font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6;}
+.cmp-note{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;}
 
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
   padding:13px 18px; border-bottom:1px solid var(--line);}
