@@ -176,7 +176,7 @@ def build_sitemap(written):
     race/はbuild_race_pages.py側の7日ローリングで管理されているため、ここではスキャンして
     載せるだけ(このスクリプトの実行がレースページの生成・削除に影響することはない)。"""
     lastmod = datetime.date.today().isoformat()
-    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html"]
+    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html"]
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
     urls += scan_race_urls()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -319,7 +319,7 @@ def render_page(prof):
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
     {kon_block(prof)}
   </section>
-  <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。</p>
+  <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。</p>
 </div>
 {NAV_JS.replace("__MY_TOBAN__", prof['touban'])}</body>
 </html>"""
