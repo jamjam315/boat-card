@@ -649,7 +649,7 @@ function compareTable(r){
   });
   let noteHtml = "";
   if(notes.length){
-    noteHtml = `<div class="cmp-note">${notes.join("<br>")}<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>`;
+    noteHtml = `<div class="cmp-note">${notes.join("<br>")}<br>※記載のない艇は、目立った傾向はありません。<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>`;
   }
   return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
     <table class="cmp-table"><thead><tr><th>艇</th><th>選手</th><th>ST</th><th>F</th></tr></thead>

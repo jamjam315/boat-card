@@ -336,6 +336,7 @@ def compare_table(race, players):
     note_html = ""
     if notes:
         note_html = ('<div class="cmp-note">' + "<br>".join(notes) +
+                     '<br>※記載のない艇は、目立った傾向はありません。'
                      '<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>')
 
     return (f'<div class="cmp"><div class="cmp-ttl">比べる一覧</div>'
