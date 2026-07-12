@@ -315,12 +315,11 @@ def trend_panel(stats, venue_name):
 
 
 def compare_table(race, players):
-    """6艇を横に並べて比べる一覧(艇番/選手名/ST/F持ちの4列のみ)。
-    進入傾向は列にせず、際立つ艇がいる時だけ下の注記に回す(頻度調査の結果、
-    列にすると大半のレースで空欄だらけになるため)。将来、展示タイム・オッズ・
-    進入予定を列として足すことを見込み、固定ピクセル幅に頼らないtable構造にしてある。"""
+    """6艇を横に並べて比べる一覧(艇番/選手名/全国勝率/モーター2率/STの5列)。事実の数字を
+    淡々と横並びで見比べられることに絞り、進入傾向の注記(選手ごとのコメント文)は
+    撤去した(個別選手カードの「今の調子」欄には引き続き残す)。最大値の強調・
+    順位付け・強い順ソートは一切行わない(枠番順に並べるだけ)。"""
     rows = ""
-    notes = []
     for b in race["boats"]:
         L = LANES[b["n"]]
         p = players.get("players", {}).get(b.get("t"))
@@ -329,25 +328,19 @@ def compare_table(race, players):
             st_html = f'{p["st"]:.2f}<span class="cmp-stl">{label}</span>'
         else:
             st_html = '<span class="cmp-na">—</span>'
-        f_html = f'<span class="cmp-f">F{b["f"]}</span>' if b.get("f") else ""
+        nw_html = num(b.get("nw"), 2)
+        mo_html = "—" if b.get("mo") is None else f'{round(b["mo"])}%'
         rows += (f'<tr><td><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'
-                  f'<td class="cmp-nm">{b["name"]}</td>'
-                  f'<td class="nums">{st_html}</td>'
-                  f'<td>{f_html}</td></tr>')
-        hint = course_hint(b.get("ks"))
-        if hint:
-            verb = "直近は内寄りの進入が続きます" if hint == "進入ほぼイン" else "直近は外めからの進入が続きます"
-            notes.append(f'※{b["n"]}号艇 {b["name"]}選手は、{verb}。')
-
-    note_html = ""
-    if notes:
-        note_html = ('<div class="cmp-note">' + "<br>".join(notes) +
-                     '<br>※記載のない艇は、目立った傾向はありません。'
-                     '<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>')
+                  f'<td class="cmp-nm"><span class="cmp-nm-txt">{b["name"]}</span>{f_badge(b.get("f"))}</td>'
+                  f'<td class="nums cmp-num">{nw_html}</td>'
+                  f'<td class="nums cmp-num">{mo_html}</td>'
+                  f'<td class="nums cmp-num">{st_html}</td></tr>')
 
     return (f'<div class="cmp"><div class="cmp-ttl">比べる一覧</div>'
-            f'<table class="cmp-table"><thead><tr><th>艇</th><th>選手</th><th>ST</th><th>F</th></tr></thead>'
-            f'<tbody>{rows}</tbody></table>{note_html}</div>')
+            f'<table class="cmp-table"><thead><tr><th>艇</th><th>選手</th>'
+            f'<th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+            f'<div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>')
 
 
 def render_boat(b, venue_name, motors, players, player_pages, crew):

@@ -91,12 +91,13 @@ body{background:var(--bg); color:var(--ink);
 .cmp-table th{font-size:10.5px; font-weight:500; color:var(--muted); text-align:left;
   padding:0 6px 5px; white-space:nowrap;}
 .cmp-table td{padding:5px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
-.cmp-nm{font-weight:600; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cmp-nm{font-weight:600; white-space:nowrap;}
+.cmp-nm-txt{max-width:96px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;}
 .cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
 .cmp-na{color:var(--muted);}
-.cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
 .cmp-note{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;}
 
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
@@ -629,12 +630,12 @@ function trendPanel(venueName){
   </div>`;
 }
 function compareTable(r){
-  // 6艇を並べて比べる一覧(艇番/選手名/ST/F持ちの4列のみ)。進入傾向は列にせず、
-  // 際立つ艇がいる時だけ下の注記に回す(頻度調査の結果、列だと大半のレースで
-  // 空欄だらけになるため)。将来ここに展示タイム/オッズ/進入予定の列を足すことを
-  // 見込み、固定ピクセル幅に頼らないtable構造にしてある。
+  // 6艇を並べて比べる一覧(艇番/選手名/全国勝率/モーター2率/STの5列)。事実の数字を
+  // 淡々と横並びで見比べられることに絞り、進入傾向の注記(選手ごとのコメント文)は
+  // 撤去した(個別選手カードの「今の調子」欄には引き続き残す)。最大値の強調・
+  // 順位付け・強い順ソートは一切行わない(枠番順に並べるだけ)。
   const P = window.PLAYERS;
-  let rows = "", notes = [];
+  let rows = "";
   r.boats.forEach(b=>{
     const L = LANES[b.n];
     const p = P && P.players ? P.players[b.t] : null;
@@ -647,22 +648,19 @@ function compareTable(r){
     }else{
       stHtml = '<span class="cmp-na">—</span>';
     }
-    const fHtml = b.f ? `<span class="cmp-f">F${b.f}</span>` : "";
+    const nwHtml = num(b.nw, 2);
+    const moHtml = b.mo==null ? "—" : `${Math.round(b.mo)}%`;
     rows += `<tr><td><span class="cmp-lane" style="background:${L.bg};color:${L.fg}">${b.n}</span></td>
-      <td class="cmp-nm">${b.name}</td><td class="nums">${stHtml}</td><td>${fHtml}</td></tr>`;
-    const hint = courseHint(b.ks);
-    if(hint){
-      const verb = hint==="進入ほぼイン" ? "直近は内寄りの進入が続きます" : "直近は外めからの進入が続きます";
-      notes.push(`※${b.n}号艇 ${b.name}選手は、${verb}。`);
-    }
+      <td class="cmp-nm"><span class="cmp-nm-txt">${b.name}</span>${fBadge(b.f)}</td>
+      <td class="nums cmp-num">${nwHtml}</td>
+      <td class="nums cmp-num">${moHtml}</td>
+      <td class="nums cmp-num">${stHtml}</td></tr>`;
   });
-  let noteHtml = "";
-  if(notes.length){
-    noteHtml = `<div class="cmp-note">${notes.join("<br>")}<br>※記載のない艇は、目立った傾向はありません。<br>進入傾向は直近の実績に基づく傾向です。実際の進入は締切後に確定します。</div>`;
-  }
   return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
-    <table class="cmp-table"><thead><tr><th>艇</th><th>選手</th><th>ST</th><th>F</th></tr></thead>
-    <tbody>${rows}</tbody></table>${noteHtml}</div>`;
+    <table class="cmp-table"><thead><tr><th>艇</th><th>選手</th>
+    <th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>`;
 }
 function renderCard(){
   const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);

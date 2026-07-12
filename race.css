@@ -76,12 +76,13 @@ body{background:var(--bg); color:var(--ink);
 .cmp-table th{font-size:10.5px; font-weight:500; color:var(--muted); text-align:left;
   padding:0 6px 5px; white-space:nowrap;}
 .cmp-table td{padding:5px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
-.cmp-nm{font-weight:600; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cmp-nm{font-weight:600; white-space:nowrap;}
+.cmp-nm-txt{max-width:96px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;}
 .cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
 .cmp-na{color:var(--muted);}
-.cmp-f{color:#b3392f; font-weight:700; font-size:11px;}
 .cmp-note{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;}
 
 .boat{display:grid; grid-template-columns:40px 1fr auto; gap:13px; align-items:center;
