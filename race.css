@@ -83,6 +83,7 @@ body{background:var(--bg); color:var(--ink);
   display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
 .cmp-nm-txt{max-width:96px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;}
+.cmp-course{font-size:10px; font-weight:600; color:var(--muted); margin-left:2px;}
 .cmp-st-inner{display:flex; align-items:baseline; justify-content:flex-end;}
 .cmp-st-val{flex:0 0 auto;}
 .cmp-stl{flex:0 0 22px; text-align:left; font-size:10px; color:var(--ink2); margin-left:2px;}

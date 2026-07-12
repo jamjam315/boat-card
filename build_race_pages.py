@@ -314,10 +314,23 @@ def trend_panel(stats, venue_name):
             f'{weather_block(stats, venue_name)}{kimarite_block_venue(stats, venue_name)}</div>')
 
 
+def course_badge(ks):
+    """進入傾向は枠なりから外れる例外の艇だけ意味を持つ(該当は6艇中1〜2艇、
+    ゼロのレースも多い)ため、文章の注記ではなく該当艇の選手名横に付く
+    最小限のラベルにする。判定基準はcourse_hint()をそのまま流用(変更なし)。"""
+    hint = course_hint(ks)
+    if hint == "進入ほぼイン":
+        return '<span class="cmp-course term" title="直近の実績に基づく進入傾向(枠なりが基本、確定は締切後)">進入内</span>'
+    if hint == "進入は外めが多い":
+        return '<span class="cmp-course term" title="直近の実績に基づく進入傾向(枠なりが基本、確定は締切後)">進入外</span>'
+    return ""
+
+
 def compare_table(race, players):
     """6艇を横に並べて比べる一覧(艇番/選手名/全国勝率/モーター2率/STの5列)。事実の数字を
-    淡々と横並びで見比べられることに絞り、進入傾向の注記(選手ごとのコメント文)は
-    撤去した(個別選手カードの「今の調子」欄には引き続き残す)。最大値の強調・
+    淡々と横並びで見比べられることに絞る。進入傾向は文章の注記ではなく、枠なりから
+    外れる例外の艇だけに付く最小限のラベル(選手名の横)として復活させた
+    (個別選手カードの「今の調子」欄には引き続き残す)。最大値の強調・
     順位付け・強い順ソートは一切行わない(枠番順に並べるだけ)。"""
     rows = ""
     for b in race["boats"]:
@@ -331,7 +344,7 @@ def compare_table(race, players):
         nw_html = num(b.get("nw"), 2)
         mo_html = "—" if b.get("mo") is None else f'{round(b["mo"])}%'
         rows += (f'<tr><td class="cmp-boat"><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'
-                  f'<td class="cmp-nm"><span class="cmp-nm-txt">{b["name"]}</span>{f_badge(b.get("f"))}</td>'
+                  f'<td class="cmp-nm"><span class="cmp-nm-txt">{b["name"]}</span>{f_badge(b.get("f"))}{course_badge(b.get("ks"))}</td>'
                   f'<td class="nums cmp-num">{nw_html}</td>'
                   f'<td class="nums cmp-num">{mo_html}</td>'
                   f'<td class="nums cmp-num cmp-st">{st_html}</td></tr>')
