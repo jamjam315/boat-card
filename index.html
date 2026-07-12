@@ -135,6 +135,7 @@ body{background:var(--bg); color:var(--ink);
 .stat .l{font-size:10.5px; color:var(--muted);}
 .stat .v{font-size:15px; font-weight:600;}
 .stat .v.lwthin{color:var(--muted); font-weight:400; font-style:italic;}
+.stat .v.lwnodata{font-size:11px; letter-spacing:-.02em;}
 .stat.mo{min-width:62px;}
 .bar{height:4px; background:var(--bg); border-radius:2px; margin-top:4px; overflow:hidden;}
 .bar i{display:block; height:100%; background:var(--accent);}
@@ -378,12 +379,19 @@ function checkStaleData(){
 
 function el(html){const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild;}
 function num(x,d){return (x==null)?"—":Number(x).toFixed(d);}
-function lwDisplay(lw,lwn){
+function lwDisplay(lw,lwn,sn){
   // 当地勝率0.00は「実際に走って0点」と「そもそも当地未出走」を見分けて表示する。
   // lwn=当地(1年分のK)での出走数。走行数が薄い(10走未満)場合は参考程度と分かる薄字にする。
+  // lwnは1年強しか遡れないため、当地の記録が無いだけでは「初」と断定しない。
+  // sn=fanの出走回数(半年、全会場合計)。sn===0の真の新人だけ「当地初」とし、
+  // 現役だが当地の自前記録が無いだけ(sn>=1)やfanにも記録が無い(sn=null、安全側)場合は
+  // 事実提示の「当地データなし」にする。
   if(lw==null) return `<div class="v">—</div>`;
   if(lw===0){
-    if(!lwn) return `<div class="v lwthin">当地初</div>`;
+    if(!lwn){
+      if(sn===0) return `<div class="v lwthin">当地初</div>`;
+      return `<div class="v lwthin lwnodata">当地データなし</div>`;
+    }
     if(lwn<10) return `<div class="v lwthin">0.00</div>`;
   }
   return `<div class="v">${Number(lw).toFixed(2)}</div>`;
@@ -672,7 +680,7 @@ function renderCard(){
       </div>
       <div class="stats nums">
         <div class="stat nw"><div class="l term" title="全国勝率＝全国での成績を点数化した競艇独自の指数(％ではありません)">全国勝率</div><div class="v">${num(b.nw,2)}</div></div>
-        <div class="stat lw"><div class="l term" title="当地勝率＝この会場だけに絞った、全国勝率と同じ仕組みの指数">当地勝率</div>${lwDisplay(b.lw,b.lwn)}${p3Line(b.t)}</div>
+        <div class="stat lw"><div class="l term" title="当地勝率＝この会場だけに絞った、全国勝率と同じ仕組みの指数">当地勝率</div>${lwDisplay(b.lw,b.lwn,b.sn)}${p3Line(b.t)}</div>
         <div class="stat mo"><div class="l term" title="モーター2連率＝このモーターが過去に2着以内に入った割合">モーター2率</div><div class="v">${mo}%</div>
           <div class="bar"><i style="width:${mo}%"></i></div>
           ${motorPrevLine(v.name, b.mno)}</div>

@@ -74,23 +74,27 @@ def player_flow(by_venue, by_player, touban, venue, day, today):
     }
 
 def load_fan_extra():
-    """fan(期別集計)から、レースカードに使う体重・F数(フライング持ち)を登番ごとに引けるようにする。
+    """fan(期別集計)から、レースカードに使う体重・F数(フライング持ち)・出走回数(半年)を登番ごとに引けるようにする。
     体重：選手図鑑(build_all_player_pages.py)もfanの体重を使っているため、レースカードと
     図鑑で食い違わないよう揃える(Bの体重は当日計量で日々変動する)。
     F数：fanのコース別事故内訳(acc.F)を6コースぶん合計した、fan集計期間(直近半年)の
     通算フライング回数。0人には表示側で何も付けない(F持ちだけ気づける形にするため)。
+    出走回数(半年)：「当地初」判定(lw_display)で、自前集計(K)が1年強しか遡れないことによる
+    誤判定(現役選手を初出走扱いしてしまう)を避けるために使う。fanにも記録が無い選手は
+    Noneのままにし、表示側で「安全側(=断定しない)」に倒す判断に委ねる。
     fanファイルが無い/該当が無い選手は、体重はBにフォールバック・F数は0扱いにする。
     """
     try:
         fan = json.load(open("fan2604.json", encoding="utf-8"))
     except FileNotFoundError:
-        return {}, {}
+        return {}, {}, {}
     weights = {p["登番"]: p.get("体重") for p in fan}
     fcounts = {}
+    starts = {p["登番"]: p.get("出走回数") for p in fan}
     for p in fan:
         total_f = sum((d.get("acc") or {}).get("F", 0) or 0 for d in p.get("コース別", {}).values())
         fcounts[p["登番"]] = total_f
-    return weights, fcounts
+    return weights, fcounts, starts
 
 def download(url, dest, tries=3):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -135,7 +139,7 @@ def build():
         sys.exit(1)
 
     by_venue, by_player = load_results_index()
-    fan_weights, fan_fcounts = load_fan_extra()
+    fan_weights, fan_fcounts, fan_starts = load_fan_extra()
 
     # 表示用にフィールドを絞る（index.html が読む形）
     order, venues, venue_kstart = [], {}, {}
@@ -159,6 +163,9 @@ def build():
                 # 当地の出走実績数(1年分のK)。当地勝率0.00が「本当に走って0点」か
                 # 「そもそも当地未出走」かを見分けるために使う(表示側の判定用)。
                 "lwn": len(by_venue.get((b["登番"], r["会場"]), [])),
+                # fanの出走回数(半年、全会場合計)。「当地初」表示は、lwnが0でもこれが
+                # 1以上(=現役で走っている)なら「初」と断定せず「データなし」に倒すための判定材料。
+                "sn": fan_starts.get(b["登番"]),
                 "mo": b.get("モーター2連率"), "bo": b.get("ボート2連率"),
                 "mno": b.get("モーター番号"),
                 "ks": player_flow(by_venue, by_player, b["登番"], r["会場"], r["開催日目"], d),

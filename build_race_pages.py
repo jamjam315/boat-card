@@ -80,12 +80,18 @@ def num(x, d):
     return "—" if x is None else f"{x:.{d}f}"
 
 
-def lw_display(lw, lwn):
+def lw_display(lw, lwn, sn):
     if lw is None:
         return '<div class="v">—</div>'
     if lw == 0:
         if not lwn:
-            return '<div class="v lwthin">当地初</div>'
+            # 自前集計(lwn)は1年強しか遡れないため、当地の記録が無いだけでは「初」と
+            # 断定しない。fanの出走回数(半年、sn)が0の真の新人だけ「当地初」とし、
+            # 現役だが当地の自前記録が無いだけの選手(sn>=1)や、fanにも記録が無い
+            # (sn=None、安全側に倒す)選手は事実提示の「当地データなし」にする。
+            if sn == 0:
+                return '<div class="v lwthin">当地初</div>'
+            return '<div class="v lwthin lwnodata">当地データなし</div>'
         if lwn < 10:
             return '<div class="v lwthin">0.00</div>'
     return f'<div class="v">{lw:.2f}</div>'
@@ -357,7 +363,7 @@ def render_boat(b, venue_name, motors, players, player_pages, crew):
       </div>
       <div class="stats nums">
         <div class="stat nw"><div class="l term" title="全国勝率＝全国での成績を点数化した競艇独自の指数(％ではありません)">全国勝率</div><div class="v">{num(b.get('nw'), 2)}</div></div>
-        <div class="stat lw"><div class="l term" title="当地勝率＝この会場だけに絞った、全国勝率と同じ仕組みの指数">当地勝率</div>{lw_display(b.get('lw'), b.get('lwn'))}{p3_line(players, b.get('t'))}</div>
+        <div class="stat lw"><div class="l term" title="当地勝率＝この会場だけに絞った、全国勝率と同じ仕組みの指数">当地勝率</div>{lw_display(b.get('lw'), b.get('lwn'), b.get('sn'))}{p3_line(players, b.get('t'))}</div>
         <div class="stat mo"><div class="l term" title="モーター2連率＝このモーターが過去に2着以内に入った割合">モーター2率</div><div class="v">{mo}%</div>
           <div class="bar"><i style="width:{mo}%"></i></div>
           {motor_prev_line(motors, venue_name, b.get('mno'), player_pages)}</div>
