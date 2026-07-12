@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-07-11", "toban": "3473", "name": "石川真二", "k": "A1", "age": 56, "br": "福岡", "catch": "ベテランの児島のイン逃げ屋", "basis": "児島で際立って好成績、かつ「逃げ」が持ち味のため（詳しくは下の「当地」欄）。56歳", "venue": "児島", "races": [7, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-07-12", "toban": "4302", "name": "西野翔太", "k": "A1", "age": 43, "br": "広島", "catch": "児島巧者", "basis": "児島で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "児島", "races": [7, 12], "reason": "home"};
