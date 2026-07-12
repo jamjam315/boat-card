@@ -23,6 +23,7 @@ MIN_OTHER_N = 5
 VENUE_DIFF_MIN = 20
 VENUE_MASTER_WIN = 50
 VENUE_MASTER_DIFF = 45
+MIN_TENJI_N = 30  # 展示タイムの安定度を出すのに必要な最低サンプル数(会場補正後の残差の件数)
 KIMARITE_ORDER = ["逃げ", "まくり", "差し", "まくり差し", "抜き"]
 
 BASE_NOUN = {
@@ -39,13 +40,62 @@ def load_fan_master():
     return {p["登番"]: p for p in fan}
 
 
+def compute_tenji_labels(venue_tenji, player_venue_tenji):
+    """展示タイム(K)から、会場差を補正した選手ごとの安定度(ばらつき)を3段階の
+    型ラベルに変換する。
+
+    平均(速さ)は出さない：調査の結果、会場ごとの平均展示タイムの差(蒲郡6.71秒〜
+    徳山6.96秒)が選手間の実質差よりずっと大きく、会場差を補正してもなお
+    「選手内のブレ」が「選手間の差」の約3倍あり(stdev比較で0.088 vs 0.028)、
+    単純な平均は会場差・ノイズに埋もれて誤解を招くため扱わない。
+
+    安定度(ばらつきの少なさ)は出す：各展示タイムからその会場の全選手平均を
+    引いた残差を選手ごとに集め、その標準偏差を「会場差を除いた選手固有の
+    ブレ」として使う。この値は選手間で意味のある差がある(調査でp10〜p90が
+    約1.5倍の開き)。
+
+    閾値は毎回の実データの分布(下位/上位1/3、tertile)から動的に算出する。
+    進入傾向のときのように固定の閾値を一度決めてしまうと、後で実態と
+    合わなくなる(大半が該当しない/しすぎる)恐れがあるため、都度の分布から
+    決め直すことでその失敗を避ける。中間の1/3は「特に際立たない」として
+    ラベルを付けない(断定・過剰な情報を避ける、当地初と同じ考え方)。
+
+    30件未満(MIN_TENJI_N)の選手は判定不能として扱う(何も返さない)。
+    速さ・強さの指標ではなく、あくまで展示タイムのブレ方についての
+    事実提示にとどめる。
+    """
+    venue_mean = {v: statistics.mean(vals) for v, vals in venue_tenji.items() if vals}
+    player_sd = {}
+    for touban, vv in player_venue_tenji.items():
+        resids = [val - venue_mean[venue] for venue, vals in vv.items() for val in vals]
+        if len(resids) >= MIN_TENJI_N:
+            player_sd[touban] = statistics.stdev(resids)
+    if not player_sd:
+        return {}
+    vals_sorted = sorted(player_sd.values())
+    n = len(vals_sorted)
+    lo_cut = vals_sorted[n // 3]
+    hi_cut = vals_sorted[(2 * n) // 3]
+    labels = {}
+    for touban, sd in player_sd.items():
+        if sd <= lo_cut:
+            labels[touban] = "stable"
+        elif sd >= hi_cut:
+            labels[touban] = "volatile"
+        # 中間(lo_cut < sd < hi_cut)はラベル無し
+    return labels
+
+
 def load_k_stats():
-    """results.jsonl(K)から、選手ごとの決まり手・会場別成績・進入コース1着分布を集計する。"""
+    """results.jsonl(K)から、選手ごとの決まり手・会場別成績・進入コース1着分布、
+    および展示タイムの安定度(会場差補正済み)を集計する。"""
     rows = [json.loads(l) for l in open(f"{CLONE}/results.jsonl", encoding="utf-8") if l.strip()]
     nat_kimarite = Counter()
     players = defaultdict(lambda: {"kwin": Counter(), "sts": [], "venue": defaultdict(lambda: {"n":0,"w1":0})})
     by_venue = defaultdict(list)   # (登番,会場) -> [(date,race_no,進,ST,着), ...]  (今節用)
     by_player = defaultdict(list)  # 登番 -> [(date,会場,race_no,進,ST,着), ...]     (直近用)
+    venue_tenji = defaultdict(list)                       # 会場 -> [展,...]  (会場平均を出すため全選手ぶん)
+    player_venue_tenji = defaultdict(lambda: defaultdict(list))  # 登番 -> 会場 -> [展,...]
     for r in rows:
         for x in r["結果"]:
             p = players[x["登番"]]
@@ -53,6 +103,10 @@ def load_k_stats():
             v["n"] += 1
             if x.get("ST") is not None:
                 p["sts"].append(x["ST"])
+            tenji = x.get("展")
+            if tenji is not None:
+                venue_tenji[r["会場"]].append(tenji)
+                player_venue_tenji[x["登番"]][r["会場"]].append(tenji)
             by_venue[(x["登番"], r["会場"])].append((r["date"], r["レース番号"], x["進"], x.get("ST"), x["着"]))
             by_player[x["登番"]].append((r["date"], r["会場"], r["レース番号"], x["進"], x.get("ST"), x["着"]))
             if x["着"] == 1:
@@ -64,7 +118,8 @@ def load_k_stats():
     for k in by_player: by_player[k].sort()
     nat_total = sum(nat_kimarite.values())
     NAT_PCT = {k: nat_kimarite.get(k, 0) / nat_total * 100 for k in KIMARITE_ORDER}
-    return players, NAT_PCT, by_venue, by_player
+    tenji_labels = compute_tenji_labels(venue_tenji, player_venue_tenji)
+    return players, NAT_PCT, by_venue, by_player, tenji_labels
 
 
 def home_venue(p_k):
@@ -138,7 +193,7 @@ def kon_setsu_flow(by_venue, by_player, touban, venue, day, today_iso):
     return {"which": which, "c": [r[2] for r in rows], "s": [r[3] for r in rows], "r": [r[4] for r in rows]}
 
 
-def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=None, day_today=None, today_iso=None):
+def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=None, day_today=None, today_iso=None, tenji_label=None):
     """fan(属性・コース傾向) + K(決まり手・当地・今節/直近) を統合した選手プロフィールを作る。"""
     total_wins = sum(k_p["kwin"].values()) if k_p else 0
     kimarite_pct = {k: round(k_p["kwin"].get(k,0)/total_wins*100,1) if total_wins else None for k in KIMARITE_ORDER} if k_p else {k:None for k in KIMARITE_ORDER}
@@ -207,7 +262,7 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
     return {
         "touban": touban, "profile": fan_p, "catch": catch, "catch_basis": "。".join(basis_parts),
         "course": course_out, "kimarite_pct": kimarite_pct, "kimarite_total_wins": total_wins,
-        "home": home, "ks": ks, "top_rates": top_rates_from_fan(fan_p),
+        "home": home, "ks": ks, "top_rates": top_rates_from_fan(fan_p), "tenji_label": tenji_label,
         # 二つ名の「際立ちの強さ」を他選手と比較するための値(トップページの注目選手選びで使う)。
         # best_diffは決まり手が全国平均よりどれだけ際立つか(pt)。total_wins<MIN_WIN_Nの時はNone(蓄積中)。
         "best_diff": best_diff if total_wins >= MIN_WIN_N else None,

@@ -76,6 +76,7 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nohome{font-size:12.5px; color:var(--muted); font-style:italic;}
 .kon{font-size:13px; color:var(--ink2);} .kon b{color:var(--ink); font-weight:600;}
 .note{font-size:11.5px; color:var(--muted); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line2); line-height:1.6;}
+.tenji-tag{display:inline-block; font-size:13px; font-weight:700; color:var(--ink); background:var(--bg); border:1px solid var(--line2); border-radius:8px; padding:5px 12px;}
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11.5px;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 """
@@ -239,6 +240,23 @@ def course_block(prof):
     return rows + note
 
 
+TENJI_LABEL_TEXT = {"stable": "展示は安定型", "volatile": "展示は変動型"}
+
+
+def tenji_block(prof):
+    """展示タイムの安定度(会場差補正済み)。速さ・強さとは無関係の「ブレ方」の
+    事実提示にとどめ、安定=良い/変動=悪いという価値判断に見えないよう、
+    両ラベルを同じ見た目(色分けなし)で出す。30件未満/中間1/3の選手はカード自体を出さない。"""
+    label = prof.get("tenji_label")
+    if not label:
+        return ""
+    return f'''<section class="card">
+    <div class="card-ttl"><span class="pin"></span>展示タイムの傾向</div>
+    <div class="tenji-tag">{TENJI_LABEL_TEXT[label]}</div>
+    <div class="note">展示タイムのブレの大きさ（安定度）を示すもので、速さの指標ではありません。本番の強さ・着順とは関係しません。</div>
+  </section>'''
+
+
 def home_block(prof):
     h = prof["home"]
     if not h:
@@ -323,6 +341,7 @@ def render_page(prof):
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
     {kon_block(prof)}
   </section>
+  {tenji_block(prof)}
   <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
 {NAV_JS.replace("__MY_TOBAN__", prof['touban'])}</body>
@@ -331,7 +350,7 @@ def render_page(prof):
 
 def main():
     fan_master = load_fan_master()
-    players_k, NAT_PCT, by_venue, by_player = load_k_stats()
+    players_k, NAT_PCT, by_venue, by_player, tenji_labels = load_k_stats()
     both = sorted(set(fan_master) & set(players_k))
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -343,7 +362,8 @@ def main():
         try:
             fp = fan_master[t]; kp = players_k[t]
             prof = build_profile(t, fp, kp, NAT_PCT, by_venue, by_player,
-                                  venue_today=None, day_today=None, today_iso=TODAY_ISO)
+                                  venue_today=None, day_today=None, today_iso=TODAY_ISO,
+                                  tenji_label=tenji_labels.get(t))
             html = render_page(prof)
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
@@ -360,6 +380,9 @@ def main():
                 "t": t, "name": fp["氏名"], "kana": fp["カナ"], "k": fp["級別"], "br": fp["支部"],
                 "age": fp["年齢"], "nw": fp["勝率"], "st": fp["平均ST"] if has_starts else None,
                 "catch": prof["catch"], "win1": prof["top_rates"]["win1"],
+                # 展示タイムの安定度(会場差補正済み、"stable"/"volatile"/無し)。
+                # 速さ・強さの指標ではなく、あくまでブレ方の事実提示。ソート軸には使わない。
+                "tj": prof["tenji_label"],
             })
         except Exception as e:
             n_err += 1

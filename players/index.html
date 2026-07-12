@@ -63,6 +63,7 @@ body{background:var(--bg); color:var(--ink);
 .plist-meta{font-size:11.5px; color:var(--ink2); margin-top:2px;}
 .plist-meta .plist-val{color:var(--ink2); margin-left:8px;}
 .plist-meta .plist-na{color:var(--muted); font-style:italic;}
+.plist-tenji{font-size:10.5px; color:var(--muted); margin-top:3px;}
 .plist-empty{padding:24px 16px; text-align:center; font-size:13px; color:var(--muted);}
 
 .plist-more{display:block; width:100%; margin-top:12px; padding:11px; font:inherit; font-size:13.5px;
@@ -176,6 +177,14 @@ body{background:var(--bg); color:var(--ink);
     return "";
   }
 
+  const TENJI_TEXT = {stable: "展示は安定型", volatile: "展示は変動型"};
+  function tenjiHtml(p){
+    // 展示タイムの安定度(会場差補正済み)。速さ・強さの指標ではなくブレ方の事実提示。
+    // 安定/変動を色分けせず同じ見た目にし、価値判断に見えないようにする。ソート軸には使わない。
+    const t = TENJI_TEXT[p.tj];
+    return t ? `<div class="plist-tenji">${t}</div>` : "";
+  }
+
   function render(){
     const key = sortEl.value;
     const rows = sorted(filtered(), key);
@@ -188,6 +197,7 @@ body{background:var(--bg); color:var(--ink);
         <div class="plist-catch">「${p.catch}」</div>
         <div class="plist-name">${p.name}<span class="plist-k">${p.k}</span></div>
         <div class="plist-meta">${p.br}・${p.age}歳${valueHtml(p, key)}</div>
+        ${tenjiHtml(p)}
       </a>`).join("");
     }
 
