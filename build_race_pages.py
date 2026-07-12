@@ -325,19 +325,19 @@ def compare_table(race, players):
         p = players.get("players", {}).get(b.get("t"))
         if p and p.get("n") and p["n"] >= players.get("min", 8):
             _, label = st_class_label(p["st"])
-            st_html = f'{p["st"]:.2f}<span class="cmp-stl">{label}</span>'
+            st_html = f'<span class="cmp-st-val">{p["st"]:.2f}</span><span class="cmp-stl">{label}</span>'
         else:
-            st_html = '<span class="cmp-na">—</span>'
+            st_html = '<span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span>'
         nw_html = num(b.get("nw"), 2)
         mo_html = "—" if b.get("mo") is None else f'{round(b["mo"])}%'
-        rows += (f'<tr><td><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'
+        rows += (f'<tr><td class="cmp-boat"><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'
                   f'<td class="cmp-nm"><span class="cmp-nm-txt">{b["name"]}</span>{f_badge(b.get("f"))}</td>'
                   f'<td class="nums cmp-num">{nw_html}</td>'
                   f'<td class="nums cmp-num">{mo_html}</td>'
-                  f'<td class="nums cmp-num">{st_html}</td></tr>')
+                  f'<td class="nums cmp-num cmp-st">{st_html}</td></tr>')
 
     return (f'<div class="cmp"><div class="cmp-ttl">比べる一覧</div>'
-            f'<table class="cmp-table"><thead><tr><th>艇</th><th>選手</th>'
+            f'<table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th>選手</th>'
             f'<th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>'
             f'<tbody>{rows}</tbody></table>'
             f'<div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>')

@@ -88,15 +88,19 @@ body{background:var(--bg); color:var(--ink);
 .cmp{padding:12px 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto;}
 .cmp-ttl{font-size:12.5px; font-weight:600; margin-bottom:7px; color:var(--ink2);}
 .cmp-table{width:100%; border-collapse:collapse; font-size:12.5px;}
-.cmp-table th{font-size:10.5px; font-weight:500; color:var(--muted); text-align:left;
-  padding:0 6px 5px; white-space:nowrap;}
-.cmp-table td{padding:5px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-table th{font-size:10.5px; font-weight:500; color:var(--ink2); text-align:left;
+  padding:0 6px 6px; white-space:nowrap;}
+.cmp-table td{padding:7px 6px; vertical-align:middle; white-space:nowrap;}
+.cmp-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--line);}
 .cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
+.cmp-table th.cmp-boat, .cmp-table td.cmp-boat{text-align:center;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
-  display:flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
+  display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
 .cmp-nm-txt{max-width:96px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;}
-.cmp-stl{font-size:10px; color:var(--ink2); margin-left:3px;}
+.cmp-table td.cmp-st{display:flex; align-items:baseline; justify-content:flex-end;}
+.cmp-st-val{flex:0 0 auto;}
+.cmp-stl{flex:0 0 22px; text-align:left; font-size:10px; color:var(--ink2); margin-left:2px;}
 .cmp-na{color:var(--muted);}
 .cmp-note{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.5;}
 
@@ -644,20 +648,20 @@ function compareTable(r){
       let label = "標準";
       if(p.st<=0.140) label="攻";
       else if(p.st>=0.185) label="慎重";
-      stHtml = `${p.st.toFixed(2)}<span class="cmp-stl">${label}</span>`;
+      stHtml = `<span class="cmp-st-val">${p.st.toFixed(2)}</span><span class="cmp-stl">${label}</span>`;
     }else{
-      stHtml = '<span class="cmp-na">—</span>';
+      stHtml = '<span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span>';
     }
     const nwHtml = num(b.nw, 2);
     const moHtml = b.mo==null ? "—" : `${Math.round(b.mo)}%`;
-    rows += `<tr><td><span class="cmp-lane" style="background:${L.bg};color:${L.fg}">${b.n}</span></td>
+    rows += `<tr><td class="cmp-boat"><span class="cmp-lane" style="background:${L.bg};color:${L.fg}">${b.n}</span></td>
       <td class="cmp-nm"><span class="cmp-nm-txt">${b.name}</span>${fBadge(b.f)}</td>
       <td class="nums cmp-num">${nwHtml}</td>
       <td class="nums cmp-num">${moHtml}</td>
-      <td class="nums cmp-num">${stHtml}</td></tr>`;
+      <td class="nums cmp-num cmp-st">${stHtml}</td></tr>`;
   });
   return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
-    <table class="cmp-table"><thead><tr><th>艇</th><th>選手</th>
+    <table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th>選手</th>
     <th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>`;
