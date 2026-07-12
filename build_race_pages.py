@@ -325,9 +325,9 @@ def compare_table(race, players):
         p = players.get("players", {}).get(b.get("t"))
         if p and p.get("n") and p["n"] >= players.get("min", 8):
             _, label = st_class_label(p["st"])
-            st_html = f'<span class="cmp-st-val">{p["st"]:.2f}</span><span class="cmp-stl">{label}</span>'
+            st_html = f'<span class="cmp-st-inner"><span class="cmp-st-val">{p["st"]:.2f}</span><span class="cmp-stl">{label}</span></span>'
         else:
-            st_html = '<span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span>'
+            st_html = '<span class="cmp-st-inner"><span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span></span>'
         nw_html = num(b.get("nw"), 2)
         mo_html = "—" if b.get("mo") is None else f'{round(b["mo"])}%'
         rows += (f'<tr><td class="cmp-boat"><span class="cmp-lane" style="background:{L[0]};color:{L[1]}">{b["n"]}</span></td>'

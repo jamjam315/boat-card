@@ -88,17 +88,17 @@ body{background:var(--bg); color:var(--ink);
 .cmp{padding:12px 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto;}
 .cmp-ttl{font-size:12.5px; font-weight:600; margin-bottom:7px; color:var(--ink2);}
 .cmp-table{width:100%; border-collapse:collapse; font-size:12.5px;}
-.cmp-table th{font-size:10.5px; font-weight:500; color:var(--ink2); text-align:left;
+.cmp-table th{font-size:10.5px; font-weight:500; color:var(--ink2); text-align:center;
   padding:0 6px 6px; white-space:nowrap;}
 .cmp-table td{padding:7px 6px; vertical-align:middle; white-space:nowrap;}
 .cmp-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--line);}
-.cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
-.cmp-table th.cmp-boat, .cmp-table td.cmp-boat{text-align:center;}
+.cmp-table td.cmp-num{text-align:right;}
+.cmp-table td.cmp-boat{text-align:center;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
 .cmp-nm-txt{max-width:96px; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;}
-.cmp-table td.cmp-st{display:flex; align-items:baseline; justify-content:flex-end;}
+.cmp-st-inner{display:flex; align-items:baseline; justify-content:flex-end;}
 .cmp-st-val{flex:0 0 auto;}
 .cmp-stl{flex:0 0 22px; text-align:left; font-size:10px; color:var(--ink2); margin-left:2px;}
 .cmp-na{color:var(--muted);}
@@ -648,9 +648,9 @@ function compareTable(r){
       let label = "標準";
       if(p.st<=0.140) label="攻";
       else if(p.st>=0.185) label="慎重";
-      stHtml = `<span class="cmp-st-val">${p.st.toFixed(2)}</span><span class="cmp-stl">${label}</span>`;
+      stHtml = `<span class="cmp-st-inner"><span class="cmp-st-val">${p.st.toFixed(2)}</span><span class="cmp-stl">${label}</span></span>`;
     }else{
-      stHtml = '<span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span>';
+      stHtml = '<span class="cmp-st-inner"><span class="cmp-st-val cmp-na">—</span><span class="cmp-stl"></span></span>';
     }
     const nwHtml = num(b.nw, 2);
     const moHtml = b.mo==null ? "—" : `${Math.round(b.mo)}%`;
