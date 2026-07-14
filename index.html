@@ -92,9 +92,10 @@ body{background:var(--bg); color:var(--ink);
   padding:0 6px 6px; white-space:nowrap;}
 .cmp-table td{padding:7px 6px; vertical-align:middle; white-space:nowrap;}
 .cmp-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--line);}
-.cmp-table td.cmp-num{text-align:right;}
-.cmp-table td.cmp-boat{text-align:center;}
+.cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
+.cmp-table th.cmp-boat, .cmp-table td.cmp-boat{text-align:center;}
 .cmp-table th.cmp-course-col, .cmp-table td.cmp-course-col{text-align:center; padding-left:3px; padding-right:3px;}
+.cmp-table th.cmp-left, .cmp-table td.cmp-nm{text-align:left;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
@@ -675,7 +676,7 @@ function compareTable(r){
       <td class="nums cmp-num cmp-st">${stHtml}</td></tr>`;
   });
   return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
-    <table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th>選手</th><th class="cmp-course-col">進入</th>
+    <table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th class="cmp-left">選手</th><th class="cmp-course-col">進入</th>
     <th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>`;

@@ -77,9 +77,10 @@ body{background:var(--bg); color:var(--ink);
   padding:0 6px 6px; white-space:nowrap;}
 .cmp-table td{padding:7px 6px; vertical-align:middle; white-space:nowrap;}
 .cmp-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--line);}
-.cmp-table td.cmp-num{text-align:right;}
-.cmp-table td.cmp-boat{text-align:center;}
+.cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
+.cmp-table th.cmp-boat, .cmp-table td.cmp-boat{text-align:center;}
 .cmp-table th.cmp-course-col, .cmp-table td.cmp-course-col{text-align:center; padding-left:3px; padding-right:3px;}
+.cmp-table th.cmp-left, .cmp-table td.cmp-nm{text-align:left;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
