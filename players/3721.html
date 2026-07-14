@@ -17,11 +17,13 @@
 :root{
   --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
   --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --fav:#c9922a;
   --radius:14px;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
-    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a;
+    --fav:#e0b054; }
 }
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif; line-height:1.6;}
@@ -33,6 +35,9 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
 .hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
+  margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
+.fav-btn.active{color:var(--fav);}
 .hero .catch{font-size:21px; font-weight:800; color:var(--accent); margin-top:14px;}
 .hero .catch-basis{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
 .hero-nav{flex:0 0 56px; display:none; flex-direction:column; align-items:center; justify-content:center;
@@ -87,7 +92,7 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   <section class="hero">
     <a class="hero-nav prev" id="heroPrev" aria-label="前の選手"></a>
     <div class="hero-body">
-      <div class="pname">守田俊介 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span></div>
+      <div class="pname">守田俊介 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span><button class="fav-btn" id="favBtn" data-toban="3721" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
       <div class="pmeta">50歳 ・ 滋賀支部 ・ 53kg</div>
       <div class="catch">「平和島巧者」</div>
       <div class="catch-basis">平和島で際立って好成績のため（詳しくは下の「当地」欄）</div>
@@ -101,11 +106,11 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:53.1%"></i></span><span class="kval nums">53.1%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:9.4%"></i></span><span class="kval nums">9.4%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:18.8%"></i></span><span class="kval nums">18.8%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.9%"></i></span><span class="kval nums">10.9%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:7.8%"></i></span><span class="kval nums">7.8%</span></div><div class="note">直近1年・勝ち64件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:53.8%"></i></span><span class="kval nums">53.8%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:9.2%"></i></span><span class="kval nums">9.2%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:18.5%"></i></span><span class="kval nums">18.5%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.8%"></i></span><span class="kval nums">10.8%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:7.7%"></i></span><span class="kval nums">7.7%</span></div><div class="note">直近1年・勝ち65件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
-    <div class="homebox">🏠 <b>平和島</b>：10走・勝率50.0%（他会場28.2%より+21.8pt）</div>
+    <div class="homebox">🏠 <b>平和島</b>：10走・勝率50.0%（他会場28.4%より+21.6pt）</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
@@ -118,6 +123,26 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <p class="foot"><b>予想印は出していません。</b>通算の進入コース傾向は直近半年の公式集計、決まり手・当地・今の調子は直近1年の結果データを集計しています。母数が少ない項目は薄く表示するか「蓄積中」と明記しています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
+
+<script src="/favorites.js"></script>
+<script>
+(function(){
+  var btn = document.getElementById("favBtn");
+  if(!btn || !window.TeiyomiFavorites) return;
+  var toban = btn.getAttribute("data-toban");
+  function paint(){
+    var on = TeiyomiFavorites.has(toban);
+    btn.textContent = on ? "★" : "☆";
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  btn.addEventListener("click", function(){
+    TeiyomiFavorites.toggle(toban);
+    paint();
+  });
+  paint();
+})();
+</script>
 
 <script>
 (function(){

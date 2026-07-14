@@ -17,11 +17,13 @@
 :root{
   --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
   --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --fav:#c9922a;
   --radius:14px;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
-    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a;
+    --fav:#e0b054; }
 }
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink);
@@ -50,13 +52,21 @@ body{background:var(--bg); color:var(--ink);
 .plist-selects{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
 .plist-select{flex:1 1 140px; min-width:120px; font:inherit; font-size:13px; padding:7px 8px; border-radius:9px;
   border:1px solid var(--line2); background:var(--bg); color:var(--ink); -webkit-appearance:none; appearance:none;}
+.plist-favtoggle{display:flex; align-items:center; gap:7px; margin-top:11px; font-size:13px; color:var(--ink2);
+  cursor:pointer; -webkit-tap-highlight-color:transparent;}
+.plist-favtoggle input{width:16px; height:16px; accent-color:var(--fav); cursor:pointer;}
 .plist-count{font-size:11.5px; color:var(--muted); margin-top:10px;}
 
 .plist-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:14px; overflow:hidden;}
-.plist-row{display:block; padding:11px 16px; border-bottom:1px solid var(--line); text-decoration:none; color:inherit;}
+.plist-row{display:flex; align-items:stretch; border-bottom:1px solid var(--line);}
 .plist-row:last-child{border-bottom:none;}
-.plist-row:active{background:var(--bg);}
+.plist-fav{flex:0 0 auto; width:42px; display:flex; align-items:center; justify-content:center;
+  background:none; border:none; font-size:19px; color:var(--muted); cursor:pointer;
+  -webkit-tap-highlight-color:transparent;}
+.plist-fav.active{color:var(--fav);}
+.plist-row-link{flex:1; min-width:0; padding:11px 16px 11px 0; text-decoration:none; color:inherit;}
+.plist-row-link:active{background:var(--bg);}
 .plist-catch{font-size:11px; color:var(--accent); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .plist-name{font-size:14.5px; font-weight:700; margin-top:2px;}
 .plist-name .plist-k{font-size:10.5px; font-weight:500; color:var(--ink2); margin-left:6px;}
@@ -105,6 +115,7 @@ body{background:var(--bg); color:var(--ink);
         <option value="st">平均ST順（速い順）</option>
       </select>
     </div>
+    <label class="plist-favtoggle"><input type="checkbox" id="plistFavOnly"><span>★ お気に入りのみ</span></label>
     <p class="plist-count nums" id="plistCount"></p>
   </section>
 
@@ -117,6 +128,7 @@ body{background:var(--bg); color:var(--ink);
 </div>
 
 <script src="/players_list.js" onerror="window.PLAYER_LIST=[]"></script>
+<script src="/favorites.js"></script>
 <script>
 (function(){
   const ALL = window.PLAYER_LIST || [];
@@ -128,9 +140,12 @@ body{background:var(--bg); color:var(--ink);
   const branchEl = document.getElementById("plistBranch");
   const levelEl = document.getElementById("plistLevel");
   const sortEl = document.getElementById("plistSort");
+  const favOnlyEl = document.getElementById("plistFavOnly");
   const rowsEl = document.getElementById("plistRows");
   const countEl = document.getElementById("plistCount");
   const moreEl = document.getElementById("plistMore");
+  const hasFav = !!window.TeiyomiFavorites;
+  if(!hasFav) favOnlyEl.closest(".plist-favtoggle").style.display = "none";
 
   // 支部の選択肢は実データから動的に作る(公式の支部一覧を決め打ちしない)
   const branches = Array.from(new Set(ALL.map(p => p.br))).sort((a,b)=>a<b?-1:a>b?1:0);
@@ -145,6 +160,10 @@ body{background:var(--bg); color:var(--ink);
     const br = branchEl.value;
     const k = levelEl.value;
     let rows = ALL;
+    if(hasFav && favOnlyEl.checked){
+      const favSet = new Set(TeiyomiFavorites.list());
+      rows = rows.filter(p => favSet.has(String(p.t)));
+    }
     if(q) rows = rows.filter(p => p.name.includes(q));
     if(br) rows = rows.filter(p => p.br === br);
     if(k) rows = rows.filter(p => p.k === k);
@@ -185,20 +204,33 @@ body{background:var(--bg); color:var(--ink);
     return t ? `<div class="plist-tenji">${t}</div>` : "";
   }
 
+  function favBtnHtml(p){
+    if(!hasFav) return "";
+    const on = TeiyomiFavorites.has(p.t);
+    return `<button class="plist-fav${on?' active':''}" data-toban="${p.t}" aria-label="お気に入り登録・解除" aria-pressed="${on?'true':'false'}">${on?'★':'☆'}</button>`;
+  }
+
   function render(){
     const key = sortEl.value;
     const rows = sorted(filtered(), key);
     const slice = rows.slice(0, shownCount);
 
     if(slice.length === 0){
-      rowsEl.innerHTML = '<div class="plist-empty">該当する選手が見つかりませんでした。</div>';
+      if(hasFav && favOnlyEl.checked && TeiyomiFavorites.list().length === 0){
+        rowsEl.innerHTML = '<div class="plist-empty">まだお気に入りの選手がいません。選手ページの☆から登録できます。</div>';
+      }else{
+        rowsEl.innerHTML = '<div class="plist-empty">該当する選手が見つかりませんでした。</div>';
+      }
     }else{
-      rowsEl.innerHTML = slice.map(p => `<a class="plist-row" href="/players/${p.t}.html" target="_blank" rel="noopener">
-        <div class="plist-catch">「${p.catch}」</div>
-        <div class="plist-name">${p.name}<span class="plist-k">${p.k}</span></div>
-        <div class="plist-meta">${p.br}・${p.age}歳${valueHtml(p, key)}</div>
-        ${tenjiHtml(p)}
-      </a>`).join("");
+      rowsEl.innerHTML = slice.map(p => `<div class="plist-row">
+        ${favBtnHtml(p)}
+        <a class="plist-row-link" href="/players/${p.t}.html" target="_blank" rel="noopener">
+          <div class="plist-catch">「${p.catch}」</div>
+          <div class="plist-name">${p.name}<span class="plist-k">${p.k}</span></div>
+          <div class="plist-meta">${p.br}・${p.age}歳${valueHtml(p, key)}</div>
+          ${tenjiHtml(p)}
+        </a>
+      </div>`).join("");
     }
 
     countEl.textContent = `${rows.length}人が該当（全${ALL.length}人中）`;
@@ -223,7 +255,22 @@ body{background:var(--bg); color:var(--ink);
   branchEl.addEventListener("change", resetAndRender);
   levelEl.addEventListener("change", resetAndRender);
   sortEl.addEventListener("change", resetAndRender);
+  if(hasFav) favOnlyEl.addEventListener("change", resetAndRender);
   moreEl.addEventListener("click", ()=>{ shownCount += PAGE_SIZE; render(); });
+
+  // ★ボタンはrender()のたびに作り直されるため、行1つ1つにではなく
+  // 一覧全体(rowsEl)に1つだけ委譲リスナーを付ける。
+  rowsEl.addEventListener("click", (e)=>{
+    const btn = e.target.closest(".plist-fav");
+    if(!btn || !hasFav) return;
+    const toban = btn.getAttribute("data-toban");
+    const on = TeiyomiFavorites.toggle(toban);
+    btn.textContent = on ? "★" : "☆";
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    // お気に入り絞り込み中に解除したら、その場で一覧から消す
+    if(favOnlyEl.checked) render();
+  });
 
   render();
 })();
