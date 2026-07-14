@@ -241,6 +241,19 @@ body{background:var(--bg); color:var(--ink);
   .stat.nw{width:46px; flex:0 0 auto;}
   .stat.lw{width:82px; flex:0 0 auto;}
   .stat.mo{width:112px; min-width:0; flex:0 0 auto;}
+
+  /* 比べる一覧の表もPC幅だけ、下の個別選手カード群と同じ親コンテナ幅いっぱいに
+     合わせる。table-layout:fixedにして各列の幅比率(内容の自然な幅から算出)を
+     固定することで、余った幅が1箇所(モーター2率とSTの間等)に偏らず、
+     6列全体に均等に配分されるようにする。スマホ側(overflow-x:autoで
+     内容に応じた自然な幅のまま)には一切触れない。 */
+  .cmp-table{width:100%; table-layout:fixed;}
+  .cmp-table th:nth-child(1){width:12%}
+  .cmp-table th:nth-child(2){width:34%}
+  .cmp-table th:nth-child(3){width:9%}
+  .cmp-table th:nth-child(4){width:12%}
+  .cmp-table th:nth-child(5){width:13%}
+  .cmp-table th:nth-child(6){width:20%}
 }
 
 .back{margin:0 4px 14px; font-size:13px;}
