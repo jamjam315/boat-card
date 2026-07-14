@@ -87,7 +87,7 @@ body{background:var(--bg); color:var(--ink);
    崩れないよう、固定ピクセル幅に頼らないtable+overflow-x:autoにしている。 */
 .cmp{padding:12px 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto;}
 .cmp-ttl{font-size:12.5px; font-weight:600; margin-bottom:7px; color:var(--ink2);}
-.cmp-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+.cmp-table{border-collapse:collapse; font-size:12.5px;}
 .cmp-table th{font-size:10.5px; font-weight:500; color:var(--ink2); text-align:center;
   padding:0 6px 6px; white-space:nowrap;}
 .cmp-table td{padding:7px 6px; vertical-align:middle; white-space:nowrap;}
@@ -95,7 +95,7 @@ body{background:var(--bg); color:var(--ink);
 .cmp-table th.cmp-num, .cmp-table td.cmp-num{text-align:right;}
 .cmp-table th.cmp-boat, .cmp-table td.cmp-boat{text-align:center;}
 .cmp-table th.cmp-course-col, .cmp-table td.cmp-course-col{text-align:center; padding-left:3px; padding-right:3px;}
-.cmp-table th.cmp-left, .cmp-table td.cmp-nm{text-align:left;}
+.cmp-table th.cmp-left, .cmp-table td.cmp-nm{text-align:left; padding-left:12px;}
 .cmp-lane{width:22px; height:22px; border-radius:5px; font-size:11px; font-weight:700;
   display:inline-flex; align-items:center; justify-content:center; border:1px solid rgba(125,125,125,.3);}
 .cmp-nm{font-weight:600; white-space:nowrap;}
@@ -677,7 +677,7 @@ function compareTable(r){
   });
   return `<div class="cmp"><div class="cmp-ttl">比べる一覧</div>
     <table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th class="cmp-left">選手</th><th class="cmp-course-col">進入</th>
-    <th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>
+    <th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num cmp-st"><span class="cmp-st-inner"><span class="cmp-st-val">ST</span><span class="cmp-stl"></span></span></th></tr></thead>
     <tbody>${rows}</tbody></table>
     <div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>`;
 }

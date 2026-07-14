@@ -353,7 +353,8 @@ def compare_table(race, players):
 
     return (f'<div class="cmp"><div class="cmp-ttl">比べる一覧</div>'
             f'<table class="cmp-table"><thead><tr><th class="cmp-boat">艇</th><th class="cmp-left">選手</th><th class="cmp-course-col">進入</th>'
-            f'<th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th><th class="cmp-num">ST</th></tr></thead>'
+            f'<th class="cmp-num">全国<br>勝率</th><th class="cmp-num">ﾓｰﾀｰ<br>2率</th>'
+            f'<th class="cmp-num cmp-st"><span class="cmp-st-inner"><span class="cmp-st-val">ST</span><span class="cmp-stl"></span></span></th></tr></thead>'
             f'<tbody>{rows}</tbody></table>'
             f'<div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>')
 
