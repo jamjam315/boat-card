@@ -4,10 +4,12 @@
 // サーバー通信・アカウントは一切なし。localStorageが使えない環境でも
 // ページ自体が壊れないよう、読み書きは必ずtry/catchで囲む。
 //
-// お気に入り登録(★オン)をきっかけに、「ホーム画面に追加」の案内を初回だけ
-// 出す(通知機能の土台その2)。サービスワーカー・プッシュ購読・サーバー連携は
-// 今回含まない。toggle()の内部からだけ呼ぶため、呼び出し側(選手個別ページ・
-// 選手一覧ページ)には一切手を入れていない。
+// 「ホーム画面に追加」の案内は、自動ポップアップより常設ボタンを主役にする
+// (押し付けない思想に合わせた見直し)。自動で出すのはお気に入りを初めて
+// ★オンにした時の1回だけ(以降は自動で出さない、再表示の間引き等も入れない)。
+// トップページの常設ボタンから呼ぶ分は、この「初回だけ」の制限を受けず
+// いつでも開ける(showAddToHomeGuide)。サービスワーカー・プッシュ購読・
+// サーバー連携は今回含まない。
 (function () {
   var FAV_KEY = "teiyomi_favorites_players";
   var A2HS_KEY = "teiyomi_a2hs_prompted";
@@ -49,6 +51,16 @@
       writeAll(arr);
       if (added) maybeShowA2HS();
       return added; // 追加後ならtrue、削除後ならfalse
+    },
+    // トップページの常設ボタン用。スタンドアロン起動中・PC幅では出す意味が
+    // 無いため、ボタン自体を出すかどうかの判定にそのまま使える。
+    canShowAddToHome: function () {
+      return !isStandalone() && isMobile();
+    },
+    // 常設ボタンから明示的に呼ばれた場合は、初回だけの制限(a2hsAlreadyPrompted)
+    // を経由せずいつでも案内を開ける(押しに来た人には毎回応える)。
+    showAddToHomeGuide: function () {
+      showA2HSBanner();
     }
   };
 
@@ -160,6 +172,7 @@
   }
 
   function showA2HSBanner() {
+    if (document.getElementById("teiyomiA2hsBanner")) return; // 二重表示を防ぐ
     ensureBannerStyle();
     var el = document.createElement("div");
     el.id = "teiyomiA2hsBanner";
