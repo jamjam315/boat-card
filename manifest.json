@@ -1,0 +1,15 @@
+{
+  "name": "艇読み",
+  "short_name": "艇読み",
+  "description": "公式データを、読める形に。予想印を出さないボートレース情報サイト。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef0ec",
+  "theme_color": "#0f2a33",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
