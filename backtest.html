@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>買い方のバックテスト｜過去1年の的中率・回収率（艇読み）</title>
+<meta name="description" content="競艇の過去1年の実レース結果を使い、号艇ごとに単勝・複勝・2連単(1着ながし)を機械的に買い続けた場合の的中率・回収率を集計した事実データ。予想や推奨ではありません。">
+<link rel="canonical" href="https://teiyomi.com/backtest.html">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://teiyomi.com/backtest.html">
+<meta property="og:title" content="買い方のバックテスト｜過去1年の的中率・回収率（艇読み）">
+<meta property="og:description" content="競艇の過去1年の実レース結果を使い、号艇ごとに単勝・複勝・2連単(1着ながし)を機械的に買い続けた場合の的中率・回収率を集計した事実データ。予想や推奨ではありません。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.bt-intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:16px 18px;}
+.bt-intro p{margin:0; font-size:13px; color:var(--ink2); line-height:1.75;}
+.bt-intro p+p{margin-top:8px; font-size:11.5px; color:var(--muted);}
+
+.bt-tabs{display:flex; gap:8px; margin-top:18px; overflow-x:auto; padding-bottom:2px;}
+.bt-tab{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font-size:12.5px; padding:8px 14px; border-radius:999px; cursor:pointer; white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;}
+.bt-tab:hover{border-color:var(--accent)}
+.bt-tab:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.bt-tab[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+
+.bt-stake{font-size:11px; color:var(--muted); margin-top:10px;}
+
+.bt-table-wrap{margin-top:8px; overflow-x:auto;}
+.bt-table{border-collapse:collapse; font-size:13px; width:100%; min-width:340px;}
+.bt-table th{font-size:10.5px; font-weight:500; color:var(--ink2); text-align:right;
+  padding:7px 6px; border-bottom:1px solid var(--line2); white-space:nowrap;}
+.bt-table th:first-child, .bt-table td:first-child{text-align:center;}
+.bt-table td{padding:10px 6px; text-align:right; vertical-align:middle;}
+.bt-table tbody tr:not(:last-child) td{border-bottom:1px solid var(--line);}
+.bt-boat{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
+  border-radius:50%; font-size:12.5px; font-weight:700; border:1px solid rgba(125,125,125,.25);}
+.bt-rt-hi{color:var(--accent); font-weight:700;}
+.bt-empty{text-align:center; color:var(--muted); padding:18px 8px;}
+
+.bt-note{font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.6;}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>買い方のバックテスト</p></div>
+  </header>
+  <a class="back" href="index.html">← トップに戻る</a>
+
+  <section class="bt-intro">
+    <p>これは過去1年（<span id="btPeriod" class="nums">集計中</span>）の実際のレース結果を、機械的に集計した"事実"です。予想ではなく、この買い方を推奨するものでもありません。</p>
+    <p>現在は全国まとめの数字のみです。会場別の集計は今後追加予定です。</p>
+  </section>
+
+  <div class="bt-tabs" role="tablist" aria-label="買い方の種類">
+    <button class="bt-tab" role="tab" data-key="単勝" aria-selected="true">単勝</button>
+    <button class="bt-tab" role="tab" data-key="複勝" aria-selected="false">複勝</button>
+    <button class="bt-tab" role="tab" data-key="2連単ながし" aria-selected="false">2連単(1着ながし)</button>
+  </div>
+  <div class="bt-stake" id="btStake"></div>
+
+  <div class="bt-table-wrap">
+    <table class="bt-table">
+      <thead>
+        <tr><th>号艇</th><th>的中率</th><th>回収率</th><th>対象数</th></tr>
+      </thead>
+      <tbody id="btBody"></tbody>
+    </table>
+  </div>
+  <div class="bt-note" id="btNote"></div>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
+</div>
+<script src="backtest.js" onerror="window.BACKTEST=null"></script>
+<script>
+(function(){
+  var DATA = window.BACKTEST;
+  var periodEl = document.getElementById("btPeriod");
+  var bodyEl = document.getElementById("btBody");
+  var stakeEl = document.getElementById("btStake");
+  var noteEl = document.getElementById("btNote");
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".bt-tab"));
+
+  var BADGE = {
+    1: {bg:"#fff", fg:"#1a1a1a"}, 2: {bg:"#2b2b2b", fg:"#fff"}, 3: {bg:"#d83a36", fg:"#fff"},
+    4: {bg:"#2f6fd0", fg:"#fff"}, 5: {bg:"#f2c200", fg:"#3a2e00"}, 6: {bg:"#1f9e54", fg:"#fff"}
+  };
+  var STAKE = {"単勝": "1レースあたり100円(単勝)", "複勝": "1レースあたり100円(複勝)",
+               "2連単ながし": "1レースあたり500円(2着へ5点流し、的中時は的中した1点ぶんの配当のみ)"};
+
+  function pct(v){ return (v * 100).toFixed(1) + "%"; }
+
+  function render(key){
+    tabs.forEach(function(t){ t.setAttribute("aria-selected", t.getAttribute("data-key") === key ? "true" : "false"); });
+    stakeEl.textContent = STAKE[key] || "";
+    var rows = (DATA && DATA[key]) || [];
+    if(!rows.length){
+      bodyEl.innerHTML = '<tr><td colspan="4" class="bt-empty">データを読み込めませんでした。</td></tr>';
+      return;
+    }
+    bodyEl.innerHTML = rows.map(function(row){
+      var b = BADGE[row.艇番];
+      var badge = '<span class="bt-boat" style="background:' + b.bg + ';color:' + b.fg + '">' + row.艇番 + "</span>";
+      if(row.的中率 === null){
+        return "<tr><td>" + badge + '</td><td colspan="3" class="bt-empty">データなし</td></tr>';
+      }
+      var retCls = row.回収率 >= 1 ? ' class="nums bt-rt-hi"' : ' class="nums"';
+      return "<tr><td>" + badge + '</td><td class="nums">' + pct(row.的中率) + "</td>" +
+             "<td" + retCls + ">" + pct(row.回収率) + "</td>" +
+             '<td class="nums">' + row.対象数.toLocaleString("ja-JP") + "</td></tr>";
+    }).join("");
+  }
+
+  if(!DATA){
+    bodyEl.innerHTML = '<tr><td colspan="4" class="bt-empty">データを読み込めませんでした。</td></tr>';
+  } else {
+    periodEl.textContent = DATA.対象期間 || "―";
+    noteEl.textContent = "対象レース数 " + (DATA.対象レース数 || 0).toLocaleString("ja-JP") + "件(全国まとめ)。的中率・回収率は小数第1位まで。回収率100%以上の行は色を分けています(推奨の意味ではありません)。";
+    tabs.forEach(function(t){
+      t.addEventListener("click", function(){ render(t.getAttribute("data-key")); });
+    });
+    render("単勝");
+  }
+})();
+</script>
+</body>
+</html>

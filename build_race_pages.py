@@ -474,7 +474,7 @@ def refresh_sitemap():
     sitemap.xmlを再生成する。ローリングで消えたページはここで自動的にsitemapからも消える。"""
     lastmod = datetime.date.today().isoformat()
     urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
-            "https://teiyomi.com/about.html", "https://teiyomi.com/players/"]
+            "https://teiyomi.com/about.html", "https://teiyomi.com/players/", "https://teiyomi.com/backtest.html"]
     try:
         player_pages = load_js("players_index.js", "PLAYER_PAGES")
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]
