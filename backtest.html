@@ -47,7 +47,13 @@ body{background:var(--bg); color:var(--ink);
 .bt-intro p{margin:0; font-size:13px; color:var(--ink2); line-height:1.75;}
 .bt-intro p+p{margin-top:8px; font-size:11.5px; color:var(--muted);}
 
-.bt-tabs{display:flex; gap:8px; margin-top:18px; overflow-x:auto; padding-bottom:2px;}
+.bt-scope{display:flex; align-items:center; gap:8px; margin-top:16px; flex-wrap:wrap;}
+.bt-scope-label{font-size:12px; color:var(--ink2); font-weight:600;}
+.bt-select{font-size:13px; color:var(--ink); background:var(--surface); border:1px solid var(--line2);
+  border-radius:8px; padding:7px 10px; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+.bt-select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.bt-tabs{display:flex; gap:8px; margin-top:12px; overflow-x:auto; padding-bottom:2px;}
 .bt-tab{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
   font-size:12.5px; padding:8px 14px; border-radius:999px; cursor:pointer; white-space:nowrap;
   -webkit-tap-highlight-color:transparent;}
@@ -88,8 +94,13 @@ body{background:var(--bg); color:var(--ink);
 
   <section class="bt-intro">
     <p>これは過去1年（<span id="btPeriod" class="nums">集計中</span>）の実際のレース結果を、機械的に集計した"事実"です。予想ではなく、この買い方を推奨するものでもありません。</p>
-    <p>現在は全国まとめの数字のみです。会場別の集計は今後追加予定です。</p>
+    <p>24会場の一覧比較ではなく、会場を1つずつ選んで確認する形式です。</p>
   </section>
+
+  <div class="bt-scope">
+    <label class="bt-scope-label" for="btVenue">会場</label>
+    <select class="bt-select" id="btVenue"><option value="全国">全国</option></select>
+  </div>
 
   <div class="bt-tabs" role="tablist" aria-label="買い方の種類">
     <button class="bt-tab" role="tab" data-key="単勝" aria-selected="true">単勝</button>
@@ -118,6 +129,7 @@ body{background:var(--bg); color:var(--ink);
   var bodyEl = document.getElementById("btBody");
   var stakeEl = document.getElementById("btStake");
   var noteEl = document.getElementById("btNote");
+  var venueEl = document.getElementById("btVenue");
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".bt-tab"));
 
   var BADGE = {
@@ -127,14 +139,24 @@ body{background:var(--bg); color:var(--ink);
   var STAKE = {"単勝": "1レースあたり100円(単勝)", "複勝": "1レースあたり100円(複勝)",
                "2連単ながし": "1レースあたり500円(2着へ5点流し、的中時は的中した1点ぶんの配当のみ)"};
 
+  var currentBet = "単勝";
+
   function pct(v){ return (v * 100).toFixed(1) + "%"; }
 
-  function render(key){
-    tabs.forEach(function(t){ t.setAttribute("aria-selected", t.getAttribute("data-key") === key ? "true" : "false"); });
-    stakeEl.textContent = STAKE[key] || "";
-    var rows = (DATA && DATA[key]) || [];
+  function scopeData(){
+    var v = venueEl.value;
+    if(v === "全国") return DATA.全国;
+    return (DATA.会場別 && DATA.会場別[v]) || null;
+  }
+
+  function render(){
+    tabs.forEach(function(t){ t.setAttribute("aria-selected", t.getAttribute("data-key") === currentBet ? "true" : "false"); });
+    stakeEl.textContent = STAKE[currentBet] || "";
+    var scope = scopeData();
+    var rows = (scope && scope[currentBet]) || [];
     if(!rows.length){
       bodyEl.innerHTML = '<tr><td colspan="4" class="bt-empty">データを読み込めませんでした。</td></tr>';
+      noteEl.textContent = "";
       return;
     }
     bodyEl.innerHTML = rows.map(function(row){
@@ -148,17 +170,25 @@ body{background:var(--bg); color:var(--ink);
              "<td" + retCls + ">" + pct(row.回収率) + "</td>" +
              '<td class="nums">' + row.対象数.toLocaleString("ja-JP") + "</td></tr>";
     }).join("");
+    noteEl.textContent = "対象: " + venueEl.value + "・過去1年・" + scope.対象レース数.toLocaleString("ja-JP") +
+      "レース。的中率・回収率は小数第1位まで。回収率100%以上の行は色を分けています(推奨の意味ではありません)。";
   }
 
   if(!DATA){
     bodyEl.innerHTML = '<tr><td colspan="4" class="bt-empty">データを読み込めませんでした。</td></tr>';
   } else {
     periodEl.textContent = DATA.対象期間 || "―";
-    noteEl.textContent = "対象レース数 " + (DATA.対象レース数 || 0).toLocaleString("ja-JP") + "件(全国まとめ)。的中率・回収率は小数第1位まで。回収率100%以上の行は色を分けています(推奨の意味ではありません)。";
-    tabs.forEach(function(t){
-      t.addEventListener("click", function(){ render(t.getAttribute("data-key")); });
+    var venues = (DATA.会場別 && Object.keys(DATA.会場別)) || [];
+    venues.forEach(function(v){
+      var opt = document.createElement("option");
+      opt.value = v; opt.textContent = v;
+      venueEl.appendChild(opt);
     });
-    render("単勝");
+    venueEl.addEventListener("change", render);
+    tabs.forEach(function(t){
+      t.addEventListener("click", function(){ currentBet = t.getAttribute("data-key"); render(); });
+    });
+    render();
   }
 })();
 </script>

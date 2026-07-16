@@ -4,8 +4,9 @@ results.jsonl(払戻付き)から、号艇(1〜6)ごとの機械的な買い方3
 的中率・回収率を集計してbacktest.jsを書き出す。過去こうだったという
 事実の集計であり、予想やおすすめではない(艇読みの方針)。
 
-対象は直近1年(データの最新日から365日前まで)。今回は全国まとめのみ、
-会場別集計は次段階。
+対象は直近1年(データの最新日から365日前まで)。全国まとめに加えて、
+会場別(24場)の同じ集計も出す(24場横並び比較表は今回作らず、
+1会場ずつ切り替えて見る前提のUI側で使う)。
 
 集計する3つの買い方(いずれも「軸号艇」を1〜6で固定した場合):
   単勝        : 軸号艇の単勝を毎レース100円
@@ -18,9 +19,11 @@ results.jsonl(払戻付き)から、号艇(1〜6)ごとの機械的な買い方3
 レース)のみとし、欠場等でその艇が無いレースは分母から除く。
 """
 import json, datetime
+from parse_results import JCD
 
 STORE = "results.jsonl"
 BOATS = range(1, 7)
+VENUE_ORDER = list(JCD.values())   # 桐生〜大村、既存のVENUE_ROMAJIと同じ並び順
 
 
 def load_races():
@@ -51,7 +54,7 @@ def finalize(acc, unit):
     for b in BOATS:
         a = acc[b]
         n = a["n"]
-        if n == 0:
+        if n == 0:            # 母数ゼロの会場でも0除算せず、対象数0で出す
             out.append({"艇番": b, "的中率": None, "回収率": None, "対象数": 0})
             continue
         out.append({
@@ -63,24 +66,14 @@ def finalize(acc, unit):
     return out
 
 
-def main():
-    races = load_races()
-    if not races:
-        print("[stop] results.jsonl が無い/空です。")
-        return
-
-    dates = sorted(r["date"] for r in races)
-    latest = datetime.date.fromisoformat(dates[-1])
-    cutoff = (latest - datetime.timedelta(days=365)).isoformat()
-    target = [r for r in races if r["date"] >= cutoff]
-    target_dates = sorted(r["date"] for r in target)
-    period = f"{target_dates[0]}〜{target_dates[-1]}"
-
+def aggregate(races):
+    """race一覧(全国分、または特定会場ぶんだけ)から3券種の集計を作る。
+    計算式そのものは対象レンジを絞る前と一切変えない。"""
     tansho = {b: {"n": 0, "hit": 0, "ret": 0} for b in BOATS}
     fukusho = {b: {"n": 0, "hit": 0, "ret": 0} for b in BOATS}
     nagashi = {b: {"n": 0, "hit": 0, "ret": 0} for b in BOATS}
 
-    for r in target:
+    for r in races:
         by_boat = {x["艇"]: x for x in r.get("結果", [])}
         payout = r.get("払戻") or {}
         p_tan = payout.get("単勝") or []
@@ -113,16 +106,41 @@ def main():
                 nagashi[b]["hit"] += 1
                 nagashi[b]["ret"] += payout_amount(p_2t, lambda k: k.split("-")[0] == bs)
 
-    out = {
-        "対象期間": period,
-        "対象レース数": len(target),
+    return {
+        "対象レース数": len(races),
         "単勝": finalize(tansho, 100),
         "複勝": finalize(fukusho, 100),
         "2連単ながし": finalize(nagashi, 500),
     }
+
+
+def main():
+    races = load_races()
+    if not races:
+        print("[stop] results.jsonl が無い/空です。")
+        return
+
+    dates = sorted(r["date"] for r in races)
+    latest = datetime.date.fromisoformat(dates[-1])
+    cutoff = (latest - datetime.timedelta(days=365)).isoformat()
+    target = [r for r in races if r["date"] >= cutoff]
+    target_dates = sorted(r["date"] for r in target)
+    period = f"{target_dates[0]}〜{target_dates[-1]}"
+
+    by_venue = {v: [] for v in VENUE_ORDER}
+    for r in target:
+        if r["会場"] in by_venue:
+            by_venue[r["会場"]].append(r)
+        # 未知の会場名(表記ゆれ等)は会場別からは漏れるが、全国まとめには含まれる
+
+    out = {
+        "対象期間": period,
+        "全国": aggregate(target),
+        "会場別": {v: aggregate(rs) for v, rs in by_venue.items()},
+    }
     js = "window.BACKTEST = " + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open("backtest.js", "w", encoding="utf-8").write(js)
-    print(f"[done] backtest.js 更新 / 対象期間 {period} / {len(target)}レース")
+    print(f"[done] backtest.js 更新 / 対象期間 {period} / 全国{len(target)}レース / {len(by_venue)}会場")
 
 
 if __name__ == "__main__":
