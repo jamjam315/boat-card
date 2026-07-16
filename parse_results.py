@@ -9,6 +9,10 @@
 【今回あらたに拾う項目】
   レース単位: 天候・風向・風速(m)・波高(cm)・決まり手
   艇単位   : 展示タイム（掴んでいたのに捨てていた分を復活）
+  払戻     : 単勝・複勝・2連単・2連複・拡連複・3連単・3連複（人気も分かるものは付記）
+             ※ 各会場ブロック冒頭の[払戻金]早見表(3連単/3連複/2連単/2連複のみの一覧)は
+               レース単位の払戻と二重取りになるため使わず、各レースの着順表の直後に
+               続く払戻行だけを正として読む。
 
 ※ 既存の呼び出し側（collect_results.py / build_stats.py）を壊さないよう、
    これまでのキー名は一切変えず、新しいキーを「追加」しただけ。
@@ -52,6 +56,21 @@ HEADER = re.compile(r'着\s*艇\s*登番')
 
 # 決まり手として認めるもの（長いものから順に照合する）
 KIMARITE = ["まくり差し", "抜き", "逃げ", "差し", "まくり", "恵まれ"]
+
+# 払戻ラベル(Kファイル上の全角表記) → results.jsonlに書き出すキー(半角数字)
+PAYOUT_LABELS = {
+    "単勝": "単勝",
+    "複勝": "複勝",
+    "２連単": "2連単",
+    "２連複": "2連複",
+    "拡連複": "拡連複",
+    "３連単": "3連単",
+    "３連複": "3連複",
+}
+_PAYOUT_LABEL_KEYS = sorted(PAYOUT_LABELS.keys(), key=len, reverse=True)
+
+# 払戻1件分: 組番(例 "2" / "2-4" / "2-4-1")  金額  (人気があれば付く)
+PAYOUT_ENTRY = re.compile(r'([0-9]+(?:-[0-9]+)*)\s+([0-9]+)(?:\s+人気\s*(\d+))?')
 
 
 def parse_st(tok):
@@ -117,13 +136,27 @@ def parse_kimarite(header_line):
     return None
 
 
+def match_payout_label(line):
+    # 行頭の払戻ラベル(単勝/複勝/２連単等)を判定する。
+    # 見つかれば (results.jsonl用キー, ラベルより後ろの文字列) を返す。
+    # 無ければ (None, line) を返す(前の行から続く継続行の可能性がある)。
+    s = line.lstrip("　 ")
+    for label in _PAYOUT_LABEL_KEYS:
+        if s.startswith(label):
+            return PAYOUT_LABELS[label], s[len(label):]
+    return None, line
+
+
 def parse_results(path):
     lines = open(path, encoding="cp932").read().splitlines()
     races, jcd, jname, cur = [], None, None, None
+    active_payout = None  # 払戻の継続行(ラベル省略の行)がどの券種に属するか
     for line in lines:
         mv = VENUE.match(line)
         if mv:
-            jcd = mv.group(1); jname = JCD.get(jcd, jcd); continue
+            jcd = mv.group(1); jname = JCD.get(jcd, jcd)
+            active_payout = None
+            continue
 
         mr = RACE.match(line)
         # レース見出しは結果ヘッダの前。締切や電話の行は除外
@@ -134,8 +167,11 @@ def parse_results(path):
                    "天候": weather["天候"], "風向": weather["風向"],
                    "風速": weather["風速"], "波高": weather["波高"],
                    "決まり手": None,          # 直後のヘッダ行で埋める
-                   "結果": []}
-            races.append(cur); continue
+                   "結果": [],
+                   "払戻": {v: [] for v in PAYOUT_LABELS.values()}}
+            races.append(cur)
+            active_payout = None
+            continue
 
         # 結果ヘッダ行なら、決まり手を今のレースに入れる
         if cur is not None and HEADER.search(line):
@@ -162,6 +198,27 @@ def parse_results(path):
                 "モーター番号": int(mo),  # ← 今回復活させた項目(前回使用者の割り出しに使う)
                 "レースタイム": rt,
             })
+            continue
+
+        # 払戻行(着順6艇がそろった直後だけを対象にする。会場冒頭の払戻早見表は
+        # まだ6艇そろっていない時点に出てくるためここには入らず、二重取りを避けられる)
+        if cur is not None and len(cur["結果"]) == 6:
+            if not line.strip():
+                active_payout = None
+                continue
+            label, rest = match_payout_label(line)
+            if label is not None:
+                active_payout = label
+            elif active_payout is not None:
+                rest = line
+            else:
+                continue
+            for m in PAYOUT_ENTRY.finditer(rest):
+                kumi, kingaku, ninki = m.groups()
+                entry = {"組": kumi, "金額": int(kingaku)}
+                if ninki is not None:
+                    entry["人気"] = int(ninki)
+                cur["払戻"][active_payout].append(entry)
     # 6艇そろったレースだけ返す（中止・特殊レースを除外）
     return [r for r in races if len(r["結果"]) == 6]
 
