@@ -14,6 +14,124 @@
   var FAV_KEY = "teiyomi_favorites_players";
   var A2HS_KEY = "teiyomi_a2hs_prompted";
 
+  // ==== Supabaseクラウド同期(端末をまたいだお気に入りの引き継ぎの土台) ====
+  // ログイン画面は無く、匿名認証(supabase.auth.signInAnonymously)で端末ごとに
+  // 発行されるユーザーIDにお気に入りを紐づけて保存する。個人情報は一切扱わない。
+  //
+  // 【localStorageとの優先関係(重要・データが消えない設計)】
+  // 起動時、Supabase側とlocalStorage側のお気に入りを「和集合」でまとめる。
+  // 片方にしか無い項目も消さず両方に反映する(後勝ち等にしない)。既存ユーザーが
+  // この更新後はじめて開いたときも、端末内のお気に入りが消えずSupabaseに
+  // 引き継がれるのはこの和集合方式のため。明示的な★解除だけが削除として働く。
+  //
+  // 【できること・できないこと】
+  // 同じ端末・同じブラウザを使い続ける限りクラウドにもバックアップされる。
+  // ただし匿名認証には「同じ人」を跨ぐ概念が無いため、別端末・別ブラウザは
+  // 別々の匿名IDになり、今回の実装だけでは自動で同じお気に入りは見えない。
+  // 本当の端末間同期には、将来ログイン機能(メール等)を足す必要がある。
+  //
+  // Supabase未接続・オフライン・タイムアウト等はすべてtry/catchで握りつぶし、
+  // これまで通りlocalStorageだけで動作する(サーバーが落ちても主要機能は
+  // 生き残る、という艇読み全体の設計思想をここでも守る)。
+  var SUPA_CONFIG_URL = "/supabase-config.json";
+  var SUPA_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+  var SUPA_TABLE = "favorite_players";
+  var supaClient = null;
+  var supaUserId = null;
+  var supaReady = false;
+
+  function loadSupaSdk() {
+    return new Promise(function (resolve, reject) {
+      if (window.supabase && window.supabase.createClient) { resolve(); return; }
+      var s = document.createElement("script");
+      s.src = SUPA_SDK_URL;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error("supabase sdk load failed")); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function initCloudSync() {
+    fetch(SUPA_CONFIG_URL, { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("config fetch failed: " + r.status);
+        return r.json();
+      })
+      .then(function (cfg) {
+        if (!cfg || !cfg.url || !cfg.anonKey || cfg.url.indexOf("YOUR_") === 0) {
+          throw new Error("supabase-config.json 未設定");
+        }
+        return loadSupaSdk().then(function () { return cfg; });
+      })
+      .then(function (cfg) {
+        supaClient = window.supabase.createClient(cfg.url, cfg.anonKey);
+        return supaClient.auth.getSession();
+      })
+      .then(function (res) {
+        var session = res && res.data && res.data.session;
+        if (session) return session;
+        return supaClient.auth.signInAnonymously().then(function (r) {
+          if (r.error) throw r.error;
+          return r.data.session;
+        });
+      })
+      .then(function (session) {
+        supaUserId = session.user.id;
+        supaReady = true;
+        return syncOnLoad();
+      })
+      .catch(function () {
+        // 接続できなくても致命的にしない。以降はlocalStorageのみで動作する。
+        supaReady = false;
+      });
+  }
+
+  function syncOnLoad() {
+    return supaClient
+      .from(SUPA_TABLE)
+      .select("toban")
+      .eq("user_id", supaUserId)
+      .then(function (res) {
+        if (res.error) throw res.error;
+        var remote = (res.data || []).map(function (row) { return String(row.toban); });
+        var local = readAll();
+        var localSet = {}, remoteSet = {};
+        local.forEach(function (t) { localSet[t] = true; });
+        remote.forEach(function (t) { remoteSet[t] = true; });
+
+        // 和集合をlocalStorageへ反映(リモートにしか無かった分を取り込む)。
+        var merged = local.slice();
+        remote.forEach(function (t) { if (!localSet[t]) merged.push(t); });
+        if (merged.length !== local.length) writeAll(merged);
+
+        // ローカルにしか無かった分をSupabaseへ引き継ぐ(既存ユーザー対応)。
+        local.forEach(function (t) { if (!remoteSet[t]) pushAdd(t); });
+
+        try {
+          window.dispatchEvent(new CustomEvent("teiyomi-favorites-synced", { detail: { list: merged } }));
+        } catch (e) {}
+      })
+      .catch(function () {});
+  }
+
+  function pushAdd(toban) {
+    if (!supaReady) return;
+    supaClient
+      .from(SUPA_TABLE)
+      .upsert({ user_id: supaUserId, toban: String(toban) }, { onConflict: "user_id,toban", ignoreDuplicates: true })
+      .then(function () {}, function () {});
+  }
+
+  function pushRemove(toban) {
+    if (!supaReady) return;
+    supaClient
+      .from(SUPA_TABLE)
+      .delete()
+      .eq("user_id", supaUserId)
+      .eq("toban", String(toban))
+      .then(function () {}, function () {});
+  }
+
   function readAll() {
     try {
       var raw = localStorage.getItem(FAV_KEY);
@@ -48,7 +166,12 @@
       var added = idx === -1;
       if (added) arr.push(toban);
       else arr.splice(idx, 1);
-      writeAll(arr);
+      writeAll(arr);   // 即時反映(localStorage、Supabaseの結果を待たない)
+      try {
+        if (added) pushAdd(toban); else pushRemove(toban);
+      } catch (e) {
+        // クラウド同期の失敗は無視。次回起動時のsyncOnLoadで再同期される。
+      }
       if (added) maybeShowA2HS();
       return added; // 追加後ならtrue、削除後ならfalse
     },
@@ -201,4 +324,6 @@
       });
     }
   }
+
+  initCloudSync();   // ページ読み込み時にバックグラウンドで開始(失敗しても致命的にしない)
 })();
