@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>条件を指定して検証｜バックテスト（艇読み）</title>
+<meta name="description" content="競艇の過去の実レース結果を使い、会場・期間・券種・買い目を自分で指定して的中率・回収率を検証できる事実データ。予想や推奨ではありません。">
+<link rel="canonical" href="https://teiyomi.com/backtest-custom.html">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://teiyomi.com/backtest-custom.html">
+<meta property="og:title" content="条件を指定して検証｜バックテスト（艇読み）">
+<meta property="og:description" content="競艇の過去の実レース結果を使い、会場・期間・券種・買い目を自分で指定して的中率・回収率を検証できる事実データ。予想や推奨ではありません。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.bt-intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:16px 18px;}
+.bt-intro p{margin:0; font-size:13px; color:var(--ink2); line-height:1.75;}
+.bt-intro p+p{margin-top:8px; font-size:11.5px; color:var(--muted);}
+
+.bt-step{background:var(--surface); border:1px solid var(--line2); border-radius:var(--radius);
+  margin-top:12px; padding:14px 16px;}
+.bt-step-title{font-size:12.5px; font-weight:700; color:var(--ink2); margin:0 0 10px; display:flex; align-items:center; gap:6px;}
+.bt-step-title .n{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px;
+  border-radius:50%; background:var(--accent-soft); color:var(--accent); font-size:11px; font-weight:700;}
+.bt-step[data-disabled="true"]{opacity:.42; pointer-events:none;}
+
+.bt-select{font-size:13.5px; color:var(--ink); background:var(--surface); border:1px solid var(--line2);
+  border-radius:8px; padding:8px 10px; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; width:100%;}
+.bt-select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.bt-row{display:flex; gap:8px; flex-wrap:wrap;}
+.bt-pill{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font-size:12.5px; padding:8px 13px; border-radius:999px; cursor:pointer; white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;}
+.bt-pill:hover{border-color:var(--accent)}
+.bt-pill:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.bt-pill[aria-pressed="true"],.bt-pill[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+.bt-pill[disabled]{opacity:.4; cursor:not-allowed; pointer-events:none;}
+.bt-pill-note{font-size:10.5px; color:var(--muted); margin-top:6px;}
+
+.bt-boats{display:flex; gap:8px; flex-wrap:wrap;}
+.bt-boat-btn{width:38px; height:38px; border-radius:50%; border:1.5px solid var(--line2); background:var(--surface);
+  font-size:14px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; color:var(--ink);}
+.bt-boat-btn[aria-pressed="true"]{border-color:transparent; box-shadow:0 0 0 2px var(--accent) inset;}
+.bt-boat-btn[disabled]{opacity:.3; cursor:not-allowed;}
+.bt-boat-btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.bt-sub{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line2);}
+.bt-sub-label{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
+
+.bt-points{font-size:12px; color:var(--ink2); margin-top:12px; background:var(--accent-soft); color:var(--accent);
+  border-radius:8px; padding:8px 12px; display:inline-block;}
+.bt-points b{font-size:14.5px;}
+.bt-hint{font-size:11.5px; color:var(--muted); margin-top:8px;}
+
+.bt-run{width:100%; margin-top:14px; padding:13px; border-radius:10px; border:none; background:var(--accent);
+  color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+.bt-run[disabled]{opacity:.35; cursor:not-allowed;}
+
+.bt-result{margin-top:14px;}
+.bt-result-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.bt-result-card{background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:12px 14px;}
+.bt-result-card .lbl{font-size:11px; color:var(--muted); margin:0 0 4px;}
+.bt-result-card .val{font-size:21px; font-weight:700; margin:0;}
+.bt-result-card .val.hi{color:var(--accent);}
+.bt-result-note{font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.6;}
+.bt-loading{font-size:12.5px; color:var(--muted); margin-top:10px;}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>条件を指定して検証</p></div>
+  </header>
+  <a class="back" href="backtest.html">← 固定メニューのバックテストに戻る</a>
+
+  <section class="bt-intro">
+    <p>これは過去の実データを機械的に集計した"事実"です。予想でも推奨でもありません。</p>
+    <p>会場・期間・券種・買い目を自分で指定して、その条件での的中率・回収率を確認できます。</p>
+  </section>
+
+  <div class="bt-step" id="stepVenue">
+    <p class="bt-step-title"><span class="n">1</span>会場</p>
+    <select class="bt-select" id="selVenue"><option value="zenkoku">全国</option></select>
+  </div>
+
+  <div class="bt-step" id="stepPeriod">
+    <p class="bt-step-title"><span class="n">2</span>期間</p>
+    <div class="bt-row" id="periodRow" role="tablist" aria-label="期間"></div>
+    <p class="bt-pill-note" id="periodNote"></p>
+  </div>
+
+  <div class="bt-step" id="stepBet">
+    <p class="bt-step-title"><span class="n">3</span>券種</p>
+    <div class="bt-row" id="betRow" role="tablist" aria-label="券種"></div>
+  </div>
+
+  <div class="bt-step" id="stepTarget">
+    <p class="bt-step-title"><span class="n">4</span>買い目</p>
+    <div id="targetSingle" style="display:none;">
+      <p class="bt-pill-note">買う艇を選ぶ(複数選択可・選んだ艇を毎レース買う)</p>
+      <div class="bt-boats" id="singleBoats"></div>
+    </div>
+    <div id="targetMulti" style="display:none;">
+      <div class="bt-row" id="modeRow" role="tablist" aria-label="買い方"></div>
+      <div id="axisArea" class="bt-sub" style="display:none;">
+        <p class="bt-sub-label">軸にする艇</p>
+        <div class="bt-boats" id="axisBoats"></div>
+        <div id="axisPosArea" style="margin-top:10px; display:none;">
+          <p class="bt-sub-label">軸の着順</p>
+          <div class="bt-row" id="axisPosRow" role="tablist" aria-label="軸の着順"></div>
+        </div>
+        <div class="bt-sub">
+          <p class="bt-sub-label">相手にする艇(複数選択可)</p>
+          <div class="bt-boats" id="oppoBoats"></div>
+        </div>
+      </div>
+      <div id="boxArea" class="bt-sub" style="display:none;">
+        <p class="bt-sub-label">ボックスにする艇(複数選択・全通りを買う)</p>
+        <div class="bt-boats" id="boxBoats"></div>
+      </div>
+    </div>
+    <div class="bt-points" id="pointsBox" style="display:none;">買い目 <b class="nums" id="pointsVal">0</b>点 ／ 1レースあたり<b class="nums" id="stakeVal">0</b>円</div>
+    <p class="bt-hint" id="targetHint"></p>
+  </div>
+
+  <button class="bt-run" id="runBtn" type="button" disabled>検証する</button>
+  <div class="bt-loading" id="loadingMsg" style="display:none;"></div>
+
+  <div class="bt-result" id="resultArea" style="display:none;">
+    <div class="bt-result-grid">
+      <div class="bt-result-card"><p class="lbl">対象レース数</p><p class="val nums" id="rRaces">―</p></div>
+      <div class="bt-result-card"><p class="lbl">的中率</p><p class="val nums" id="rHitRate">―</p></div>
+      <div class="bt-result-card"><p class="lbl">回収率</p><p class="val nums" id="rReturn">―</p></div>
+      <div class="bt-result-card"><p class="lbl">総賭け金</p><p class="val nums" id="rStake">―</p></div>
+    </div>
+    <p class="bt-result-note" id="resultNote"></p>
+  </div>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
+</div>
+<script>
+(function(){
+  "use strict";
+  var DATA_DIR = "backtest-data/";
+  var BOATS = [1,2,3,4,5,6];
+  var BADGE = {
+    1: {bg:"#fff", fg:"#1a1a1a"}, 2: {bg:"#2b2b2b", fg:"#fff"}, 3: {bg:"#d83a36", fg:"#fff"},
+    4: {bg:"#2f6fd0", fg:"#fff"}, 5: {bg:"#f2c200", fg:"#3a2e00"}, 6: {bg:"#1f9e54", fg:"#fff"}
+  };
+  var BET_TYPES = [
+    {key:"t", label:"単勝", kind:"single"},
+    {key:"f", label:"複勝", kind:"single"},
+    {key:"2t", label:"2連単", kind:"multi", n:2, ordered:true},
+    {key:"2f", label:"2連複", kind:"multi", n:2, ordered:false},
+    {key:"3t", label:"3連単", kind:"multi", n:3, ordered:true},
+    {key:"3f", label:"3連複", kind:"multi", n:3, ordered:false}
+  ];
+  var PERIODS = [
+    {key:"1y", label:"過去1年", days:365},
+    {key:"3y", label:"過去3年", days:365*3},
+    {key:"5y", label:"過去5年", days:365*5},
+    {key:"10y", label:"過去10年", days:365*10}
+  ];
+
+  var state = {
+    venue: "zenkoku",
+    period: null,
+    bet: null,
+    mode: "axis",       // axis | box
+    singleBoats: [],
+    axisBoat: null,
+    axisPos: 1,
+    oppoBoats: [],
+    boxBoats: []
+  };
+  var meta = null;
+  var fileCache = {};   // ファイル名 → 読み込み済みレコード配列(会場切替のたびの再ダウンロードを避ける)
+
+  // ---------- 組み合わせ生成(順列・組み合わせ) ----------
+  function permute(arr, k){
+    var out = [];
+    (function rec(path, rest){
+      if(path.length === k){ out.push(path.slice()); return; }
+      for(var i=0;i<rest.length;i++){
+        var next = rest.slice(0,i).concat(rest.slice(i+1));
+        path.push(rest[i]); rec(path, next); path.pop();
+      }
+    })([], arr);
+    return out;
+  }
+  function combine(arr, k){
+    var out = [];
+    (function rec(start, path){
+      if(path.length === k){ out.push(path.slice()); return; }
+      for(var i=start;i<arr.length;i++){ path.push(arr[i]); rec(i+1, path); path.pop(); }
+    })(0, []);
+    return out;
+  }
+  function ascKey(nums){ return nums.slice().sort(function(a,b){return a-b;}).join("-"); }
+
+  // ---------- 買い目 → 組み合わせ文字列の一覧 ----------
+  function buildCombos(){
+    var bet = betDef(state.bet);
+    if(!bet) return [];
+    if(bet.kind === "single"){
+      return state.singleBoats.slice().sort(function(a,b){return a-b;}).map(String);
+    }
+    var k = bet.n, ordered = bet.ordered;
+    var nums;
+    if(state.mode === "box"){
+      nums = state.mode === "box" ? permsOrCombos(state.boxBoats, k, ordered) : [];
+    } else {
+      var restK = k - 1;
+      var oppo = state.oppoBoats.slice().sort(function(a,b){return a-b;});
+      if(state.axisBoat == null || oppo.length < restK) return [];
+      if(ordered){
+        nums = permute(oppo, restK).map(function(p){
+          var full = p.slice(); full.splice(state.axisPos - 1, 0, state.axisBoat); return full;
+        });
+      } else {
+        nums = combine(oppo, restK).map(function(c){ return [state.axisBoat].concat(c); });
+      }
+    }
+    return nums.map(function(n){ return ordered ? n.join("-") : ascKey(n); });
+  }
+  function permsOrCombos(boats, k, ordered){
+    if(boats.length < k) return [];
+    return ordered ? permute(boats, k) : combine(boats, k);
+  }
+
+  function betDef(key){ for(var i=0;i<BET_TYPES.length;i++){ if(BET_TYPES[i].key===key) return BET_TYPES[i]; } return null; }
+
+  // ---------- 期間の有効判定 ----------
+  function periodEnabled(p){
+    if(!meta) return false;
+    var latest = new Date(meta.latest + "T00:00:00Z");
+    var cutoff = new Date(latest.getTime() - p.days*86400000);
+    var cutoffStr = cutoff.toISOString().slice(0,10);
+    return meta.earliest <= cutoffStr;
+  }
+  function periodCutoff(p){
+    var latest = new Date(meta.latest + "T00:00:00Z");
+    var cutoff = new Date(latest.getTime() - p.days*86400000);
+    return cutoff.toISOString().slice(0,10);
+  }
+
+  // ---------- UI描画 ----------
+  function boatBtn(n, pressed, disabled){
+    var b = BADGE[n];
+    var el = document.createElement("button");
+    el.type = "button"; el.className = "bt-boat-btn"; el.textContent = n;
+    el.style.background = b.bg; el.style.color = b.fg;
+    el.setAttribute("aria-pressed", pressed ? "true" : "false");
+    if(disabled) el.disabled = true;
+    return el;
+  }
+
+  function renderVenue(){
+    var sel = document.getElementById("selVenue");
+    meta.venues.forEach(function(v){
+      var opt = document.createElement("option");
+      opt.value = v.romaji; opt.textContent = v.name;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", function(){ state.venue = sel.value; syncRunEnabled(); hideResult(); });
+  }
+
+  function renderPeriods(){
+    var row = document.getElementById("periodRow");
+    row.innerHTML = "";
+    var firstEnabled = null;
+    PERIODS.forEach(function(p){
+      var en = periodEnabled(p);
+      if(en && firstEnabled === null) firstEnabled = p.key;
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "bt-pill"; btn.textContent = p.label;
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", "false");
+      if(!en) btn.disabled = true;
+      btn.addEventListener("click", function(){
+        state.period = p.key;
+        Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
+        btn.setAttribute("aria-selected", "true");
+        hideResult(); syncRunEnabled();
+      });
+      row.appendChild(btn);
+    });
+    if(firstEnabled){
+      state.period = firstEnabled;
+      row.children[PERIODS.findIndex(function(p){return p.key===firstEnabled;})].setAttribute("aria-selected", "true");
+    }
+    var note = document.getElementById("periodNote");
+    note.textContent = "データの実在範囲: " + meta.earliest + "〜" + meta.latest +
+      "（この範囲を超える期間は選べません。データが増えると自動的に選べるようになります）";
+  }
+
+  function renderBetTypes(){
+    var row = document.getElementById("betRow");
+    BET_TYPES.forEach(function(b){
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "bt-pill"; btn.textContent = b.label;
+      btn.setAttribute("role", "tab"); btn.setAttribute("aria-selected", "false");
+      btn.addEventListener("click", function(){
+        state.bet = b.key;
+        resetTarget();
+        Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
+        btn.setAttribute("aria-selected", "true");
+        renderTarget();
+        hideResult();
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  function resetTarget(){
+    state.singleBoats = []; state.axisBoat = null; state.axisPos = 1;
+    state.oppoBoats = []; state.boxBoats = []; state.mode = "axis";
+  }
+
+  function renderTarget(){
+    var bet = betDef(state.bet);
+    var single = document.getElementById("targetSingle");
+    var multi = document.getElementById("targetMulti");
+    if(!bet){ single.style.display = "none"; multi.style.display = "none"; updatePoints(); return; }
+    if(bet.kind === "single"){
+      single.style.display = ""; multi.style.display = "none";
+      var box = document.getElementById("singleBoats"); box.innerHTML = "";
+      BOATS.forEach(function(n){
+        var btn = boatBtn(n, state.singleBoats.indexOf(n) !== -1, false);
+        btn.addEventListener("click", function(){
+          var i = state.singleBoats.indexOf(n);
+          if(i === -1) state.singleBoats.push(n); else state.singleBoats.splice(i,1);
+          renderTarget(); hideResult();
+        });
+        box.appendChild(btn);
+      });
+      updatePoints();
+      return;
+    }
+    single.style.display = "none"; multi.style.display = "";
+    renderModeRow(bet);
+    document.getElementById("axisArea").style.display = state.mode === "axis" ? "" : "none";
+    document.getElementById("boxArea").style.display = state.mode === "box" ? "" : "none";
+    if(state.mode === "axis") renderAxisArea(bet); else renderBoxArea(bet);
+    updatePoints();
+  }
+
+  function renderModeRow(bet){
+    var row = document.getElementById("modeRow");
+    row.innerHTML = "";
+    [["axis","軸ながし"],["box","ボックス"]].forEach(function(pair){
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "bt-pill"; btn.textContent = pair[1];
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", state.mode === pair[0] ? "true" : "false");
+      btn.addEventListener("click", function(){
+        state.mode = pair[0];
+        state.axisBoat = null; state.oppoBoats = []; state.boxBoats = [];
+        renderTarget(); hideResult();
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  function renderAxisArea(bet){
+    var axisBox = document.getElementById("axisBoats"); axisBox.innerHTML = "";
+    BOATS.forEach(function(n){
+      var btn = boatBtn(n, state.axisBoat === n, false);
+      btn.addEventListener("click", function(){
+        state.axisBoat = n;
+        if(state.oppoBoats.indexOf(n) !== -1) state.oppoBoats.splice(state.oppoBoats.indexOf(n),1);
+        renderTarget(); hideResult();
+      });
+      axisBox.appendChild(btn);
+    });
+
+    var posArea = document.getElementById("axisPosArea");
+    if(bet.ordered){
+      posArea.style.display = "";
+      var posRow = document.getElementById("axisPosRow"); posRow.innerHTML = "";
+      var labels = bet.n === 2 ? ["1着","2着"] : ["1着","2着","3着"];
+      labels.forEach(function(lb, idx){
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "bt-pill"; btn.textContent = lb;
+        btn.setAttribute("role", "tab");
+        btn.setAttribute("aria-selected", state.axisPos === idx+1 ? "true" : "false");
+        btn.addEventListener("click", function(){
+          state.axisPos = idx+1;
+          Array.prototype.forEach.call(posRow.children, function(c){ c.setAttribute("aria-selected","false"); });
+          btn.setAttribute("aria-selected","true");
+          updatePoints(); hideResult();
+        });
+        posRow.appendChild(btn);
+      });
+    } else {
+      posArea.style.display = "none";
+    }
+
+    var oppoBox = document.getElementById("oppoBoats"); oppoBox.innerHTML = "";
+    BOATS.forEach(function(n){
+      var disabled = state.axisBoat === n;
+      var btn = boatBtn(n, state.oppoBoats.indexOf(n) !== -1, disabled);
+      btn.addEventListener("click", function(){
+        var i = state.oppoBoats.indexOf(n);
+        if(i === -1) state.oppoBoats.push(n); else state.oppoBoats.splice(i,1);
+        updatePoints(); hideResult();
+      });
+      oppoBox.appendChild(btn);
+    });
+  }
+
+  function renderBoxArea(){
+    var box = document.getElementById("boxBoats"); box.innerHTML = "";
+    BOATS.forEach(function(n){
+      var btn = boatBtn(n, state.boxBoats.indexOf(n) !== -1, false);
+      btn.addEventListener("click", function(){
+        var i = state.boxBoats.indexOf(n);
+        if(i === -1) state.boxBoats.push(n); else state.boxBoats.splice(i,1);
+        updatePoints(); hideResult();
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  function updatePoints(){
+    var combos = buildCombos();
+    var box = document.getElementById("pointsBox");
+    var hint = document.getElementById("targetHint");
+    if(!state.bet){ box.style.display = "none"; hint.textContent = ""; syncRunEnabled(); return; }
+    box.style.display = "";
+    document.getElementById("pointsVal").textContent = combos.length.toLocaleString("ja-JP");
+    document.getElementById("stakeVal").textContent = (combos.length * 100).toLocaleString("ja-JP");
+    hint.textContent = combos.length === 0 ? validationHint() : "";
+    syncRunEnabled();
+  }
+
+  function validationHint(){
+    var bet = betDef(state.bet);
+    if(!bet) return "";
+    if(bet.kind === "single") return "艇を1つ以上選んでください。";
+    if(state.mode === "box") return "ボックスにする艇を" + bet.n + "艇以上選んでください。";
+    if(state.axisBoat == null) return "軸にする艇を選んでください。";
+    return "相手にする艇を" + (bet.n - 1) + "艇以上選んでください。";
+  }
+
+  function syncRunEnabled(){
+    var combos = buildCombos();
+    var ok = !!state.venue && !!state.period && !!state.bet && combos.length > 0;
+    document.getElementById("runBtn").disabled = !ok;
+  }
+
+  function hideResult(){ document.getElementById("resultArea").style.display = "none"; }
+
+  // ---------- データ読み込み・集計 ----------
+  function loadVenueFile(romaji){
+    if(fileCache[romaji]) return Promise.resolve(fileCache[romaji]);
+    return fetch(DATA_DIR + romaji + ".json").then(function(r){
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function(data){ fileCache[romaji] = data; return data; });
+  }
+
+  function runBacktest(){
+    var loading = document.getElementById("loadingMsg");
+    loading.style.display = ""; loading.textContent = "集計中…";
+    document.getElementById("runBtn").disabled = true;
+
+    loadVenueFile(state.venue).then(function(records){
+      var period = null;
+      for(var i=0;i<PERIODS.length;i++){ if(PERIODS[i].key === state.period) period = PERIODS[i]; }
+      var cutoff = periodCutoff(period);
+      var scoped = records.filter(function(r){ return r.d >= cutoff; });
+
+      var bet = betDef(state.bet);
+      var combos = buildCombos();
+      var comboSet = {};
+      combos.forEach(function(c){ comboSet[c] = true; });
+      var points = combos.length;
+      var stakePerRace = points * 100;
+
+      var raceCount = scoped.length;
+      var hitCount = 0, totalPayout = 0;
+      for(var j=0;j<scoped.length;j++){
+        var entries = scoped[j][bet.key] || [];
+        var hit = false;
+        for(var k=0;k<entries.length;k++){
+          if(comboSet[entries[k][0]]){ totalPayout += entries[k][1]; hit = true; }
+        }
+        if(hit) hitCount++;
+      }
+      var totalStake = stakePerRace * raceCount;
+
+      showResult({
+        raceCount: raceCount, hitCount: hitCount, totalPayout: totalPayout,
+        totalStake: totalStake, points: points
+      });
+      loading.style.display = "none";
+      syncRunEnabled();
+    }).catch(function(err){
+      loading.textContent = "データの読み込みに失敗しました。時間をおいて再度お試しください。";
+      syncRunEnabled();
+    });
+  }
+
+  function pct(v){ return (v * 100).toFixed(1) + "%"; }
+  function yen(v){ return "¥" + v.toLocaleString("ja-JP"); }
+
+  function showResult(r){
+    var area = document.getElementById("resultArea");
+    area.style.display = "";
+    document.getElementById("rRaces").textContent = r.raceCount.toLocaleString("ja-JP") + "レース";
+    if(r.raceCount === 0){
+      document.getElementById("rHitRate").textContent = "―";
+      document.getElementById("rReturn").textContent = "―";
+      document.getElementById("rStake").textContent = "―";
+      document.getElementById("resultNote").textContent = "選んだ条件に合うレースがありませんでした。";
+      return;
+    }
+    var hitRate = r.hitCount / r.raceCount;
+    var retRate = r.totalPayout / r.totalStake;
+    document.getElementById("rHitRate").textContent = pct(hitRate);
+    var retEl = document.getElementById("rReturn");
+    retEl.textContent = pct(retRate);
+    retEl.className = "val nums" + (retRate >= 1 ? " hi" : "");
+    document.getElementById("rStake").textContent = yen(r.totalStake);
+    document.getElementById("resultNote").textContent =
+      "1レースあたり " + r.points + "点(" + (r.points*100).toLocaleString("ja-JP") + "円)。総払戻 " + yen(r.totalPayout) +
+      "。的中率・回収率は小数第1位まで。回収率100%以上は色を分けています(推奨の意味ではありません)。";
+  }
+
+  // ---------- 初期化 ----------
+  fetch(DATA_DIR + "meta.json").then(function(r){
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }).then(function(m){
+    meta = m;
+    renderVenue();
+    renderPeriods();
+    renderBetTypes();
+    document.getElementById("runBtn").addEventListener("click", runBacktest);
+  }).catch(function(){
+    document.querySelector(".wrap").insertAdjacentHTML("beforeend",
+      '<p class="bt-hint">条件データの読み込みに失敗しました。時間をおいて再度お試しください。</p>');
+  });
+})();
+</script>
+</body>
+</html>

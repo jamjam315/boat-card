@@ -30,10 +30,13 @@ jobs:
         run: python build_player_st.py
       - name: バックテスト集計(全国まとめ)を計算
         run: python build_backtest.py
+      - name: バックテスト(自由条件指定用の中間データ)を計算
+        run: python build_backtest_custom.py
       - name: 変化があればコミット
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
           git add results.jsonl stats.js players.js backtest.js
+          git add -A backtest-data/
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push

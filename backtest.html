@@ -53,6 +53,10 @@ body{background:var(--bg); color:var(--ink);
   border-radius:8px; padding:7px 10px; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;}
 .bt-select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
+.bt-custom-link{display:inline-block; margin-top:10px; font-size:12.5px; color:var(--accent);
+  text-decoration:none; border-bottom:1px solid var(--line2);}
+.bt-custom-link:hover{border-bottom-color:var(--accent);}
+
 .bt-tabs{display:flex; gap:8px; margin-top:12px; overflow-x:auto; padding-bottom:2px;}
 .bt-tab{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
   font-size:12.5px; padding:8px 14px; border-radius:999px; cursor:pointer; white-space:nowrap;
@@ -101,6 +105,8 @@ body{background:var(--bg); color:var(--ink);
     <label class="bt-scope-label" for="btVenue">会場</label>
     <select class="bt-select" id="btVenue"><option value="全国">全国</option></select>
   </div>
+
+  <a class="bt-custom-link" href="backtest-custom.html">→ 会場・期間・券種・買い目を自分で指定して検証する</a>
 
   <div class="bt-tabs" role="tablist" aria-label="買い方の種類">
     <button class="bt-tab" role="tab" data-key="単勝" aria-selected="true">単勝</button>
