@@ -265,8 +265,11 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   /* 「レース場」ラベル＋読み方ガイド等のリンク群がスマホ幅だと1行に収まらず、
      ラベルの文字自体が2段に割れてしまう問題への対処。ラベルは折り返さず、
      リンク群だけを丸ごと次の行へ落とし(seg-rowのflex-wrap)、その行では
-     2列グリッドで整列させて隙間なく揃える。PC幅(min-width:461px)には触れない。 */
-  .seg-links{width:100%; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:4px;}
+     2列グリッドで整列させて隙間なく揃える。PC幅(min-width:461px)には触れない。
+     スマホ幅だけリンク群を先・ラベルを後に表示順を入れ替える(orderのみ、
+     DOM順はPC幅の見え方(ラベル左・リンク右)を保つためそのまま)。 */
+  .seg-links{width:100%; display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:4px; order:1;}
+  .seg-label{order:2;}
   .guide-link{margin:0;}
 }
 @media (min-width:461px){
@@ -314,7 +317,7 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   <div id="featured"></div>
   <div id="favToday"></div>
 
-  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><a class="guide-link" href="players/">🔍 選手一覧</a><a class="guide-link" href="backtest.html">📊 バックテスト</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面</button></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
+  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="players/">🔍 選手一覧</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
   <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
 
   <main id="card"></main>
