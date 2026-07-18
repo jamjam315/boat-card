@@ -14,31 +14,40 @@
   var FAV_KEY = "teiyomi_favorites_players";
   var A2HS_KEY = "teiyomi_a2hs_prompted";
 
-  // ==== Supabaseクラウド同期(端末をまたいだお気に入りの引き継ぎの土台) ====
-  // ログイン画面は無く、匿名認証(supabase.auth.signInAnonymously)で端末ごとに
-  // 発行されるユーザーIDにお気に入りを紐づけて保存する。個人情報は一切扱わない。
+  // ==== Supabaseクラウド同期(端末をまたいだお気に入りの引き継ぎ) ====
+  // 匿名認証(supabase.auth.signInAnonymously)で端末ごとに発行される
+  // ユーザーIDにお気に入りを紐づけて保存する。ログインは任意(メールの
+  // マジックリンクのみ、パスワード無し)。名前等は一切集めない。
   //
-  // 【localStorageとの優先関係(重要・データが消えない設計)】
+  // 【匿名→メールログインの引き継ぎ(重要)】
+  // 匿名のままお気に入りを使っていたユーザーが初めてログインするとき、
+  // supabase.auth.updateUser({email})で「今の匿名ユーザーにメールを紐づけて
+  // 本会員に昇格させる」方式を優先する。この方式はuser_id(uid)が変わらない
+  // ため、favorite_playersの行はそのまま有効で、移行処理は不要。
+  // 既にそのメールが別アカウントで使われている場合(=別端末で先に登録済み)は
+  // updateUserがエラーになるので、通常のsignInWithOtp(そのアカウントへの
+  // ログイン)にフォールバックする。この場合は uid が切り替わるが、
+  // ログイン後に必ずsyncOnLoad()を再実行するため、今の端末のlocalStorageに
+  // あったお気に入りは(既存の和集合マージ方式で)そのままアカウント側へ
+  // 合流する。データが消えない設計は維持したまま、2つの入口を両立させている。
+  //
+  // 【localStorageとの優先関係(重要・データが消えない設計、匿名時から変更なし)】
   // 起動時、Supabase側とlocalStorage側のお気に入りを「和集合」でまとめる。
-  // 片方にしか無い項目も消さず両方に反映する(後勝ち等にしない)。既存ユーザーが
-  // この更新後はじめて開いたときも、端末内のお気に入りが消えずSupabaseに
-  // 引き継がれるのはこの和集合方式のため。明示的な★解除だけが削除として働く。
-  //
-  // 【できること・できないこと】
-  // 同じ端末・同じブラウザを使い続ける限りクラウドにもバックアップされる。
-  // ただし匿名認証には「同じ人」を跨ぐ概念が無いため、別端末・別ブラウザは
-  // 別々の匿名IDになり、今回の実装だけでは自動で同じお気に入りは見えない。
-  // 本当の端末間同期には、将来ログイン機能(メール等)を足す必要がある。
+  // 片方にしか無い項目も消さず両方に反映する(後勝ち等にしない)。明示的な
+  // ★解除だけが削除として働く。ログイン状態が変わった時(マジックリンクから
+  // 戻った時・ログアウト時)も同じsyncOnLoad()を再実行し、この方式を守る。
   //
   // Supabase未接続・オフライン・タイムアウト等はすべてtry/catchで握りつぶし、
   // これまで通りlocalStorageだけで動作する(サーバーが落ちても主要機能は
-  // 生き残る、という艇読み全体の設計思想をここでも守る)。
+  // 生き残る、という艇読み全体の設計思想をここでも守る)。ログインは任意で、
+  // ログインしなくても匿名のままお気に入り機能は通常通り使える。
   var SUPA_CONFIG_URL = "/supabase-config.json";
   var SUPA_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   var SUPA_TABLE = "favorite_players";
   var supaClient = null;
   var supaUserId = null;
   var supaReady = false;
+  var currentUser = null;   // 直近のSupabaseセッションのuser(匿名/メールログイン問わず)。未確定はnull。
 
   function loadSupaSdk() {
     return new Promise(function (resolve, reject) {
@@ -78,12 +87,48 @@
       .then(function (session) {
         supaUserId = session.user.id;
         supaReady = true;
+        currentUser = session.user;
+        // これ以降のログイン状態の変化(マジックリンクからの復帰・ログアウト等)を
+        // 監視する。初期セットアップ完了後に購読するため、購読直後に発火する
+        // 「現在の状態」は既に反映済みの内容と同じになりno-opになる。
+        supaClient.auth.onAuthStateChange(function (_event, s) { handleAuthChange(s); });
         return syncOnLoad();
+      })
+      .then(function () {
+        notifyAuthState();   // 初期状態が決まったことをUI側へ知らせる
       })
       .catch(function () {
         // 接続できなくても致命的にしない。以降はlocalStorageのみで動作する。
         supaReady = false;
+        notifyAuthState();
       });
+  }
+
+  function handleAuthChange(session) {
+    var user = session && session.user;
+    var newId = user ? user.id : null;
+    // 匿名→本会員昇格(updateUserでのメール紐付け)はuidが変わらないため、
+    // uidだけの比較では変化を見逃す。is_anonymousの変化も合わせて見る。
+    var prevWasAnon = !!(currentUser && currentUser.is_anonymous);
+    var newIsAnon = !!(user && user.is_anonymous);
+    var unchanged = newId === supaUserId && prevWasAnon === newIsAnon;
+    currentUser = user;
+    supaUserId = newId;
+    if (unchanged) return;   // 実質変化なし(初回購読時の現在状態の再通知など)
+    try {
+      // マジックリンクのトークンがURLに残ったままだと見た目が煩雑なので消す。
+      if (window.location.hash || window.location.search.indexOf("code=") !== -1) {
+        history.replaceState(null, "", window.location.pathname);
+      }
+    } catch (e) {}
+    notifyAuthState();
+    if (supaReady) syncOnLoad();
+  }
+
+  function notifyAuthState() {
+    try {
+      window.dispatchEvent(new CustomEvent("teiyomi-auth-changed"));
+    } catch (e) {}
   }
 
   function syncOnLoad() {
@@ -130,6 +175,44 @@
       .eq("user_id", supaUserId)
       .eq("toban", String(toban))
       .then(function () {}, function () {});
+  }
+
+  function sendMagicLink(email) {
+    if (!supaReady || !supaClient) return Promise.reject(new Error("Supabase未接続です"));
+    var redirectTo = window.location.origin + window.location.pathname;
+    var wasAnonymous = !!(currentUser && currentUser.is_anonymous);
+    if (wasAnonymous) {
+      // 優先パス：今の匿名ユーザーにメールを紐づけて本会員へ昇格させる
+      // (uidが変わらないため、お気に入りの移行処理が不要)。
+      return supaClient.auth.updateUser({ email: email }).then(function (r) {
+        if (!r.error) return r;
+        // 既に別アカウントで使われているメール等はここでエラーになるので、
+        // 通常のログインメール(そのアカウントへのサインイン)にフォールバックする。
+        return supaClient.auth
+          .signInWithOtp({ email: email, options: { emailRedirectTo: redirectTo } })
+          .then(function (r2) { if (r2.error) throw r2.error; return r2; });
+      });
+    }
+    return supaClient.auth
+      .signInWithOtp({ email: email, options: { emailRedirectTo: redirectTo } })
+      .then(function (r) { if (r.error) throw r.error; return r; });
+  }
+
+  function signOut() {
+    if (!supaReady || !supaClient) return Promise.resolve();
+    return supaClient.auth
+      .signOut()
+      .then(function () { return supaClient.auth.signInAnonymously(); })
+      .then(function (r) {
+        if (r && r.error) throw r.error;
+        var session = r && r.data && r.data.session;
+        if (session) { supaUserId = session.user.id; currentUser = session.user; }
+        notifyAuthState();
+        return syncOnLoad();
+      })
+      .catch(function () {
+        // 失敗しても致命的にしない(ローカルの表示は変わらないため、次回起動時に整合される)。
+      });
   }
 
   function readAll() {
@@ -185,6 +268,17 @@
     showAddToHomeGuide: function () {
       showA2HSBanner();
     }
+  };
+
+  window.TeiyomiAuth = {
+    // 認証状態が未確定(初期化中・Supabase未接続)ならnull。
+    // 確定していれば {email, isAnonymous} を返す(未ログインならemail:null)。
+    getUser: function () {
+      if (!currentUser) return null;
+      return { email: currentUser.email || null, isAnonymous: !!currentUser.is_anonymous };
+    },
+    sendMagicLink: sendMagicLink,
+    signOut: signOut
   };
 
   // ==== ホーム画面への追加案内(A2HS) ====
