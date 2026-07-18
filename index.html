@@ -81,14 +81,16 @@ body{background:var(--bg); color:var(--ink);
 .authbox{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:12px; padding:12px 16px; font-size:12.5px; color:var(--ink2);}
 .authbox-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
-.authbox-btn{background:none; border:none; padding:0; font:inherit; font-size:12.5px; color:var(--accent);
-  cursor:pointer; text-decoration:underline; text-decoration-color:var(--line2); -webkit-tap-highlight-color:transparent;}
+.authbox-btn{background:none; border:none; padding:10px 2px; margin:-10px -2px; font:inherit; font-size:12.5px; color:var(--accent);
+  cursor:pointer; text-decoration:underline; text-decoration-color:var(--line2); -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation; min-height:44px;}
 .authbox-btn:disabled{opacity:.5; cursor:default;}
 .authbox-form{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
-.authbox-input{flex:1 1 160px; font-size:13px; padding:8px 10px; border:1px solid var(--line2); border-radius:8px;
-  background:var(--surface); color:var(--ink); font-family:inherit; min-width:0;}
-.authbox-submit{font-size:13px; font-weight:600; padding:8px 14px; border-radius:8px; border:none;
-  background:var(--accent); color:#fff; cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap;}
+.authbox-input{flex:1 1 160px; font-size:16px; padding:10px; border:1px solid var(--line2); border-radius:8px;
+  background:var(--surface); color:var(--ink); font-family:inherit; min-width:0; min-height:44px; touch-action:manipulation;}
+.authbox-submit{font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; border:none;
+  background:var(--accent); color:#fff; cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap;
+  touch-action:manipulation; min-height:44px;}
 .authbox-submit:disabled{opacity:.5; cursor:default;}
 .authbox-msg{font-size:11.5px; color:var(--muted); margin:6px 0 0;}
 .authbox-email{font-weight:600; color:var(--ink);}
@@ -635,16 +637,20 @@ function renderAuthBox(){
     }
 
     if(authFormOpen === true){
+      // <form>で囲み、ボタンタップだけでなくスマホの仮想キーボードの「次へ/Go/Enter」
+      // でも送信できるようにする(タップが小さなボタンに正確に当たらなくても送信できる
+      // 経路を用意する。実機で送信ボタンのタップが反応しない報告への対処)。
       box.innerHTML = `<div class="authbox">
         <p style="margin:0 0 4px;">お気に入りを他の端末とも共有したい場合、メールアドレスでログインできます(任意)。</p>
-        <div class="authbox-form">
-          <input type="email" class="authbox-input" id="authEmailInput" placeholder="メールアドレス" autocomplete="email">
-          <button type="button" class="authbox-submit" id="authSubmitBtn">送信</button>
-        </div>
+        <form class="authbox-form" id="authForm">
+          <input type="email" class="authbox-input" id="authEmailInput" placeholder="メールアドレス" autocomplete="email" required>
+          <button type="submit" class="authbox-submit" id="authSubmitBtn">送信</button>
+        </form>
         <p class="authbox-msg" id="authMsg"></p>
       </div>`;
-      document.getElementById("authSubmitBtn").addEventListener("click", function(){
-        const btn = this;
+      document.getElementById("authForm").addEventListener("submit", function(ev){
+        ev.preventDefault();
+        const btn = document.getElementById("authSubmitBtn");
         const email = document.getElementById("authEmailInput").value.trim();
         const msgEl = document.getElementById("authMsg");
         if(!email || email.indexOf("@")===-1){ msgEl.textContent = "メールアドレスを入力してください。"; return; }
