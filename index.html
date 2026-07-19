@@ -54,6 +54,15 @@ body{background:var(--bg); color:var(--ink);
   .stale-warn{background:#3a2f12; border-color:#6b5620; color:#e8c468;}
 }
 
+.devnotice{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:10px; padding:10px 14px; font-size:12px; color:var(--ink2); line-height:1.65;
+  display:flex; align-items:flex-start; gap:6px;}
+.devnotice p{margin:0; flex:1;}
+.devnotice a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+.devnotice-close{background:none; border:none; padding:8px; margin:-8px -6px -8px 0; font:inherit;
+  font-size:15px; line-height:1; color:var(--muted); cursor:pointer; flex-shrink:0;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation; min-width:32px; min-height:32px;}
+
 .feat{display:block; text-decoration:none; color:inherit;
   background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
   margin-top:16px; padding:15px 18px; transition:opacity .12s;}
@@ -329,6 +338,8 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
     <div class="datepill nums" id="datepill"></div>
   </header>
 
+  <div id="devNotice"></div>
+
   <p class="datameta nums" id="dataMetaNormal">データ取得：<span id="genAt">—</span> 時点</p>
   <div class="stale-warn nums" id="staleWarn" style="display:none"></div>
 
@@ -395,6 +406,37 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
 <script src="favorites.js"></script>
 <script>
 (function(){
+  // 「開発中のお知らせ」。閉じたらlocalStorageに記録して次回以降は出さない。
+  // localStorageが使えない環境でも表示自体は壊れないよう、読み書きは必ずtry/catchで囲む
+  // (使えない場合は「毎回出る」側に倒す。閉じるボタン自体はその場で効く)。
+  var DEVNOTICE_KEY = "teiyomi_devnotice_dismissed_v1";
+  var box = document.getElementById("devNotice");
+  if(box){
+    var dismissed = false;
+    try{ dismissed = localStorage.getItem(DEVNOTICE_KEY) === "1"; }catch(e){}
+    if(!dismissed){
+      box.className = "devnotice";
+      var p = document.createElement("p");
+      p.textContent = "🚧 艇読みは現在も開発中のサイトです。毎日レースデータを追記しながら、機能を少しずつ育てています。お気づきの点があれば ";
+      var a = document.createElement("a");
+      a.href = "mailto:mtpworks.info@gmail.com";
+      a.textContent = "mtpworks.info@gmail.com";
+      p.appendChild(a);
+      p.appendChild(document.createTextNode(" までお知らせください。"));
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "devnotice-close";
+      closeBtn.setAttribute("aria-label", "このお知らせを閉じる");
+      closeBtn.textContent = "×";
+      closeBtn.addEventListener("click", function(){
+        box.style.display = "none";
+        try{ localStorage.setItem(DEVNOTICE_KEY, "1"); }catch(e){}
+      });
+      box.appendChild(p);
+      box.appendChild(closeBtn);
+    }
+  }
+
   // 「ホーム画面に追加」の常設ボタン。スタンドアロン起動中・PC幅では
   // もう出す意味が無いためボタンごと隠す(favorites.js側の判定を再利用)。
   var btn = document.getElementById("a2hsBtn");
