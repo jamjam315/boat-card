@@ -30,13 +30,18 @@ jobs:
         run: python build_player_st.py
       - name: バックテスト集計(全国まとめ)を計算
         run: python build_backtest.py
-      - name: バックテスト(自由条件指定用の中間データ)を計算
-        run: python build_backtest_custom.py
+      # 2026-07-19時点で一時停止:build_backtest_custom.py(5b自由条件指定の中間データ)は
+      # 直近1年に絞るフィルタを持たず、results/配下の全期間をそのまま書き出す設計。
+      # results.jsonlを年別ファイルに分割し過去2年分を追加したことで、このまま自動実行すると
+      # 5bの表示データが3年分へ意図せず広がってしまう(「表示は今まで通り1年のまま」の方針に反する)。
+      # 期間別の分割・絞り込み設計を別途行うまで、自動実行を止めておく。
+      # - name: バックテスト(自由条件指定用の中間データ)を計算
+      #   run: python build_backtest_custom.py
       - name: 変化があればコミット
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add results.jsonl stats.js players.js backtest.js
-          git add -A backtest-data/
+          git add -A results/
+          git add stats.js players.js backtest.js
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push

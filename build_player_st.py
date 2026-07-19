@@ -1,34 +1,29 @@
 #!/usr/bin/env python3
-# results.jsonl から選手（登番）別の平均ST・全国3着以内率を集計して players.js を作る
+# results/{年}.jsonl から選手（登番）別の平均ST・全国3着以内率を集計して players.js を作る
 # 出力: window.PLAYERS = { "登番": {"st":平均ST, "n":ST本数, "p3":全国3着以内率(%), "p3n":集計本数}, ... }
+# 2026-07-19に単一のresults.jsonlから年別ファイルへ分割。読み込みはresults_store経由。
 import json, statistics, datetime
+import results_store
 
-SRC = "results.jsonl"
 OUT = "players.js"
 MIN_RACES = 8   # ST癖はこれ未満だと「癖」と呼べないので除外(3着以内率は別基準、表示側で判定)
 
 def main():
     st = {}
     p3 = {}   # 登番 -> [本数, 3着以内本数]  (開始種別を問わず、着順があるレース全てが対象)
-    try:
-        with open(SRC, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                d = json.loads(line)
-                for x in d.get("結果", []):
-                    touban = x["登番"]
-                    chaku = x.get("着")
-                    if chaku is not None:
-                        n, hit = p3.get(touban, (0, 0))
-                        p3[touban] = (n + 1, hit + (1 if chaku <= 3 else 0))
-                    # ST癖は通常スタートのみ（フライング等STt付き・欠測は除外）
-                    if x.get("STt", "") == "" and x.get("ST") is not None:
-                        st.setdefault(touban, []).append(x["ST"])
-    except FileNotFoundError:
-        print(f"[skip] {SRC} が無いので players.js は作りません")
+    if not results_store.exists():
+        print("[skip] results/ が無いので players.js は作りません")
         return
+    for d in results_store.iter_records():
+        for x in d.get("結果", []):
+            touban = x["登番"]
+            chaku = x.get("着")
+            if chaku is not None:
+                n, hit = p3.get(touban, (0, 0))
+                p3[touban] = (n + 1, hit + (1 if chaku <= 3 else 0))
+            # ST癖は通常スタートのみ（フライング等STt付き・欠測は除外）
+            if x.get("STt", "") == "" and x.get("ST") is not None:
+                st.setdefault(touban, []).append(x["ST"])
 
     players = {}
     for touban in set(st) | set(p3):

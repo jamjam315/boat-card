@@ -7,9 +7,11 @@
 """
 import json, os, statistics
 from collections import Counter, defaultdict
+import results_store
 
 # リポジトリのチェックアウト先がどこでも(ローカルWindows・GitHub ActionsのUbuntu等)
-# fan2604.json/results.jsonlをこのファイルと同じディレクトリから読めるようにする。
+# fan2604.jsonをこのファイルと同じディレクトリから読めるようにする。
+# results/{年}.jsonlはresults_store経由(こちらも同じ考え方でモジュール基準の絶対パス)。
 CLONE = os.path.dirname(os.path.abspath(__file__))
 
 MIN_WIN_N = 3
@@ -87,9 +89,10 @@ def compute_tenji_labels(venue_tenji, player_venue_tenji):
 
 
 def load_k_stats():
-    """results.jsonl(K)から、選手ごとの決まり手・会場別成績・進入コース1着分布、
+    """results/{年}.jsonl(K。2026-07-19に単一のresults.jsonlから年別に分割)から、
+    選手ごとの決まり手・会場別成績・進入コース1着分布、
     および展示タイムの安定度(会場差補正済み)を集計する。"""
-    rows = [json.loads(l) for l in open(f"{CLONE}/results.jsonl", encoding="utf-8") if l.strip()]
+    rows = results_store.load_all_records()
     nat_kimarite = Counter()
     players = defaultdict(lambda: {"kwin": Counter(), "sts": [], "venue": defaultdict(lambda: {"n":0,"w1":0})})
     by_venue = defaultdict(list)   # (登番,会場) -> [(date,race_no,進,ST,着), ...]  (今節用)

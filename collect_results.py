@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-結果(成績)データを集めて results.jsonl に貯めるスクリプト。
+結果(成績)データを集めて results/{年}.jsonl に貯めるスクリプト。
+2026-07-19に単一のresults.jsonl(GitHubの100MBファイル上限に抵触)から
+年ごとのファイルへ分割した。読み書きはresults_store.py経由で行う。
 
 2つの使い方:
   python collect_results.py                 # 昨日ぶんを1日（毎晩の自動用）
@@ -10,20 +12,18 @@
 """
 import sys, os, glob, time, json, datetime, zoneinfo, subprocess, urllib.request, urllib.error
 from parse_results import parse_results
+import results_store
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
-STORE = "results.jsonl"
 POLITE_WAIT = 3   # 秒（サーバー負荷をかけない礼儀）
 
 def existing_keys():
     keys = set()
-    if os.path.exists(STORE):
-        for line in open(STORE, encoding="utf-8"):
-            try:
-                r = json.loads(line)
-                keys.add(f'{r["date"]}:{r["会場"]}:{r["レース番号"]}')
-            except Exception:
-                pass
+    for r in results_store.iter_records():
+        try:
+            keys.add(f'{r["date"]}:{r["会場"]}:{r["レース番号"]}')
+        except Exception:
+            pass
     return keys
 
 def download(url, dest):
@@ -83,11 +83,14 @@ def main():
     keys = existing_keys()
     today = datetime.datetime.now(JST).date()
     total = 0
-    with open(STORE, "a", encoding="utf-8") as fout:
-        for i in range(start_offset, start_offset + days):
-            d = today - datetime.timedelta(days=i)
+    for i in range(start_offset, start_offset + days):
+        d = today - datetime.timedelta(days=i)
+        # 年ごとのファイル(results/{年}.jsonl)へ、その日の年に応じて追記する。
+        # --days で複数日をまとめて取り込む時に年をまたいでも正しく振り分けられるよう、
+        # 1日ごとに対象年のファイルを開く(常時1本のファイルを開きっぱなしにしない)。
+        with results_store.open_year_file_append(d.isoformat()) as fout:
             total += collect_one(d, keys, fout)
-            time.sleep(POLITE_WAIT)
+        time.sleep(POLITE_WAIT)
     print(f"[done] 合計 {total}レース追加 / 総レコード見込み: {len(keys)}")
 
 if __name__ == "__main__":

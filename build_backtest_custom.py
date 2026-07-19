@@ -49,8 +49,8 @@ collect_results.py は6艇そろったレースしか results.jsonl に入れな
 import json, os, datetime
 from parse_results import JCD, PAYOUT_LABELS
 from build_race_pages import VENUE_ROMAJI
+import results_store
 
-STORE = "results.jsonl"
 OUT_DIR = "backtest-data"
 
 # 中間データに残す券種だけ(拡連複は自由条件指定の対象外)
@@ -58,13 +58,18 @@ KEEP_BETS = {"単勝": "t", "複勝": "f", "2連単": "2t", "2連複": "2f", "3�
 
 
 def load_races():
-    """build_backtest.py と同じ重複排除の作法(再取り込み対策)。"""
+    """build_backtest.py と同じ重複排除の作法(再取り込み対策)。
+
+    【重要】このスクリプトは results.jsonl(現在は results/{年}.jsonl に分割)の
+    全期間をそのまま中間データに書き出す設計で、直近1年に絞るフィルタを持たない
+    (期間の絞り込みはフロント側backtest-custom.htmlがmeta.jsonのearliest/latestを
+    見て行う)。2023年分の過去データが results/ に追加された状態でこのスクリプトを
+    再実行すると、5bの中間データが一気に約3年分に広がり「表示は今まで通り1年のまま」
+    という前提が崩れる。そのため、年別分割対応のコード更新はここで済ませるが、
+    実際の再生成(main実行)は別タスクとして見送る(年別・期間別分割の設計を
+    別途検討してから行う)。"""
     races, seen = [], set()
-    for line in open(STORE, encoding="utf-8"):
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
+    for r in results_store.iter_records():
         key = f'{r["date"]}:{r["会場"]}:{r["レース番号"]}'
         if key in seen:
             continue
@@ -93,7 +98,7 @@ def write_json(path, obj):
 def main():
     races = load_races()
     if not races:
-        print("[stop] results.jsonl が無い/空です。")
+        print("[stop] results/ が無い/空です。")
         return
 
     os.makedirs(OUT_DIR, exist_ok=True)

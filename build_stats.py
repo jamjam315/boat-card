@@ -8,9 +8,9 @@
 """
 import json, os, datetime, zoneinfo
 from collections import defaultdict, Counter
+import results_store
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
-STORE = "results.jsonl"
 WEATHERS = ("晴", "曇", "雨")   # 天候別に集計する対象（雪・霧は数が少ないので当面まとめない）
 KIMARITE = ("逃げ", "差し", "まくり", "まくり差し", "抜き")
 
@@ -59,8 +59,8 @@ def finalize_kimarite(counter, total):
     return out
 
 def main():
-    if not os.path.exists(STORE):
-        print("[stop] results.jsonl が無い。先に collect_results.py を回してください。")
+    if not results_store.exists():
+        print("[stop] results/ が無い。先に collect_results.py を回してください。")
         return
     overall = blank()
     by_venue = defaultdict(blank)
@@ -69,11 +69,7 @@ def main():
     kimarite_by_venue = defaultdict(Counter)
     kimarite_venue_n = defaultdict(int)
     seen = set(); dates = set(); races = 0
-    for line in open(STORE, encoding="utf-8"):
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
+    for r in results_store.iter_records():
         key = f'{r["date"]}:{r["会場"]}:{r["レース番号"]}'
         if key in seen:           # 重複行は無視（再取り込み対策）
             continue

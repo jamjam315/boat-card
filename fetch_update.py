@@ -15,9 +15,9 @@ data.js側に "which":"今節"/"直近" として残し、表示側でラベル�
 import sys, os, glob, time, json, datetime, zoneinfo, subprocess, urllib.request, urllib.error
 from collections import defaultdict
 from parse_program import parse_program
+import results_store
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
-RESULTS_STORE = "results.jsonl"
 MIN_KON_SETSU = 2   # 今節の走行数がこれ未満なら「直近」にフォールバック
 RECENT_DAYS = 30     # 「直近」の対象期間
 
@@ -25,19 +25,16 @@ def today_jst():
     return datetime.datetime.now(JST).date()
 
 def load_results_index():
-    """results.jsonl を以下の2通りにインデックス化する。
+    """results/{年}.jsonl(2026-07-19に単一のresults.jsonlから年別に分割)を
+    以下の2通りにインデックス化する。実際に使うのは「今節」(直近開催)または
+    「直近30日」だけなので、古い年のデータが増えてもここで作る結果自体は
+    変わらない(範囲外として自然にフィルタされるだけ)。
       by_venue: (登番,会場) → [(date, race_no, 進入, ST, 着順), ...]   … 今節(同一会場)の検索用
       by_player: 登番 → [(date, venue, race_no, 進入, ST, 着順), ...]  … 直近(全会場)の検索用
     """
     by_venue = defaultdict(list)
     by_player = defaultdict(list)
-    if not os.path.exists(RESULTS_STORE):
-        return by_venue, by_player
-    for line in open(RESULTS_STORE, encoding="utf-8"):
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
+    for r in results_store.iter_records():
         for x in r.get("結果", []):
             by_venue[(x["登番"], r["会場"])].append(
                 (r["date"], r["レース番号"], x["進"], x.get("ST"), x["着"]))

@@ -14,9 +14,9 @@
 import json, re
 from collections import defaultdict
 from build_profiles_v5 import load_fan_master
+import results_store
 
 DATA_JS = "data.js"
-RESULTS = "results.jsonl"
 OUT = "motors.js"
 
 
@@ -45,24 +45,20 @@ def main():
         print("[skip] 今日のデータに会場×モーターの情報が無い。motors.jsは更新しない。")
         return
 
-    # results.jsonlを1回だけ走査し、対象の会場×モーターに関係する行だけ拾う
+    # results/{年}.jsonl を年をまたいで1回だけ走査し、対象の会場×モーターに
+    # 関係する行だけ拾う(2026-07-19に単一のresults.jsonlから年別に分割)。
     history = defaultdict(list)   # (会場,モーター番号) -> [(date, 登番, 選手名), ...]
-    with open(RESULTS, encoding="utf-8") as f:
-        for line in f:
-            try:
-                r = json.loads(line)
-            except Exception:
+    for r in results_store.iter_records():
+        v = r["会場"]
+        motors_here = venue_motors.get(v)
+        if not motors_here:
+            continue
+        date = r["date"]
+        for x in r["結果"]:
+            mno = x.get("モ")
+            if mno is None or mno not in motors_here:
                 continue
-            v = r["会場"]
-            motors_here = venue_motors.get(v)
-            if not motors_here:
-                continue
-            date = r["date"]
-            for x in r["結果"]:
-                mno = x.get("モ")
-                if mno is None or mno not in motors_here:
-                    continue
-                history[(v, mno)].append((date, x["登番"], x.get("名")))
+            history[(v, mno)].append((date, x["登番"], x.get("名")))
 
     fan_master = load_fan_master()
 

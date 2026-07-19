@@ -20,19 +20,18 @@ results.jsonl(払戻付き)から、号艇(1〜6)ごとの機械的な買い方3
 """
 import json, datetime
 from parse_results import JCD
+import results_store
 
-STORE = "results.jsonl"
 BOATS = range(1, 7)
 VENUE_ORDER = list(JCD.values())   # 桐生〜大村、既存のVENUE_ROMAJIと同じ並び順
 
 
 def load_races():
+    """results/{年}.jsonl を年をまたいで全件読み込む(2026-07-19に単一の
+    results.jsonlから分割。読み込み元が変わっただけで、以降のフィルタ・
+    集計ロジックは分割前と一切変えていない)。"""
     races, seen = [], set()
-    for line in open(STORE, encoding="utf-8"):
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
+    for r in results_store.iter_records():
         key = f'{r["date"]}:{r["会場"]}:{r["レース番号"]}'
         if key in seen:      # 重複行は無視(再取り込み対策。build_stats.pyと同じ作法)
             continue
@@ -117,7 +116,7 @@ def aggregate(races):
 def main():
     races = load_races()
     if not races:
-        print("[stop] results.jsonl が無い/空です。")
+        print("[stop] results/ が無い/空です。")
         return
 
     dates = sorted(r["date"] for r in races)
