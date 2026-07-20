@@ -2,6 +2,11 @@
 # results/{年}.jsonl から選手（登番）別の平均ST・全国3着以内率を集計して players.js を作る
 # 出力: window.PLAYERS = { "登番": {"st":平均ST, "n":ST本数, "p3":全国3着以内率(%), "p3n":集計本数}, ... }
 # 2026-07-19に単一のresults.jsonlから年別ファイルへ分割。読み込みはresults_store経由。
+#
+# 【直近1年に絞る理由(2026-07-20)】build_stats.pyと同じ経緯。このスクリプトも元々
+# 期間フィルタが無く、分割で過去2年分が加わったことで翌日の自動実行時に選手のST癖・
+# 3着以内率が3年集計へ意図せず変わって本番に出てしまった。build_backtest.py(5a)と
+# 同じ「データの最新日から365日前まで」に揃えて元に戻す。
 import json, statistics, datetime
 import results_store
 
@@ -14,7 +19,17 @@ def main():
     if not results_store.exists():
         print("[skip] results/ が無いので players.js は作りません")
         return
-    for d in results_store.iter_records():
+
+    all_records = list(results_store.iter_records())
+    if not all_records:
+        print("[skip] results/ が空なので players.js は作りません")
+        return
+    latest = datetime.date.fromisoformat(max(r["date"] for r in all_records))
+    cutoff = (latest - datetime.timedelta(days=365)).isoformat()
+
+    for d in all_records:
+        if d["date"] < cutoff:
+            continue
         for x in d.get("結果", []):
             touban = x["登番"]
             chaku = x.get("着")

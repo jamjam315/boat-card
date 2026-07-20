@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-貯めた results.jsonl から「コース別の傾向」を計算して stats.js を書き出す。
+貯めた results/{年}.jsonl から「コース別の傾向」を計算して stats.js を書き出す。
 - 全国まとめ（overall）と、会場ごと（venues）の、進入コース別 1着率・2連対率・3連対率・平均ST。
 - 会場×天候（晴/曇/雨）ごとの 進入コース別1着率（venues_wx）。
 - 会場ごとの 決まり手内訳（逃げ・差し・まくり・まくり差し・抜き）（venues_kimarite）。
 アプリ(index.html)はこの stats.js を読んで v2 表示に使う。
+
+【直近1年に絞る理由(2026-07-20)】
+2026-07-19のresults年別分割で読み込み元をresults_store経由に変えた際、この
+スクリプトには元々期間フィルタが無く「全期間」をそのまま集計する作りだった。
+分割前はresultsが実質1年分しか無かったため実害が無かったが、分割で過去2年分の
+バックフィルが加わったことで、翌日(2026-07-20 01:00 JSTの自動実行)に「この
+会場のクセ」「天候でこう変わる」「決まり手のクセ」が3年集計へ意図せず変わって
+本番に出てしまった。build_backtest.py(5a)と同じ「データの最新日から365日前まで」
+の考え方に揃えて元に戻す。
 """
 import json, os, datetime, zoneinfo
 from collections import defaultdict, Counter
@@ -62,6 +71,12 @@ def main():
     if not results_store.exists():
         print("[stop] results/ が無い。先に collect_results.py を回してください。")
         return
+
+    # 直近1年(データの最新日から365日前まで)に絞る。build_backtest.py(5a)と同じ考え方。
+    all_dates = sorted({r["date"] for r in results_store.iter_records()})
+    latest = datetime.date.fromisoformat(all_dates[-1])
+    cutoff = (latest - datetime.timedelta(days=365)).isoformat()
+
     overall = blank()
     by_venue = defaultdict(blank)
     by_venue_wx = defaultdict(lambda: defaultdict(blank))   # [会場][天候] -> コース別
@@ -70,6 +85,8 @@ def main():
     kimarite_venue_n = defaultdict(int)
     seen = set(); dates = set(); races = 0
     for r in results_store.iter_records():
+        if r["date"] < cutoff:
+            continue
         key = f'{r["date"]}:{r["会場"]}:{r["レース番号"]}'
         if key in seen:           # 重複行は無視（再取り込み対策）
             continue
