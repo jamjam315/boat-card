@@ -212,7 +212,7 @@ body{background:var(--bg); color:var(--ink);
     boxBoats: []
   };
   var meta = null;
-  var fileCache = {};   // ファイル名 → 読み込み済みレコード配列(会場切替のたびの再ダウンロードを避ける)
+  var fileCache = {};   // "{romaji}-{年}" → 読み込み済みレコード配列(会場・期間切替のたびの再ダウンロードを避ける)
 
   // ---------- 組み合わせ生成(順列・組み合わせ) ----------
   function permute(arr, k){
@@ -268,18 +268,32 @@ body{background:var(--bg); color:var(--ink);
 
   function betDef(key){ for(var i=0;i<BET_TYPES.length;i++){ if(BET_TYPES[i].key===key) return BET_TYPES[i]; } return null; }
 
-  // ---------- 期間の有効判定 ----------
+  // ---------- 期間の有効判定・窓の定義 ----------
+  // 「今日」はJST基準(艇読みは国内向けサイトのため、端末のタイムゾーンに依存させない)。
+  // Intl.DateTimeFormatでAsia/Tokyoに変換し、sv-SEロケールの"YYYY-MM-DD"表記を利用する
+  // (端末のロケール・タイムゾーン設定に関わらず同じ書式で得られるための小技)。
+  function todayJST(){
+    var fmt = new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Tokyo", year:"numeric", month:"2-digit", day:"2-digit"});
+    return fmt.format(new Date());
+  }
+  // 期間は「今日(JST)から遡るローリング窓」。例: 過去3年 = 本日からp.days(365*3)日前まで。
+  // meta.latest(データの最終更新日)ではなく実際の「今日」を基準にすることで、日次更新に
+  // 多少の遅延があっても「過去N年」の意味がデータ更新タイミングに引っ張られない。
+  function periodCutoff(p){
+    var today = new Date(todayJST() + "T00:00:00Z");
+    var cutoff = new Date(today.getTime() - p.days*86400000);
+    return cutoff.toISOString().slice(0,10);
+  }
   function periodEnabled(p){
     if(!meta) return false;
-    var latest = new Date(meta.latest + "T00:00:00Z");
-    var cutoff = new Date(latest.getTime() - p.days*86400000);
-    var cutoffStr = cutoff.toISOString().slice(0,10);
-    return meta.earliest <= cutoffStr;
+    return meta.earliest <= periodCutoff(p);
   }
-  function periodCutoff(p){
-    var latest = new Date(meta.latest + "T00:00:00Z");
-    var cutoff = new Date(latest.getTime() - p.days*86400000);
-    return cutoff.toISOString().slice(0,10);
+  // 指定期間の窓に重なる年(=年ファイルを読む必要がある年)を、実在する年(meta.years)の
+  // 範囲内で返す。窓の始点が年の途中でも、その年のファイルは丸ごと読んでから
+  // 日付でフィルタする(年より細かい分割はしない。詳しくはbuild_backtest_custom.pyのコメント)。
+  function neededYears(p){
+    var cutoffYear = Number(periodCutoff(p).slice(0,4));
+    return (meta.years || []).filter(function(y){ return Number(y) >= cutoffYear; });
   }
 
   // ---------- UI描画 ----------
@@ -490,22 +504,36 @@ body{background:var(--bg); color:var(--ink);
   function hideResult(){ document.getElementById("resultArea").style.display = "none"; }
 
   // ---------- データ読み込み・集計 ----------
-  function loadVenueFile(romaji){
-    if(fileCache[romaji]) return Promise.resolve(fileCache[romaji]);
-    return fetch(DATA_DIR + romaji + ".json").then(function(r){
+  function loadYearFile(romaji, year){
+    var key = romaji + "-" + year;
+    if(fileCache[key]) return Promise.resolve(fileCache[key]);
+    return fetch(DATA_DIR + key + ".json").then(function(r){
       if(!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
-    }).then(function(data){ fileCache[romaji] = data; return data; });
+    }).then(function(data){ fileCache[key] = data; return data; });
+  }
+  // 会場×期間に必要な年ファイルだけ並行取得してつなげる(読み込み量が期間の長さに
+  // ほぼ比例する。年をまたいでも、既に読み込み済みの年はfileCacheで再取得しない)。
+  function loadVenuePeriod(romaji, period){
+    var years = neededYears(period);
+    return Promise.all(years.map(function(y){ return loadYearFile(romaji, y); }))
+      .then(function(arrays){ return arrays.reduce(function(acc,a){ return acc.concat(a); }, []); });
   }
 
   function runBacktest(){
     var loading = document.getElementById("loadingMsg");
-    loading.style.display = ""; loading.textContent = "集計中…";
+    var period = null;
+    for(var i=0;i<PERIODS.length;i++){ if(PERIODS[i].key === state.period) period = PERIODS[i]; }
+    var years = neededYears(period);
+    loading.style.display = "";
+    // 複数年ぶんダウンロードする場合(過去3年など)は時間がかかりうるため、固まって
+    // 見えないよう「読み込み中」であることを先に伝える。艇読みの静かなトーンに合わせ、
+    // スピナー画像等は使わず短い文言のみ。
+    loading.textContent = years.length > 1 ? "データを読み込み中…(過去" + years.length + "年分)" : "集計中…";
     document.getElementById("runBtn").disabled = true;
 
-    loadVenueFile(state.venue).then(function(records){
-      var period = null;
-      for(var i=0;i<PERIODS.length;i++){ if(PERIODS[i].key === state.period) period = PERIODS[i]; }
+    loadVenuePeriod(state.venue, period).then(function(records){
+      loading.textContent = "集計中…";
       var cutoff = periodCutoff(period);
       var scoped = records.filter(function(r){ return r.d >= cutoff; });
 
