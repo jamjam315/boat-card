@@ -11,7 +11,8 @@ results.jsonlを読み書きする全スクリプトは、このモジュール�
 
 【置き場所】
   results/{年}.jsonl   例: results/2023.jsonl, results/2024.jsonl, ...
-  (race/・players/ と同じ、リポジトリ直下の短い小文字ディレクトリ名の作法に揃えた)
+  2026-07-26に、この results/ は main から data ブランチへ移した(GitHub Pagesの
+  公開サイト1GB上限への対応)。実際にどこを見るかは data_paths.py が決める。
 
 【中身・形式】
   1行1レースのJSON Lines。フィールドは分割前のresults.jsonlと完全に同じ
@@ -20,8 +21,9 @@ results.jsonlを読み書きする全スクリプトは、このモジュール�
   考え方は一切変えていない。
 """
 import glob, json, os
+import data_paths
 
-RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+RESULTS_DIR = os.path.join(data_paths.DATA_ROOT, "results")
 
 
 def year_of(date_iso):
@@ -44,7 +46,13 @@ def exists():
 
 def iter_records():
     """全年ファイルを跨いで、レコード(dict)を1件ずつ返す。
-    壊れた行は静かに無視する(既存コードの挙動を踏襲)。"""
+    壊れた行は静かに無視する(既存コードの挙動を踏襲)。
+
+    データが1件も無いまま静かに進むと、集計結果が空のまま stats.js や
+    backtest-data/ を上書きしてしまう(=サイトを壊す)。置き場所の指定ミスを
+    黙って通さないよう、ディレクトリごと無い場合はここで明示的に止める。"""
+    if not os.path.isdir(RESULTS_DIR):
+        raise FileNotFoundError(data_paths.missing_message("results"))
     for path in all_year_files():
         with open(path, encoding="utf-8") as f:
             for line in f:

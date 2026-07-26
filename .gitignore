@@ -1,0 +1,21 @@
+# データ本体(results/ program/ raw/)は data ブランチにあり、main には置かない。
+# GitHub Pagesは main をそのまま公開するため、ここに戻すと公開サイトが
+# 1GB上限に近づく(詳しくは DATA.md)。
+# ローカルで data ブランチのworktreeをこの中に作ってしまった場合や、
+# 環境変数の設定漏れでスクリプトがここに書いてしまった場合に、
+# 誤ってmainへコミットされるのを防ぐ。
+/results/
+/program/
+/raw/
+
+# 公式からダウンロードした一時ファイル(取り込み後は不要)
+/b??????.lzh
+/k??????.lzh
+/B??????.TXT
+/K??????.TXT
+
+# バックフィルの実行ログ(手元の作業記録。リポジトリには残さない)
+/backfill_*_log.txt
+/backfill_*_stdout.txt
+
+__pycache__/

@@ -9,11 +9,31 @@ on:
 permissions:
   contents: write
 
+# データ本体(results/ program/ raw/)は data ブランチにある。
+# 下の _data がその作業ディレクトリで、Pythonスクリプトはここを見る。
+env:
+  TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
+
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: データ本体(dataブランチ)を _data に取り出す
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: _data
+
+      # 置き場所の指定ミスで「データが空」のまま集計が走ると、中身のない
+      # data.js や motors.js を正常なものとして上書きコミットしてしまう。
+      # 数ファイルしか無い時点で止めて、事故を水際で防ぐ。
+      - name: データが揃っているか確認
+        run: |
+          n=$(ls _data/results/*.jsonl 2>/dev/null | wc -l)
+          echo "results 年ファイル: ${n}件"
+          test "$n" -ge 10
 
       - name: lzh解凍ツールを入れる
         run: sudo apt-get update && sudo apt-get install -y lhasa
@@ -27,6 +47,7 @@ jobs:
 
       # 直前のfetch_update.pyが取得・解凍したb{yymmdd}.lzh/B{yymmdd}.TXTをそのまま
       # 再利用するので、公式サーバーへのダウンロードは1日1回のまま増えない。
+      # 保存先は _data(dataブランチ)側。
       - name: 今日の番組表を履歴として保存(raw/B と program/)
         run: python collect_program.py
 
@@ -39,12 +60,32 @@ jobs:
       - name: レース単位の固有ページを生成(7日ローリング・sitemap再生成込み)
         run: python build_race_pages.py
 
-      - name: 変化があればコミット
+      - name: 変化があればコミット(main・公開サイト)
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
           git add data.js featured.js motors.js sitemap.xml race.css
           git add -A race/
-          git add -A raw/ program/
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
+
+      # dataブランチへは別コミットで積む。結果収集(results.yml)と同時に走って
+      # pushが弾かれた場合に備え、rebaseして数回やり直す(触るディレクトリが
+      # 別なので、rebaseで中身が壊れることはない)。
+      - name: 番組表の履歴をコミット(dataブランチ)
+        working-directory: _data
+        run: |
+          git config user.name "boat-bot"
+          git config user.email "boat-bot@users.noreply.github.com"
+          git add -A program/ raw/
+          if git diff --staged --quiet; then
+            echo "変化なし"
+            exit 0
+          fi
+          git commit -m "program update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          for i in 1 2 3; do
+            git push origin HEAD:data && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin data || exit 1
+          done
+          exit 1

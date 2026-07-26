@@ -13,7 +13,8 @@ data.jsを作った後に捨てていた(data.jsは上書き、レースペー�
 
 【置き場所】
   program/{年}.jsonl   例: program/2026.jsonl
-  (results/ と同じ、リポジトリ直下の短い小文字ディレクトリ名の作法に揃えた)
+  results/ と同じく data ブランチに置く(2026-07-26にmainから分離。GitHub Pagesの
+  公開サイト1GB上限への対応)。実際にどこを見るかは data_paths.py が決める。
 
 【中身・形式】1行1レースのJSON Lines。
   date        … 開催日(ISO)
@@ -32,8 +33,9 @@ data.jsを作った後に捨てていた(data.jsは上書き、レースペー�
 【重複排除キー】results/ と同じ "date:会場:レース番号"。
 """
 import glob, json, os
+import data_paths
 
-PROGRAM_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "program")
+PROGRAM_DIR = os.path.join(data_paths.DATA_ROOT, "program")
 
 
 def year_of(date_iso):

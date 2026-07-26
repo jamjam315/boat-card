@@ -43,9 +43,10 @@ import sys, os, glob, json, shutil, time, datetime, zoneinfo, subprocess
 import urllib.request, urllib.error
 from parse_program import parse_program
 import program_store
+import data_paths
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = data_paths.DATA_ROOT   # 保存先は data ブランチ側(data_paths.py が決める)
 RAW_DIR = os.path.join(BASE_DIR, "raw", "B")
 DL_TRIES = 3
 
@@ -179,7 +180,7 @@ def main():
     else:
         d = today_jst()
     date_iso = d.isoformat()
-    print(f"[info] 対象日: {date_iso}")
+    print(f"[info] 対象日: {date_iso} / {data_paths.describe()}")
 
     lzh, txt = ensure_files(d)
     if not lzh:

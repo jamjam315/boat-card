@@ -12,11 +12,33 @@ on:
 permissions:
   contents: write
 
+# データ本体(results/ program/ raw/)は data ブランチにある。
+# 下の _data がその作業ディレクトリで、Pythonスクリプトはここを見る。
+# 出力のうち backtest-data/ と stats.js 等は main 側(ブラウザが直接読むため)。
+env:
+  TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
+
 jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: データ本体(dataブランチ)を _data に取り出す
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: _data
+
+      # 置き場所の指定ミスで「データが空」のまま集計が走ると、中身のない
+      # stats.js や backtest-data/ を正常なものとして上書きコミットしてしまう。
+      # 数ファイルしか無い時点で止めて、事故を水際で防ぐ。
+      - name: データが揃っているか確認
+        run: |
+          n=$(ls _data/results/*.jsonl 2>/dev/null | wc -l)
+          echo "results 年ファイル: ${n}件"
+          test "$n" -ge 10
+
       - name: lzh解凍ツールを入れる
         run: sudo apt-get update && sudo apt-get install -y lhasa
       - uses: actions/setup-python@v5
@@ -34,13 +56,35 @@ jobs:
         # 2026-07-19に会場×年ファイルへの分割対応が完了し、自動実行を再稼働。
         # 出力(backtest-data/)は年ファイル単位で増分更新されるだけなので、
         # 過去分を毎日全部作り直しても出力内容は同じ(冪等)。
+        # 読み込み元は _data/results/、出力先は main の backtest-data/。
         run: python build_backtest_custom.py
-      - name: 変化があればコミット
+
+      - name: 変化があればコミット(main・公開サイト)
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A results/
           git add -A backtest-data/
           git add stats.js players.js backtest.js
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
+
+      # dataブランチへは別コミットで積む。毎朝の番組表収集(daily.yml)と同時に
+      # 走ってpushが弾かれた場合に備え、rebaseして数回やり直す(触るディレクトリが
+      # 別なので、rebaseで中身が壊れることはない)。
+      - name: 結果データをコミット(dataブランチ)
+        working-directory: _data
+        run: |
+          git config user.name "boat-bot"
+          git config user.email "boat-bot@users.noreply.github.com"
+          git add -A results/
+          if git diff --staged --quiet; then
+            echo "変化なし"
+            exit 0
+          fi
+          git commit -m "results data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          for i in 1 2 3; do
+            git push origin HEAD:data && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin data || exit 1
+          done
+          exit 1
