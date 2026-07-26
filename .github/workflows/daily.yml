@@ -25,6 +25,11 @@ jobs:
       - name: 今日の番組表を取得して data.js を作る
         run: python fetch_update.py
 
+      # 直前のfetch_update.pyが取得・解凍したb{yymmdd}.lzh/B{yymmdd}.TXTをそのまま
+      # 再利用するので、公式サーバーへのダウンロードは1日1回のまま増えない。
+      - name: 今日の番組表を履歴として保存(raw/B と program/)
+        run: python collect_program.py
+
       - name: 今日の注目選手を選んで featured.js を作る
         run: python build_featured.py
 
@@ -40,5 +45,6 @@ jobs:
           git config user.email "boat-bot@users.noreply.github.com"
           git add data.js featured.js motors.js sitemap.xml race.css
           git add -A race/
+          git add -A raw/ program/
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
