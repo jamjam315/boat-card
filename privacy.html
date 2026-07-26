@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>プライバシーポリシー｜艇読み</title>
-<meta name="description" content="艇読み（teiyomi.com）のプライバシーポリシーです。個人情報の取り扱い、Cookie不使用の方針、アクセスログ、外部サイトへのリンクについて説明しています。">
+<meta name="description" content="艇読み（teiyomi.com）のプライバシーポリシーです。取得する情報、決済（Stripe）、データの保管、アクセスログ、退会・データの削除について説明しています。">
 <link rel="canonical" href="https://teiyomi.com/privacy.html">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://teiyomi.com/privacy.html">
 <meta property="og:title" content="プライバシーポリシー｜艇読み">
-<meta property="og:description" content="艇読み（teiyomi.com）のプライバシーポリシーです。個人情報の取り扱い、Cookie不使用の方針、アクセスログ、外部サイトへのリンクについて説明しています。">
+<meta property="og:description" content="艇読み（teiyomi.com）のプライバシーポリシーです。取得する情報、決済（Stripe）、データの保管、アクセスログ、退会・データの削除について説明しています。">
 <meta property="og:image" content="https://teiyomi.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/og-image.png">
@@ -75,46 +75,70 @@ body{background:var(--bg); color:var(--ink);
   <a class="back" href="index.html">← トップに戻る</a>
 
   <section class="intro">
-    <p class="updated">最終更新日：2026年7月13日</p>
+    <p class="updated">最終更新日：2026年7月26日</p>
     <p>艇読み（以下「本サイト」）は、利用者のプライバシーを尊重し、個人情報の取り扱いについて以下の方針を定めます。</p>
   </section>
 
   <section class="step">
     <div class="step-head"><span class="step-num">1</span><span class="step-ttl">基本的な考え方</span></div>
     <div class="step-body">
-      本サイトは、ボートレースの公式データを読みやすく整理して提供する情報サイトです。本サイトは、利用者から氏名・住所・電話番号などの個人情報を直接お預かりする仕組みを設けていません。
+      <p>本サイトは、ボートレースの公式データを読みやすく整理して提供する情報サイトです。データを見るだけであれば、登録も入力も必要ありません。</p>
+      <p>一方で、本サイトは任意でご利用いただける会員機能（お気に入り選手の端末間での引き継ぎ）と有料プランを提供しています。これらをご利用いただくにあたり、その提供に<b>必要最小限の情報</b>のみをお預かりします。必要のない情報は集めません。</p>
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">本サイトが取得しない情報</span></div>
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">本サイトが取得する情報</span></div>
     <div class="step-body">
-      本サイトは、現在、次のような情報の取得を行っていません。
+      <p>本サイトが取得する情報と、その利用目的は次のとおりです。</p>
       <ul>
-        <li>会員登録やログインの仕組みはありません。</li>
-        <li>氏名・メールアドレス等を入力する問い合わせフォームや、コメント欄はありません。</li>
-        <li>Cookie（クッキー）を利用した情報の保存や追跡は行っていません。</li>
+        <li><b>メールアドレス</b>：会員登録（ログイン用リンクの送信）と、有料プランの契約状態の管理のために取得します。パスワードはお預かりしません。</li>
+        <li><b>お気に入りなどの登録データ</b>：ご利用の端末をまたいで引き継ぐために取得します。お気に入りとして保存するのは選手の登録番号のみです。</li>
+        <li><b>契約状態</b>：有料プランへの加入状況（加入中かどうか、次回の更新日など）を、機能の提供のために保持します。</li>
+        <li><b>利用者を区別するための識別子</b>：ログインされていない場合も、お気に入りをお使いになると、端末ごとに自動で発行される識別子（ランダムな文字列）にデータを紐づけて保存します。この識別子から個人を特定することはできません。</li>
+      </ul>
+      <p>次の情報は取得しません。</p>
+      <ul>
+        <li>氏名・住所・電話番号・生年月日は取得しません。</li>
+        <li><b>クレジットカード情報は、本サイトでは一切取得も保持もしません</b>（次の「決済について」をご覧ください）。</li>
         <li>利用者の閲覧履歴を本サイト独自に記録・保存する仕組みはありません。</li>
       </ul>
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">アクセスログについて</span></div>
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">決済について</span></div>
+    <div class="step-body">
+      <p>有料プランの決済には、決済代行サービス「Stripe」（Stripe, Inc.）を利用しています。</p>
+      <p>お支払いの手続きはStripeが提供する画面で行われ、<b>クレジットカード情報はStripeが直接お預かりします。本サイトのサーバーに送信されることも、保存されることもありません</b>。本サイトからStripeへは、お手続きとご連絡に必要な範囲でメールアドレスをお渡しします。</p>
+      <p>Stripeにおける個人情報の取り扱いについては、<a href="https://stripe.com/jp/privacy" target="_blank" rel="noopener">Stripeのプライバシーポリシー</a>をご確認ください。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">データの保管について</span></div>
+    <div class="step-body">
+      <p>メールアドレス・お気に入り・契約状態は、データベースサービス「Supabase」（Supabase, Inc.）のサーバーに保管しています。<!-- リージョンが確認できたら、この文の末尾に「（日本・東京リージョン）」のように追記する --></p>
+      <p><b>ブラウザへの保存について</b>：ログインした状態を維持するため、また、お気に入りやご案内の表示状態を覚えておくために、ご利用のブラウザの保存領域（Cookieと同等の仕組み）を利用します。これらはサービスの提供に必要なもので、<b>広告目的の追跡は行いません</b>。第三者へ行動履歴を提供することもありません。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">アクセスログについて</span></div>
     <div class="step-body">
       本サイトは、GitHub Pages（GitHub, Inc. が提供するホスティングサービス）を利用して配信されています。一般的なウェブサイトと同様に、配信を行う過程で、IPアドレス・ブラウザの種類・アクセス日時などの標準的なアクセス情報が、配信事業者側で自動的に記録される場合があります。これらは配信の仕組み上生じるもので、本サイトの運営者がこれらの生の記録を直接閲覧することはできません。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">アクセス解析について（将来的な利用の可能性）</span></div>
+    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">アクセス解析について（将来的な利用の可能性）</span></div>
     <div class="step-body">
       本サイトでは、サービス改善のために、将来的にアクセス解析ツール（利用者がどのページをご覧になったか等を統計的に把握するための仕組み）を導入する場合があります。導入する際は、本ポリシーを更新してその内容をお知らせします。アクセス解析を導入する場合も、個人を特定する目的では利用せず、サイトの利用状況を把握し、より読みやすいサイトにするための統計的な分析のみに用います。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">外部サイトへのリンクについて</span></div>
+    <div class="step-head"><span class="step-num">7</span><span class="step-ttl">外部サイトへのリンクについて</span></div>
     <div class="step-body">
       本サイトには、以下のような外部サイトへのリンクが含まれています。
       <ul>
@@ -126,26 +150,35 @@ body{background:var(--bg); color:var(--ink);
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">免責事項</span></div>
+    <div class="step-head"><span class="step-num">8</span><span class="step-ttl">退会・データの削除について</span></div>
+    <div class="step-body">
+      <p>ログアウトは、トップページのログイン欄からいつでも行えます。</p>
+      <p>退会（アカウントの削除）や、お預かりしているデータの削除をご希望の場合は、下記のお問い合わせ先までメールでご連絡ください。ご本人からのご依頼であることを確認のうえ、速やかに削除の対応をいたします。</p>
+      <p>なお、有料プランの<b>解約</b>は、プレミアムのページからStripeの画面でお手続きいただけます。解約とデータの削除は別のお手続きです。解約後もデータの削除をご希望の場合は、あらためてご連絡ください。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">9</span><span class="step-ttl">免責事項</span></div>
     <div class="step-body">
       本サイトは、ボートレースの公式データをもとに情報を提供していますが、その正確性・完全性を保証するものではありません。また、本サイトは予想印（◎○▲等）を提供するものではなく、舟券の購入その他の判断は利用者ご自身の責任において行っていただくようお願いします。舟券の購入は20歳になってから、のめり込みに注意し、余裕資金の範囲でお楽しみください。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">7</span><span class="step-ttl">本ポリシーの変更</span></div>
+    <div class="step-head"><span class="step-num">10</span><span class="step-ttl">本ポリシーの変更</span></div>
     <div class="step-body">
       本サイトは、必要に応じて本ポリシーを変更することがあります。変更した場合は、本ページにて最新の内容を掲載します。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">8</span><span class="step-ttl">お問い合わせ先</span></div>
+    <div class="step-head"><span class="step-num">11</span><span class="step-ttl">お問い合わせ先</span></div>
     <div class="step-body">
       本サイトおよび本ポリシーに関するお問い合わせは、以下までご連絡ください。
       <ul>
         <li>運営者：MTP Works</li>
-        <li>連絡先：mtpworks.info@gmail.com</li>
+        <li>連絡先：<a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a></li>
       </ul>
     </div>
   </section>
