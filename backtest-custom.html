@@ -87,7 +87,30 @@ body{background:var(--bg); color:var(--ink);
   color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent;}
 .bt-run[disabled]{opacity:.35; cursor:not-allowed;}
 
+/* しぼり込み(任意)。必須のステップ(1〜4)と見分けがつくよう破線で囲む。 */
+.bt-filter{background:var(--surface); border:1px dashed var(--line2); border-radius:var(--radius);
+  margin-top:12px; padding:14px 16px;}
+.bt-filter-title{font-size:12.5px; font-weight:700; color:var(--ink2); margin:0 0 4px;
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;}
+.bt-badge{font-size:10.5px; font-weight:600; color:var(--muted); border:1px solid var(--line2);
+  border-radius:999px; padding:1px 8px;}
+.bt-badge.rev{color:var(--accent); background:var(--accent-soft); border-color:transparent;}
+.bt-filter-desc{font-size:11.5px; color:var(--muted); margin:0 0 4px; line-height:1.6;}
+.bt-filter-row{margin-top:12px;}
+.bt-filter-label{font-size:11.5px; color:var(--muted); margin:0 0 7px;}
+.bt-grid12{display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin-top:8px;}
+.bt-cell{padding:8px 0; font-size:12px; font-family:inherit; border:1px solid var(--line2);
+  background:var(--surface); color:var(--ink2); border-radius:8px; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;}
+.bt-cell[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+.bt-cell:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
 .bt-result{margin-top:14px;}
+.bt-result-head{font-size:12.5px; font-weight:700; color:var(--ink2); margin:0 0 8px; line-height:1.6;}
+.bt-result-head .cond{font-weight:600; color:var(--accent);}
+.bt-warn{font-size:12px; color:#b06a00; background:#fff5e6; border:1px solid #f0d9b0;
+  border-radius:8px; padding:8px 11px; margin-top:10px; line-height:1.6;}
+@media (prefers-color-scheme: dark){ .bt-warn{color:#ffc46b; background:#2a2114; border-color:#3d3222;} }
 .bt-result-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
 .bt-result-card{background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:12px 14px;}
 .bt-result-card .lbl{font-size:11px; color:var(--muted); margin:0 0 4px;}
@@ -159,6 +182,47 @@ body{background:var(--bg); color:var(--ink);
     <div class="bt-row" id="betRow" role="tablist" aria-label="券種"></div>
   </div>
 
+  <div class="bt-filter" id="stepFilter">
+    <p class="bt-filter-title">しぼり込み <span class="bt-badge">任意</span></p>
+    <p class="bt-filter-desc">指定しなければ、期間内のすべてのレースが対象です。</p>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">月</p>
+      <div class="bt-row" id="monthRow" role="tablist" aria-label="月"></div>
+      <div class="bt-grid12" id="monthGrid" style="display:none;"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">レース番号</p>
+      <div class="bt-row" id="rnoRow" role="tablist" aria-label="レース番号"></div>
+      <div class="bt-grid12" id="rnoGrid" style="display:none;"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">天候</p>
+      <div class="bt-row" id="weatherRow" role="tablist" aria-label="天候"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">風速</p>
+      <div class="bt-row" id="windRow" role="tablist" aria-label="風速"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">開催区分</p>
+      <div class="bt-row" id="sessionRow" role="tablist" aria-label="開催区分"></div>
+      <p class="bt-pill-note" id="sessionNote"></p>
+    </div>
+  </div>
+
+  <div class="bt-filter" id="stepAfter">
+    <p class="bt-filter-title">レース属性でしぼる <span class="bt-badge rev">結果からの逆引き</span></p>
+    <p class="bt-filter-desc">レースが終わってから分かる情報です。もしこういう展開のレースだけ買えたら、という仮説の検証に使います。</p>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">進入</p>
+      <div class="bt-row" id="entryRow" role="tablist" aria-label="進入"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">決まり手</p>
+      <div class="bt-row" id="kimariteRow" role="tablist" aria-label="決まり手"></div>
+    </div>
+  </div>
+
   <div class="bt-step" id="stepTarget">
     <p class="bt-step-title"><span class="n">4</span>買い目</p>
     <div id="targetSingle" style="display:none;">
@@ -192,12 +256,14 @@ body{background:var(--bg); color:var(--ink);
   <div class="bt-loading" id="loadingMsg" style="display:none;"></div>
 
   <div class="bt-result" id="resultArea" style="display:none;">
+    <p class="bt-result-head" id="resultHead"></p>
     <div class="bt-result-grid">
       <div class="bt-result-card"><p class="lbl">対象レース数</p><p class="val nums" id="rRaces">―</p></div>
       <div class="bt-result-card"><p class="lbl">的中率</p><p class="val nums" id="rHitRate">―</p></div>
       <div class="bt-result-card"><p class="lbl">回収率</p><p class="val nums" id="rReturn">―</p></div>
       <div class="bt-result-card"><p class="lbl">総賭け金</p><p class="val nums" id="rStake">―</p></div>
     </div>
+    <p class="bt-warn" id="resultWarn" style="display:none;"></p>
     <p class="bt-result-note" id="resultNote"></p>
   </div>
 
@@ -275,6 +341,57 @@ body{background:var(--bg); color:var(--ink);
     {key:"10y", label:"過去10年", days:365*10}
   ];
 
+  // ---------- しぼり込みの選択肢 ----------
+  // 判定に使う値は backtest-data の "m"(1レース1整数のビット詰め)から取り出す。
+  // ビットの割り当ては build_backtest_custom.py と必ず一致させること:
+  //   bit 0-3 レース番号 / 4-6 天候 / 7-11 風速 / 12-14 決まり手 / 15 枠なり / 16-20 会場
+  var MONTH_OPTS = [
+    {key:"all",    label:"すべて",     months:null},
+    {key:"spring", label:"春(3〜5月)",  months:[3,4,5]},
+    {key:"summer", label:"夏(6〜8月)",  months:[6,7,8]},
+    {key:"autumn", label:"秋(9〜11月)", months:[9,10,11]},
+    {key:"winter", label:"冬(12〜2月)", months:[12,1,2]},
+    {key:"custom", label:"月を選ぶ",    months:null}
+  ];
+  var RNO_OPTS = [
+    {key:"all",    label:"すべて",    races:null},
+    {key:"early",  label:"1〜3R",     races:[1,2,3]},
+    {key:"mid",    label:"4〜9R",     races:[4,5,6,7,8,9]},
+    {key:"late",   label:"10〜12R",   races:[10,11,12]},
+    {key:"custom", label:"レースを選ぶ", races:null}
+  ];
+  var WEATHER_OPTS = [
+    {key:"all",    label:"すべて", codes:null},
+    {key:"sunny",  label:"晴",     codes:[0]},
+    {key:"cloudy", label:"曇",     codes:[1]},
+    {key:"rain",   label:"雨",     codes:[2]},
+    {key:"snow",   label:"雪・霧", codes:[3,4]}
+  ];
+  var WIND_OPTS = [
+    {key:"all", label:"すべて",  min:null, max:null},
+    {key:"lo",  label:"〜2m",    min:0,    max:2},
+    {key:"mid", label:"3〜4m",   min:3,    max:4},
+    {key:"hi",  label:"5m以上",  min:5,    max:30}
+  ];
+  var SESSION_OPTS = [
+    {key:"all",   label:"すべて"},
+    {key:"night", label:"ナイター場"},
+    {key:"day",   label:"デイ場"}
+  ];
+  var ENTRY_OPTS = [
+    {key:"all",    label:"すべて"},
+    {key:"waku",   label:"枠なり"},
+    {key:"change", label:"進入変化あり"}
+  ];
+  var KIMARITE_OPTS = [
+    {key:"all",   label:"すべて",      codes:null},
+    {key:"nige",  label:"逃げ",        codes:[0]},
+    {key:"sashi", label:"差し",        codes:[1]},
+    {key:"mak",   label:"まくり",      codes:[2]},
+    {key:"maksa", label:"まくり差し",  codes:[3]},
+    {key:"nuki",  label:"抜き・恵まれ", codes:[4,5]}
+  ];
+
   var state = {
     venue: "zenkoku",
     period: null,
@@ -284,7 +401,17 @@ body{background:var(--bg); color:var(--ink);
     axisBoat: null,
     axisPos: 1,
     oppoBoats: [],
-    boxBoats: []
+    boxBoats: [],
+    // しぼり込み(すべて "all" = 現行と同じ「全レースが対象」)
+    filter: {
+      month: "all", months: [],      // months は month:"custom" のときだけ使う(1〜12)
+      rno: "all", races: [],         // races は rno:"custom" のときだけ使う(1〜12)
+      weather: "all",
+      wind: "all",
+      session: "all",
+      entry: "all",
+      kimarite: "all"
+    }
   };
   var meta = null;
   var fileCache = {};   // "{romaji}-{年}" → 読み込み済みレコード配列(会場・期間切替のたびの再ダウンロードを避ける)
@@ -389,7 +516,11 @@ body{background:var(--bg); color:var(--ink);
       opt.value = v.romaji; opt.textContent = v.name;
       sel.appendChild(opt);
     });
-    sel.addEventListener("change", function(){ state.venue = sel.value; syncRunEnabled(); hideResult(); });
+    sel.addEventListener("change", function(){
+      state.venue = sel.value;
+      syncSessionRow();   // 会場を1つ選んだら「開催区分」は使わない
+      syncRunEnabled(); hideResult();
+    });
   }
 
   function renderPeriods(){
@@ -437,6 +568,174 @@ body{background:var(--bg); color:var(--ink);
       });
       row.appendChild(btn);
     });
+  }
+
+  // ---------- しぼり込みUI ----------
+  function optByKey(opts, key){
+    for(var i=0;i<opts.length;i++){ if(opts[i].key === key) return opts[i]; }
+    return opts[0];
+  }
+
+  /** 選択肢をピルの列として描く(1つだけ選べる)。onPickは選ばれたkeyを受け取る。 */
+  function renderPills(rowId, opts, currentKey, onPick){
+    var row = document.getElementById(rowId);
+    row.innerHTML = "";
+    opts.forEach(function(o){
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "bt-pill"; btn.textContent = o.label;
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-selected", o.key === currentKey ? "true" : "false");
+      btn.addEventListener("click", function(){
+        Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
+        btn.setAttribute("aria-selected", "true");
+        onPick(o.key);
+        hideResult();
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  /** 1〜12を選ぶマス目(複数選択)。月とレース番号で使い回す。 */
+  function renderGrid12(gridId, selected, labelOf, onToggle){
+    var grid = document.getElementById(gridId);
+    grid.innerHTML = "";
+    for(var n=1;n<=12;n++){
+      (function(n){
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "bt-cell"; btn.textContent = labelOf(n);
+        btn.setAttribute("aria-pressed", selected.indexOf(n) !== -1 ? "true" : "false");
+        btn.addEventListener("click", function(){
+          var i = selected.indexOf(n);
+          if(i === -1) selected.push(n); else selected.splice(i,1);
+          btn.setAttribute("aria-pressed", i === -1 ? "true" : "false");
+          onToggle();
+          hideResult();
+        });
+        grid.appendChild(btn);
+      })(n);
+    }
+  }
+
+  function renderFilters(){
+    var f = state.filter;
+
+    renderPills("monthRow", MONTH_OPTS, f.month, function(key){
+      f.month = key;
+      document.getElementById("monthGrid").style.display = key === "custom" ? "" : "none";
+    });
+    renderGrid12("monthGrid", f.months, function(n){ return n + "月"; }, function(){});
+
+    renderPills("rnoRow", RNO_OPTS, f.rno, function(key){
+      f.rno = key;
+      document.getElementById("rnoGrid").style.display = key === "custom" ? "" : "none";
+    });
+    renderGrid12("rnoGrid", f.races, function(n){ return n + "R"; }, function(){});
+
+    renderPills("weatherRow", WEATHER_OPTS, f.weather, function(key){ f.weather = key; });
+    renderPills("windRow", WIND_OPTS, f.wind, function(key){ f.wind = key; });
+    renderPills("sessionRow", SESSION_OPTS, f.session, function(key){ f.session = key; });
+    renderPills("entryRow", ENTRY_OPTS, f.entry, function(key){ f.entry = key; });
+    renderPills("kimariteRow", KIMARITE_OPTS, f.kimarite, function(key){ f.kimarite = key; });
+
+    syncSessionRow();
+  }
+
+  // 会場を1つ選んでいるときは「開催区分」は意味がない(その会場に決まっている)ので
+  // 押せなくする。全国に戻したら再び選べるようにする。
+  function syncSessionRow(){
+    var row = document.getElementById("sessionRow");
+    var note = document.getElementById("sessionNote");
+    var single = state.venue !== "zenkoku";
+    if(single){
+      state.filter.session = "all";
+      Array.prototype.forEach.call(row.children, function(c, i){
+        c.disabled = true; c.setAttribute("aria-selected", i === 0 ? "true" : "false");
+      });
+      note.textContent = "会場を1つ選んでいるときは使いません(全国を選ぶと使えます)。";
+    } else {
+      Array.prototype.forEach.call(row.children, function(c){ c.disabled = false; });
+      note.textContent = "現在ナイター開催をしている7場（桐生・蒲郡・住之江・丸亀・下関・若松・大村）とそれ以外で分けています。過去の開催が実際にナイターだったかまでは区別していません。";
+    }
+  }
+
+  // ナイター場の会場コード(meta.jsonのvenues[].night)を引けるようにしておく。
+  var nightCodeSet = null;
+  function nightCodes(){
+    if(nightCodeSet) return nightCodeSet;
+    nightCodeSet = {};
+    (meta.venues || []).forEach(function(v){ if(v.night) nightCodeSet[v.code] = true; });
+    return nightCodeSet;
+  }
+
+  /**
+   * 現在のしぼり込み条件から判定関数を作る。条件が何も無ければ null を返し、
+   * 呼び出し側はフィルタ処理そのものを飛ばす(=現行と完全に同じ計算になる)。
+   */
+  function buildFilter(){
+    var f = state.filter;
+    var months = f.month === "custom" ? (f.months.length ? f.months.slice() : null)
+                                      : optByKey(MONTH_OPTS, f.month).months;
+    var races  = f.rno === "custom" ? (f.races.length ? f.races.slice() : null)
+                                    : optByKey(RNO_OPTS, f.rno).races;
+    var wCodes = optByKey(WEATHER_OPTS, f.weather).codes;
+    var wind   = optByKey(WIND_OPTS, f.wind);
+    var kCodes = optByKey(KIMARITE_OPTS, f.kimarite).codes;
+    var entry  = f.entry;
+    var session = state.venue === "zenkoku" ? f.session : "all";
+
+    if(!months && !races && !wCodes && wind.min === null && !kCodes &&
+       entry === "all" && session === "all") return null;
+
+    var night = session === "all" ? null : nightCodes();
+
+    return function(rec){
+      var m = rec.m | 0;
+      if(months && months.indexOf(Number(rec.d.slice(5,7))) === -1) return false;
+      if(races && races.indexOf(m & 0xF) === -1) return false;
+      if(wCodes && wCodes.indexOf((m >> 4) & 0x7) === -1) return false;
+      if(wind.min !== null){
+        var ws = (m >> 7) & 0x1F;
+        if(ws === 31 || ws < wind.min || ws > wind.max) return false;
+      }
+      if(kCodes && kCodes.indexOf((m >> 12) & 0x7) === -1) return false;
+      if(entry !== "all"){
+        var waku = (m >> 15) & 1;
+        if(entry === "waku" && !waku) return false;
+        if(entry === "change" && waku) return false;
+      }
+      if(night){
+        var isNight = !!night[(m >> 16) & 0x1F];
+        if(session === "night" && !isNight) return false;
+        if(session === "day" && isNight) return false;
+      }
+      return true;
+    };
+  }
+
+  /** 選択中のしぼり込みを「冬・雨・5m以上」のような短い文字列にする。 */
+  function filterLabel(){
+    var f = state.filter, parts = [];
+    if(f.month === "custom"){
+      if(f.months.length) parts.push(f.months.slice().sort(function(a,b){return a-b;}).join("・") + "月");
+    } else if(f.month !== "all"){
+      parts.push(optByKey(MONTH_OPTS, f.month).label);
+    }
+    if(f.rno === "custom"){
+      if(f.races.length) parts.push(f.races.slice().sort(function(a,b){return a-b;}).join("・") + "R");
+    } else if(f.rno !== "all"){
+      parts.push(optByKey(RNO_OPTS, f.rno).label);
+    }
+    if(f.weather !== "all") parts.push(optByKey(WEATHER_OPTS, f.weather).label);
+    if(f.wind !== "all") parts.push("風" + optByKey(WIND_OPTS, f.wind).label);
+    if(state.venue === "zenkoku" && f.session !== "all") parts.push(optByKey(SESSION_OPTS, f.session).label);
+    if(f.entry !== "all") parts.push(optByKey(ENTRY_OPTS, f.entry).label);
+    if(f.kimarite !== "all") parts.push("決まり手" + optByKey(KIMARITE_OPTS, f.kimarite).label);
+    return parts.join("・");
+  }
+
+  function venueLabel(){
+    var sel = document.getElementById("selVenue");
+    return sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : "全国";
   }
 
   function resetTarget(){
@@ -610,7 +909,13 @@ body{background:var(--bg); color:var(--ink);
     loadVenuePeriod(state.venue, period).then(function(records){
       loading.textContent = "集計中…";
       var cutoff = periodCutoff(period);
-      var scoped = records.filter(function(r){ return r.d >= cutoff; });
+      // しぼり込みが何も指定されていなければ pass は null になり、日付の窓だけで
+      // 絞る従来どおりの計算になる(=しぼり込み追加前と1件も違わない)。
+      var pass = buildFilter();
+      var scoped = records.filter(function(r){
+        if(r.d < cutoff) return false;
+        return pass ? pass(r) : true;
+      });
 
       var bet = betDef(state.bet);
       var combos = buildCombos();
@@ -633,7 +938,9 @@ body{background:var(--bg); color:var(--ink);
 
       showResult({
         raceCount: raceCount, hitCount: hitCount, totalPayout: totalPayout,
-        totalStake: totalStake, points: points
+        totalStake: totalStake, points: points,
+        head: venueLabel() + "・" + period.label + "・" + bet.label,
+        cond: filterLabel()
       });
       loading.style.display = "none";
       syncRunEnabled();
@@ -646,9 +953,23 @@ body{background:var(--bg); color:var(--ink);
   function pct(v){ return (v * 100).toFixed(1) + "%"; }
   function yen(v){ return "¥" + v.toLocaleString("ja-JP"); }
 
+  // サンプルが少ないと、たまたまの当たり外れで的中率・回収率が大きく振れる。
+  // 「少ないのに断定的に見える」ことを避けるため、この件数を下回ったら注意を出す。
+  var LOW_SAMPLE = 100;
+
   function showResult(r){
     var area = document.getElementById("resultArea");
     area.style.display = "";
+    var head = document.getElementById("resultHead");
+    head.textContent = r.head || "";
+    if(r.cond){
+      var span = document.createElement("span");
+      span.className = "cond";
+      span.textContent = " ｜ " + r.cond;
+      head.appendChild(span);
+    }
+    var warn = document.getElementById("resultWarn");
+    warn.style.display = "none";
     document.getElementById("rRaces").textContent = r.raceCount.toLocaleString("ja-JP") + "レース";
     if(r.raceCount === 0){
       document.getElementById("rHitRate").textContent = "―";
@@ -656,6 +977,11 @@ body{background:var(--bg); color:var(--ink);
       document.getElementById("rStake").textContent = "―";
       document.getElementById("resultNote").textContent = "選んだ条件に合うレースがありませんでした。";
       return;
+    }
+    if(r.raceCount < LOW_SAMPLE){
+      warn.style.display = "";
+      warn.textContent = "対象が " + r.raceCount.toLocaleString("ja-JP") +
+        "レースしかありません。サンプルが少ないため参考値としてご覧ください（数レースの当たり外れで数字が大きく動きます）。";
     }
     var hitRate = r.hitCount / r.raceCount;
     var retRate = r.totalPayout / r.totalStake;
@@ -678,6 +1004,7 @@ body{background:var(--bg); color:var(--ink);
     renderVenue();
     renderPeriods();
     renderBetTypes();
+    renderFilters();
     document.getElementById("runBtn").addEventListener("click", runBacktest);
   }).catch(function(){
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",
