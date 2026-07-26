@@ -47,7 +47,7 @@ function readId(value: string | { id: string } | null | undefined): string | nul
   return value?.id ?? null
 }
 
-/** 決済完了。ここで初めてmembershipsに行ができる(2回届いても同じ行を上書きするだけ)。 */
+/** Checkout完了。ここで初めてmembershipsに行ができる(2回届いても同じ行を上書きするだけ)。 */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
   if (session.mode !== 'subscription') return
 
@@ -68,7 +68,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       user_id: userId,
       stripe_customer_id: readId(session.customer) ?? readId(subscription.customer),
       stripe_subscription_id: subscription.id,
-      status: 'active',
+      // 'active'固定にはしない。checkout.session.completedは「決済が完了した」
+      // ではなく「Checkoutの手続きが終わった」時点で届くため、銀行振込等の
+      // 後日確定の支払いやSCA失敗のときはまだincomplete等になっている。
+      // membershipsは課金状態の台帳なので、その時点の実状態をそのまま記録する
+      // (支払いが確定すればcustomer.subscription.updatedでactiveに変わる)。
+      status: subscription.status,
       price_id: readPriceId(subscription),
       current_period_end: readPeriodEnd(subscription),
       updated_at: nowIso(),
