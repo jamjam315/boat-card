@@ -14,6 +14,17 @@
                レース単位の払戻と二重取りになるため使わず、各レースの着順表の直後に
                続く払戻行だけを正として読む。
 
+【2026-07-26に追加した項目】
+  レース単位: レース名・種別・距離(m)
+  艇単位   : ボート番号（正規表現では掴んでいたのに捨てていた分を復活）
+  ※レースタイムは以前から持っていたが、results/{年}.jsonl へは書き出していなかった。
+
+  レース名は見出し行の固定幅フィールド(12文字)をそのまま読む。ここは公式側で
+  切り捨てられており、「モーニング予選」が「モー２ング予」のようになる年がある。
+  そのため生の文字列(レース名)と、キーワードで寄せた種別の両方を持つ:
+    優勝戦 / 準優勝戦 / 予選 / 一般 / その他
+  「準」を先に見ないと準優勝戦を優勝戦と誤判定するので、判定順を固定している。
+
 ※ 既存の呼び出し側（collect_results.py / build_stats.py）を壊さないよう、
    これまでのキー名は一切変えず、新しいキーを「追加」しただけ。
 
@@ -35,6 +46,13 @@ ZEN = str.maketrans("０１２３４５６７８９：", "0123456789:")
 VENUE = re.compile(r'^(\d{2})KBGN')
 # レース見出し: "1R 予選 ... H1800m 晴 風 南西 2m 波 1cm" （結果ファイルは半角R）
 RACE  = re.compile(r'^\s*(\d{1,2})R\s+(\S+)')
+# 見出し行から「レース名(固定幅)」と「距離」を取る。名前は全角スペースで詰められている。
+RACE_NAME_DIST = re.compile(r'^\s*\d{1,2}R\s+(.*?)\s*H\s*(\d+)m')
+# レースタイムは "1.51.3"(分.秒.1/10秒)の形。計時が無い艇の欄には "." だけが入る。
+# 【元データの性質・調査済み】1〜4着は必ず計時があり、5着・6着の約7割は "." になる
+# (公式が5・6着の計時を載せない開催がある)。パースの取りこぼしではないので、
+# レースタイムが無い艇が多いこと自体は正常。
+RACE_TIME = re.compile(r'^\d+\.\d+\.\d+$')
 
 # 結果行: 着 艇 登番 選手名 ﾓｰﾀｰ ﾎﾞｰﾄ 展示 進入 ST ﾚｰｽﾀｲﾑ
 RESULT = re.compile(
@@ -125,6 +143,47 @@ def parse_weather(line):
     return out
 
 
+def parse_race_name(line):
+    """見出し行から (レース名, 距離m, 進入固定か) を取り出す。取れなければ (None, None, False)。
+
+    レース名の欄は固定幅で、全角スペースで詰められている("予　選　　　")。また
+    進入固定戦のときは、名前のうしろに空白区切りで「進入固定」が入る
+    ("予選  進入固定")。これはレース名の一部ではなく別の属性なので切り離す。
+    「進入固定戦隊  進入固定」のように名前自体に同じ語を含む例があるため、
+    空白で区切った最後のトークンが「進入固定」ちょうどのときだけ属性とみなす。
+    """
+    m = RACE_NAME_DIST.match(line)
+    if not m:
+        return None, None, False
+    toks = [t for t in m.group(1).replace("　", " ").split() if t]
+    fixed = False
+    if len(toks) >= 2 and toks[-1] == "進入固定":
+        fixed = True
+        toks = toks[:-1]
+    elif toks == ["進入固定"]:
+        fixed = True
+        toks = []
+    name = "".join(toks)   # 詰め物の空白で分断された "予 選" を "予選" に戻す
+    return (name or None), int(m.group(2)), fixed
+
+
+def classify_race(name):
+    """レース名を 優勝戦/準優勝戦/予選/一般/その他 に寄せる。
+    公式のレース名は12文字で切り捨てられることがあるため、完全一致ではなく
+    含まれる語で判定する。「準優勝戦」を「優勝戦」と取り違えないよう順序が重要。"""
+    if not name:
+        return None
+    if "準優" in name:
+        return "準優勝戦"
+    if "優勝" in name:
+        return "優勝戦"
+    if "予" in name:
+        return "予選"
+    if "一般" in name:
+        return "一般"
+    return "その他"
+
+
 def parse_kimarite(header_line):
     """結果ヘッダ行の末尾から決まり手を取り出す。無ければ None。"""
     s = header_line.replace("\u3000", " ")
@@ -162,8 +221,11 @@ def parse_results(path):
         # レース見出しは結果ヘッダの前。締切や電話の行は除外
         if mr and "電話" not in line and "締切" not in line and ("m" in line):
             weather = parse_weather(line)
+            race_name, distance, fixed_entry = parse_race_name(line)
             cur = {"会場コード": jcd, "会場": jname,
                    "レース番号": int(mr.group(1)),
+                   "レース名": race_name, "種別": classify_race(race_name),
+                   "距離": distance, "進入固定": fixed_entry,
                    "天候": weather["天候"], "風向": weather["風向"],
                    "風速": weather["風速"], "波高": weather["波高"],
                    "決まり手": None,          # 直後のヘッダ行で埋める
@@ -189,6 +251,8 @@ def parse_results(path):
                 tenji_v = float(tenji)
             except (TypeError, ValueError):
                 tenji_v = None
+            # 落水・転覆などで計時が無い艇は "." だけが入っているので、値として持たない。
+            rt_v = rt if (rt and RACE_TIME.match(rt)) else None
             cur["結果"].append({
                 "着順": int(chaku), "艇番": int(tei), "登番": touban,
                 "選手名": name.replace("\u3000", "").strip(),
@@ -196,7 +260,8 @@ def parse_results(path):
                 "ST種別": stype, "ST": sval,
                 "展示": tenji_v,          # ← 復活させた項目
                 "モーター番号": int(mo),  # ← 今回復活させた項目(前回使用者の割り出しに使う)
-                "レースタイム": rt,
+                "ボート番号": int(bo),    # ← 2026-07-26に復活させた項目
+                "レースタイム": rt_v,
             })
             continue
 
