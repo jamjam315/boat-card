@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>プレミアム｜艇読み</title>
+<meta name="description" content="艇読みのプレミアムプラン。条件を指定してのバックテスト（会場・期間・券種・買い目の自由指定）が使えます。">
+<!-- 課金が実際に動くまでの仮公開のためnoindex。サイト共通ナビからのリンクもまだ張らない。
+     本番切替時にこの1行を外し、build_race_pages.pyのrefresh_sitemap()にURLを追加する。 -->
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:16px 18px;}
+.intro p{margin:0; font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.intro p+p{margin-top:8px; font-size:11.5px; color:var(--muted);}
+
+.card{background:var(--surface); border:1px solid var(--line2); border-radius:var(--radius);
+  margin-top:12px; padding:16px 18px;}
+.card-ttl{font-size:13px; font-weight:700; color:var(--ink2); margin:0 0 10px;}
+
+.feat{margin:0; padding:0; list-style:none; font-size:13.5px; color:var(--ink2);}
+.feat li{position:relative; padding-left:20px; margin-top:8px; line-height:1.75;}
+.feat li:first-child{margin-top:0;}
+.feat li::before{content:""; position:absolute; left:4px; top:.62em; width:7px; height:7px;
+  border-radius:50%; background:var(--accent);}
+
+.price-main{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+.price-main .amount{font-size:26px; font-weight:700; color:var(--ink);}
+.price-main .unit{font-size:12.5px; color:var(--muted);}
+.price-sub{margin:12px 0 0; padding-top:12px; border-top:1px dashed var(--line2);}
+.price-row{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-top:10px;}
+.price-row:first-child{margin-top:0;}
+.price-tag{flex:0 0 auto; font-size:11px; font-weight:700; color:var(--accent);
+  background:var(--accent-soft); border-radius:999px; padding:3px 10px;}
+.price-tag.soon{color:var(--muted); background:var(--line);}
+.price-row .amount{font-size:17px; font-weight:700;}
+.price-note{width:100%; margin:2px 0 0; font-size:11.5px; color:var(--muted); line-height:1.7;}
+
+.state-msg{font-size:13.5px; color:var(--ink2); margin:0;}
+.state-msg+.state-msg{margin-top:8px;}
+.btn{width:100%; margin-top:12px; padding:13px; border-radius:10px; border:none; background:var(--accent);
+  color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  font-family:inherit;}
+.btn[disabled]{opacity:.45; cursor:not-allowed;}
+.btn.sub{background:var(--surface); color:var(--accent); border:1px solid var(--line2); font-weight:600; font-size:13.5px;}
+.btn-note{font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.7;}
+.err{font-size:12.5px; color:#c0392b; margin:10px 0 0; line-height:1.7;}
+@media (prefers-color-scheme: dark){ .err{color:#ff8a7a;} }
+
+.authform{display:flex; gap:8px; margin-top:10px;}
+.authform input{flex:1 1 auto; min-width:0; font:inherit; font-size:13.5px; color:var(--ink);
+  background:var(--surface); border:1px solid var(--line2); border-radius:8px; padding:9px 10px;}
+.authform input:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+.authform button{flex:0 0 auto; font:inherit; font-size:13.5px; font-weight:600; color:#fff;
+  background:var(--accent); border:none; border-radius:8px; padding:9px 16px; cursor:pointer;}
+.authform button[disabled]{opacity:.5; cursor:not-allowed;}
+
+.status-line{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13.5px;}
+.status-badge{font-size:11.5px; font-weight:700; color:#fff; background:var(--accent);
+  border-radius:999px; padding:3px 11px;}
+.status-detail{width:100%; margin:8px 0 0; font-size:12px; color:var(--muted); line-height:1.7;}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>プレミアム</p></div>
+  </header>
+  <a class="back" href="../index.html">← トップに戻る</a>
+
+  <section class="intro">
+    <p>プレミアムに登録すると、<strong>条件を指定してのバックテスト</strong>が使えます。会場・期間・券種・買い目を自分で決めて、その条件が過去の実データでどうだったかを確認できます。</p>
+    <p>出てくるのは過去の集計結果という"事実"だけです。予想でも推奨でもありません。</p>
+  </section>
+
+  <section class="card">
+    <p class="card-ttl">プレミアムでできること</p>
+    <ul class="feat">
+      <li><b>会場を選ぶ</b>：全国24会場から1つ、または全国まとめて</li>
+      <li><b>期間を選ぶ</b>：過去1年／3年／5年／<b>10年</b>（今日を起点にしたローリング集計）</li>
+      <li><b>券種を選ぶ</b>：単勝・複勝・2連単・2連複・3連単・3連複</li>
+      <li><b>買い目を決める</b>：買う艇の複数選択、軸−相手（着順の指定つき）、ボックス</li>
+      <li><b>結果</b>：対象レース数・的中率・回収率・総賭け金を即座に表示</li>
+    </ul>
+    <p class="btn-note">無料の「バックテスト」（あらかじめ用意した固定メニュー）は、これまで通り誰でも使えます。</p>
+  </section>
+
+  <section class="card">
+    <p class="card-ttl">料金</p>
+    <div id="priceBox"></div>
+  </section>
+
+  <section class="card" id="actionCard">
+    <p class="card-ttl">お手続き</p>
+    <div id="actionBox"><p class="state-msg">読み込み中…</p></div>
+  </section>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a> ／ <a href="../tokushoho.html">特定商取引法に基づく表記</a></p>
+</div>
+
+<script src="../favorites.js"></script>
+<script src="../membership.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ===== 料金の定義(このページの料金表示はすべてここから作る) =====
+  // 金額・条件を変えるときはここだけを直す。tokushoho.html の記載とも
+  // 必ず一致させること(特定商取引法の表示と食い違わせない)。
+  var PRICING = {
+    regular: { amount: "500円", unit: "（税込）／月" },
+    discounts: [
+      { tag: "早期割引", amount: "300円",
+        note: "サービス開始から6ヶ月以内にご登録の方は、登録を続けている間このままの料金です（税込／月）。" },
+      { tag: "両アプリ割引", amount: "250円", soon: true,
+        note: "収支記録アプリ「レジャー帳」の有料プランと併せてご登録の方向け（税込／月）。準備中です。" }
+    ],
+    footnote: "割引の併用はできません。条件を満たす場合、最も安い料金が1つだけ適用されます。"
+  };
+
+  // ===== Edge FunctionのURL(supabase-config.jsonのurlから組み立てる) =====
+  var FN_CHECKOUT = "create-checkout-session";
+  var FN_PORTAL = "create-portal-session";
+
+  function fnUrl(name){
+    var cfg = window.TeiyomiAuth && TeiyomiAuth.getConfig ? TeiyomiAuth.getConfig() : null;
+    if(!cfg || !cfg.url) return null;
+    return cfg.url.replace(/\/+$/, "") + "/functions/v1/" + name;
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+    });
+  }
+
+  // ---------- 料金表示 ----------
+  function renderPrice(){
+    var html = '<div class="price-main"><span class="amount nums">' + esc(PRICING.regular.amount) +
+      '</span><span class="unit">' + esc(PRICING.regular.unit) + '</span></div><div class="price-sub">';
+    PRICING.discounts.forEach(function(d){
+      html += '<div class="price-row"><span class="price-tag' + (d.soon ? " soon" : "") + '">' + esc(d.tag) +
+        '</span><span class="amount nums">' + esc(d.amount) + '</span>' +
+        '<p class="price-note">' + esc(d.note) + '</p></div>';
+    });
+    html += '</div><p class="price-note" style="margin-top:12px;">' + esc(PRICING.footnote) + '</p>';
+    document.getElementById("priceBox").innerHTML = html;
+  }
+
+  // ---------- お手続き欄(ログイン状態で3パターンに出し分け) ----------
+  var box = document.getElementById("actionBox");
+  var authFormOpen = false;   // false=閉 / true=メール入力中 / "sent"=送信済み
+
+  function setBusy(btn, label){
+    btn.disabled = true;
+    btn.dataset.label = btn.textContent;
+    btn.textContent = label;
+  }
+
+  function showError(msg){
+    var el = document.getElementById("actionErr");
+    if(el) el.textContent = msg;
+  }
+
+  /**
+   * Edge Functionを呼び、返ってきたURLへ遷移する。
+   * 失敗は日本語の1文にして画面に出す(英語のエラーはそのまま見せない)。
+   */
+  function callFunction(name, btn, busyLabel){
+    var url = fnUrl(name);
+    if(!url){
+      showError("接続の設定を読み込めませんでした。ページを再読み込みしてお試しください。");
+      return;
+    }
+    var cfg = TeiyomiAuth.getConfig();
+    showError("");
+    setBusy(btn, busyLabel);
+
+    TeiyomiAuth.getAccessToken().then(function(token){
+      if(!token) throw { code: "noauth" };
+      return fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "apikey": cfg.anonKey,
+          "Content-Type": "application/json"
+        },
+        body: "{}"
+      });
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(body){
+        return { status: res.status, ok: res.ok, body: body };
+      });
+    }).then(function(r){
+      if(r.ok && r.body && r.body.url){
+        window.location.href = r.body.url;
+        return;
+      }
+      throw { code: "http", status: r.status, body: r.body };
+    }).catch(function(err){
+      btn.disabled = false;
+      if(btn.dataset.label) btn.textContent = btn.dataset.label;
+      showError(errorMessage(err));
+    });
+  }
+
+  function errorMessage(err){
+    if(!err) return "うまく処理できませんでした。時間をおいて再度お試しください。";
+    if(err.code === "noauth"){
+      return "ログイン情報を確認できませんでした。ページを再読み込みしてから、もう一度お試しください。";
+    }
+    if(err.code === "http"){
+      var body = err.body || {};
+      if(err.status === 401){
+        return "ログインの有効期限が切れているようです。ページを再読み込みして、ログインし直してからお試しください。";
+      }
+      if(err.status === 403){
+        if(body.error === "email_required"){
+          return "お手続きにはメールアドレスの登録が必要です。上のログイン欄からメールアドレスを登録してください。";
+        }
+        return "この操作は許可されていません。ログインし直してからお試しください。";
+      }
+      if(err.status === 404){
+        return "お手続きの準備がまだ整っていません（決済機能は準備中です）。しばらくお待ちください。";
+      }
+      return "お手続きの開始に失敗しました。時間をおいて再度お試しください。";
+    }
+    // fetch自体が失敗(オフライン・CORS等)
+    return "通信に失敗しました。電波の良い場所で、時間をおいて再度お試しください。";
+  }
+
+  // --- パターン1: 未ログイン / メール未登録(匿名) ---
+  function renderNeedEmail(){
+    if(authFormOpen === "sent"){
+      box.innerHTML = '<p class="state-msg">📧 登録用のメールを送りました。届いたメールのリンクを押すと、このページに戻ってお手続きを続けられます。</p>' +
+        '<p class="btn-note">送信元は認証サービス「Supabase」です。英語表示の場合がありますが、正規のメールです。</p>';
+      return;
+    }
+    box.innerHTML =
+      '<p class="state-msg">プレミアムのお申し込みには、先に<b>メールアドレスの登録</b>が必要です。</p>' +
+      '<p class="btn-note">パスワードはありません。入力したメールアドレスに届くリンクを押すだけで登録できます。お名前などは一切いただきません。</p>' +
+      '<form class="authform" id="pmAuthForm">' +
+        '<input type="email" id="pmEmail" placeholder="メールアドレス" autocomplete="email" required>' +
+        '<button type="submit" id="pmEmailBtn">送信</button>' +
+      '</form>' +
+      '<p class="err" id="actionErr"></p>';
+
+    document.getElementById("pmAuthForm").addEventListener("submit", function(ev){
+      ev.preventDefault();
+      var email = document.getElementById("pmEmail").value.trim();
+      var btn = document.getElementById("pmEmailBtn");
+      if(!email || email.indexOf("@") === -1){
+        showError("メールアドレスを入力してください。");
+        return;
+      }
+      showError("");
+      btn.disabled = true; btn.textContent = "送信中…";
+      TeiyomiAuth.sendMagicLink(email).then(function(){
+        authFormOpen = "sent";
+        renderNeedEmail();
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = "送信";
+        showError("送信に失敗しました。時間をおいて再度お試しください。");
+      });
+    });
+  }
+
+  // --- パターン2: メール登録済み・非会員 ---
+  function renderCanSubscribe(state){
+    var extra = "";
+    if(state.status && state.status !== "canceled"){
+      // past_due(支払い失敗)等。状況が分かる一言を添える。
+      extra = '<p class="btn-note">現在のご契約の状態：' + esc(state.status) + '（有効ではありません）</p>';
+    }
+    box.innerHTML =
+      '<p class="state-msg">✅ ログイン中：' + esc(state.user.email || "") + '</p>' +
+      extra +
+      '<button type="button" class="btn" id="pmSubscribeBtn">プレミアムに登録する</button>' +
+      '<p class="btn-note">お支払い手続きは決済サービス「Stripe」のページで行います。カード情報を艇読みが受け取ることはありません。</p>' +
+      '<p class="err" id="actionErr"></p>';
+
+    document.getElementById("pmSubscribeBtn").addEventListener("click", function(){
+      callFunction(FN_CHECKOUT, this, "お支払いページへ移動中…");
+    });
+  }
+
+  // --- パターン3: 会員(active / trialing) ---
+  function renderActive(state){
+    var until = "";
+    if(state.currentPeriodEnd){
+      var d = new Date(state.currentPeriodEnd);
+      if(!isNaN(d.getTime())){
+        until = "次回の更新日：" + d.getFullYear() + "年" + (d.getMonth()+1) + "月" + d.getDate() + "日";
+      }
+    }
+    box.innerHTML =
+      '<div class="status-line"><span class="status-badge">契約中</span>' +
+      '<span>' + esc(state.user.email || "") + '</span>' +
+      (until ? '<p class="status-detail">' + esc(until) + '</p>' : "") +
+      '</div>' +
+      '<a class="btn" style="display:block; text-align:center; text-decoration:none;" href="../backtest-custom.html">条件を指定して検証する</a>' +
+      '<button type="button" class="btn sub" id="pmPortalBtn">お支払い方法の変更・解約</button>' +
+      '<p class="btn-note">解約・カードの変更は決済サービス「Stripe」の画面で行います。解約後も、お支払い済みの期間が終わるまではご利用いただけます。</p>' +
+      '<p class="err" id="actionErr"></p>';
+
+    document.getElementById("pmPortalBtn").addEventListener("click", function(){
+      callFunction(FN_PORTAL, this, "管理ページへ移動中…");
+    });
+  }
+
+  function renderUnknown(){
+    box.innerHTML =
+      '<p class="state-msg">ご契約の状態を確認できませんでした。</p>' +
+      '<p class="btn-note">通信が不安定か、一時的にサーバーへつながらない可能性があります。ページを再読み込みしてお試しください。</p>';
+  }
+
+  function render(state){
+    if(!state){ renderUnknown(); return; }          // 未接続・通信失敗
+    if(!state.user || state.user.isAnonymous || !state.user.email){ renderNeedEmail(); return; }
+    if(state.active){ renderActive(state); return; }
+    renderCanSubscribe(state);
+  }
+
+  renderPrice();
+  // 認証状態が確定した時点、および変化するたびに描画し直す。
+  TeiyomiMembership.onChange(function(state){
+    authFormOpen = false;
+    render(state);
+  });
+})();
+</script>
+</body>
+</html>

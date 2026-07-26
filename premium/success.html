@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>お手続きが完了しました｜艇読み</title>
+<meta name="description" content="艇読みプレミアムのお申し込み完了ページです。">
+<!-- 課金が実際に動くまでの仮公開のためnoindex。本番切替時にこの1行を外す。 -->
+<meta name="robots" content="noindex">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:20px;}
+.intro h2{margin:0 0 8px; font-size:16px;}
+.intro p{margin:0; font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.intro p+p{margin-top:10px;}
+
+.card{background:var(--surface); border:1px solid var(--line2); border-radius:var(--radius);
+  margin-top:12px; padding:16px 18px;}
+.btn{display:block; width:100%; margin-top:10px; padding:13px; border-radius:10px; border:none;
+  background:var(--accent); color:#fff; font-size:14.5px; font-weight:700; text-align:center;
+  text-decoration:none; font-family:inherit; cursor:pointer;}
+.btn.sub{background:var(--surface); color:var(--accent); border:1px solid var(--line2); font-weight:600; font-size:13.5px;}
+.note{font-size:11.5px; color:var(--muted); margin:10px 0 0; line-height:1.7;}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>お手続き完了</p></div>
+  </header>
+
+  <section class="intro">
+    <h2>ご登録ありがとうございます</h2>
+    <p>お支払いのお手続きが完了しました。領収書（レシート）は、ご登録のメールアドレス宛に決済サービス「Stripe」から届きます。</p>
+    <p>ご契約の反映には数秒かかることがあります。すぐに反映されていない場合は、少し待ってからページを再読み込みしてください。</p>
+  </section>
+
+  <section class="card">
+    <a class="btn" href="../backtest-custom.html">条件を指定して検証する</a>
+    <a class="btn sub" href="index.html">プレミアムの契約状況を見る</a>
+    <p class="note">解約・お支払い方法の変更は、いつでもプレミアムのページから行えます。</p>
+  </section>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。<br><a href="../privacy.html">プライバシーポリシー</a> ／ <a href="../about.html">運営者情報</a> ／ <a href="../tokushoho.html">特定商取引法に基づく表記</a></p>
+</div>
+</body>
+</html>

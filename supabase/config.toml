@@ -423,6 +423,12 @@ entrypoint = "./functions/create-checkout-session/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/create-checkout-session/*.html" ]
 
+[functions.create-portal-session]
+enabled = true
+# create-checkout-sessionと同じく auth: 'user'(JWT必須)で実装しているため、
+# プラットフォーム側のJWT検証(デフォルトのverify_jwt = true)を維持する。
+entrypoint = "./functions/create-portal-session/index.ts"
+
 [functions.stripe-webhook]
 enabled = true
 # StripeのサーバーはSupabaseのJWTを持たずに呼んでくるため、プラットフォーム側の

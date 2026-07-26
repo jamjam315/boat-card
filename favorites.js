@@ -45,6 +45,7 @@
   var SUPA_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
   var SUPA_TABLE = "favorite_players";
   var supaClient = null;
+  var supaConfig = null;    // supabase-config.jsonの中身(url/anonKey)。Edge Function呼び出し側で使う。
   var supaUserId = null;
   var supaReady = false;
   var currentUser = null;   // 直近のSupabaseセッションのuser(匿名/メールログイン問わず)。未確定はnull。
@@ -73,6 +74,7 @@
         return loadSupaSdk().then(function () { return cfg; });
       })
       .then(function (cfg) {
+        supaConfig = cfg;
         supaClient = window.supabase.createClient(cfg.url, cfg.anonKey);
         return supaClient.auth.getSession();
       })
@@ -272,13 +274,29 @@
 
   window.TeiyomiAuth = {
     // 認証状態が未確定(初期化中・Supabase未接続)ならnull。
-    // 確定していれば {email, isAnonymous} を返す(未ログインならemail:null)。
+    // 確定していれば {id, email, isAnonymous} を返す(未ログインならemail:null)。
     getUser: function () {
       if (!currentUser) return null;
-      return { email: currentUser.email || null, isAnonymous: !!currentUser.is_anonymous };
+      return { id: currentUser.id, email: currentUser.email || null, isAnonymous: !!currentUser.is_anonymous };
     },
     sendMagicLink: sendMagicLink,
-    signOut: signOut
+    signOut: signOut,
+
+    // ---- 他ページ(プレミアム関連・バックテスト5b)から再利用するための読み取り口 ----
+    // Supabaseクライアントは1ページに1つだけにする(複数作ると認証ストレージが
+    // 競合して、ログイン状態が壊れる)。そのため新しくcreateClientせず、
+    // ここで作った1つを共有する。
+    isReady: function () { return supaReady; },
+    getClient: function () { return supaReady ? supaClient : null; },
+    getConfig: function () { return supaConfig; },
+    // Edge FunctionのAuthorizationヘッダーに載せるアクセストークン。
+    // 取得できないとき(未接続等)はnullを返す(呼び出し側で分岐する)。
+    getAccessToken: function () {
+      if (!supaReady || !supaClient) return Promise.resolve(null);
+      return supaClient.auth.getSession().then(function (r) {
+        return (r && r.data && r.data.session && r.data.session.access_token) || null;
+      }).catch(function () { return null; });
+    }
   };
 
   // ==== ホーム画面への追加案内(A2HS) ====
