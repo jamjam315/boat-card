@@ -208,6 +208,20 @@ body{background:var(--bg); color:var(--ink);
       <div class="bt-row" id="sessionRow" role="tablist" aria-label="開催区分"></div>
       <p class="bt-pill-note" id="sessionNote"></p>
     </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">種別</p>
+      <div class="bt-row" id="kindRow" role="tablist" aria-label="種別"></div>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">距離</p>
+      <div class="bt-row" id="distRow" role="tablist" aria-label="距離"></div>
+      <p class="bt-pill-note">ほとんどのレースは1800mです。1200mは全体の約2%（周回数が少ない特別な開催）。</p>
+    </div>
+    <div class="bt-filter-row">
+      <p class="bt-filter-label">進入固定</p>
+      <div class="bt-row" id="fixedRow" role="tablist" aria-label="進入固定"></div>
+      <p class="bt-pill-note">進入固定は、枠なり（1号艇が1コース…）で進入することが決められているレースです。</p>
+    </div>
   </div>
 
   <div class="bt-filter" id="stepAfter">
@@ -378,6 +392,24 @@ body{background:var(--bg); color:var(--ink);
     {key:"night", label:"ナイター場"},
     {key:"day",   label:"デイ場"}
   ];
+  var KIND_OPTS = [
+    {key:"all",   label:"すべて",     codes:null},
+    {key:"yusho", label:"優勝戦",     codes:[0]},
+    {key:"jun",   label:"準優勝戦",   codes:[1]},
+    {key:"yosen", label:"予選",       codes:[2]},
+    {key:"ippan", label:"一般",       codes:[3]},
+    {key:"other", label:"その他",     codes:[4]}
+  ];
+  var DIST_OPTS = [
+    {key:"all",  label:"すべて",  codes:null},
+    {key:"1800", label:"1800m",  codes:[0]},
+    {key:"1200", label:"1200m",  codes:[1]}
+  ];
+  var FIXED_OPTS = [
+    {key:"all", label:"すべて",           want:null},
+    {key:"on",  label:"進入固定のみ",     want:1},
+    {key:"off", label:"進入固定を除く",   want:0}
+  ];
   var ENTRY_OPTS = [
     {key:"all",    label:"すべて"},
     {key:"waku",   label:"枠なり"},
@@ -409,6 +441,9 @@ body{background:var(--bg); color:var(--ink);
       weather: "all",
       wind: "all",
       session: "all",
+      kind: "all",
+      dist: "all",
+      fixed: "all",
       entry: "all",
       kimarite: "all"
     }
@@ -634,6 +669,9 @@ body{background:var(--bg); color:var(--ink);
     renderPills("weatherRow", WEATHER_OPTS, f.weather, function(key){ f.weather = key; });
     renderPills("windRow", WIND_OPTS, f.wind, function(key){ f.wind = key; });
     renderPills("sessionRow", SESSION_OPTS, f.session, function(key){ f.session = key; });
+    renderPills("kindRow", KIND_OPTS, f.kind, function(key){ f.kind = key; });
+    renderPills("distRow", DIST_OPTS, f.dist, function(key){ f.dist = key; });
+    renderPills("fixedRow", FIXED_OPTS, f.fixed, function(key){ f.fixed = key; });
     renderPills("entryRow", ENTRY_OPTS, f.entry, function(key){ f.entry = key; });
     renderPills("kimariteRow", KIMARITE_OPTS, f.kimarite, function(key){ f.kimarite = key; });
 
@@ -680,10 +718,14 @@ body{background:var(--bg); color:var(--ink);
     var wCodes = optByKey(WEATHER_OPTS, f.weather).codes;
     var wind   = optByKey(WIND_OPTS, f.wind);
     var kCodes = optByKey(KIMARITE_OPTS, f.kimarite).codes;
+    var kindCodes = optByKey(KIND_OPTS, f.kind).codes;
+    var distCodes = optByKey(DIST_OPTS, f.dist).codes;
+    var fixedWant = optByKey(FIXED_OPTS, f.fixed).want;
     var entry  = f.entry;
     var session = state.venue === "zenkoku" ? f.session : "all";
 
     if(!months && !races && !wCodes && wind.min === null && !kCodes &&
+       !kindCodes && !distCodes && fixedWant === null &&
        entry === "all" && session === "all") return null;
 
     var night = session === "all" ? null : nightCodes();
@@ -698,6 +740,9 @@ body{background:var(--bg); color:var(--ink);
         if(ws === 31 || ws < wind.min || ws > wind.max) return false;
       }
       if(kCodes && kCodes.indexOf((m >> 12) & 0x7) === -1) return false;
+      if(kindCodes && kindCodes.indexOf((m >> 21) & 0x7) === -1) return false;
+      if(distCodes && distCodes.indexOf((m >> 24) & 0x3) === -1) return false;
+      if(fixedWant !== null && ((m >> 26) & 1) !== fixedWant) return false;
       if(entry !== "all"){
         var waku = (m >> 15) & 1;
         if(entry === "waku" && !waku) return false;
@@ -728,6 +773,9 @@ body{background:var(--bg); color:var(--ink);
     if(f.weather !== "all") parts.push(optByKey(WEATHER_OPTS, f.weather).label);
     if(f.wind !== "all") parts.push("風" + optByKey(WIND_OPTS, f.wind).label);
     if(state.venue === "zenkoku" && f.session !== "all") parts.push(optByKey(SESSION_OPTS, f.session).label);
+    if(f.kind !== "all") parts.push(optByKey(KIND_OPTS, f.kind).label);
+    if(f.dist !== "all") parts.push(optByKey(DIST_OPTS, f.dist).label);
+    if(f.fixed !== "all") parts.push(optByKey(FIXED_OPTS, f.fixed).label);
     if(f.entry !== "all") parts.push(optByKey(ENTRY_OPTS, f.entry).label);
     if(f.kimarite !== "all") parts.push("決まり手" + optByKey(KIMARITE_OPTS, f.kimarite).label);
     return parts.join("・");

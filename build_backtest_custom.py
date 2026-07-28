@@ -51,6 +51,12 @@ results/{年}.jsonl(2026-07-19に年別分割・過去2年分バックフィル�
   bit 12-14: 決まり手  0=逃げ 1=差し 2=まくり 3=まくり差し 4=抜き 5=恵まれ (7=不明)
   bit 15   : 枠なり    1=6艇すべて 艇番==進入コース / 0=進入変化あり
   bit 16-20: 会場      meta.jsonのvenues[]の並び順(=公式の会場コード-1)。31=不明
+  bit 21-23: 種別      0=優勝戦 1=準優勝戦 2=予選 3=一般 4=その他 (7=不明)
+  bit 24-25: 距離      0=1800m 1=1200m 2=それ以外 (3=不明)
+  bit 26   : 進入固定  1=進入固定レース
+ここまでで27ビット。JavaScriptのビット演算は32ビット符号付きなので、bit 30 まで
+なら同じやり方で足せる(距離を1ビットではなく2ビットにしたのは、実データが
+1800m/1200mの2種類しか無い今のうちに、他が現れても壊れない形にしておくため)。
 月は "d" から取れるので持たない。会場をレコードに入れているのは、全国ファイル
 1本のままナイター/デイのしぼり込みをするため(会場別ファイルを17本並行して
 読ませると、過去10年で187リクエストになってしまう)。追加コストは約2MB。
@@ -97,10 +103,14 @@ KEEP_BETS = {"単勝": "t", "複勝": "f", "2連単": "2t", "2連複": "2f", "3�
 # "m"(メタ情報)のコード表。ブラウザ側(backtest-custom.html)と必ず一致させること。
 WEATHER_CODE = {"晴": 0, "曇": 1, "雨": 2, "雪": 3, "霧": 4}
 KIMARITE_CODE = {"逃げ": 0, "差し": 1, "まくり": 2, "まくり差し": 3, "抜き": 4, "恵まれ": 5}
+KIND_CODE = {"優勝戦": 0, "準優勝戦": 1, "予選": 2, "一般": 3, "その他": 4}
+DIST_CODE = {1800: 0, 1200: 1}
 UNKNOWN_3BIT = 7
 UNKNOWN_WIND = 31
 MAX_WIND = 30
 UNKNOWN_VENUE = 31
+OTHER_DIST = 2      # 1800m/1200m以外(現在の実データには存在しない)
+UNKNOWN_DIST = 3
 
 # 会場名 → メタ情報に入れる会場インデックス(公式の会場コード順、桐生=0 … 大村=23)。
 # meta.jsonのvenues[]にも同じ値をcodeとして入れ、並び順のズレで取り違えないようにする。
@@ -134,8 +144,13 @@ def pack_meta(r):
     # 枠なり = 6艇すべてが自分の枠番どおりのコースに入った(進入変化なし)
     wakunari = 1 if len(res) == 6 and all(x.get("艇") == x.get("進") for x in res) else 0
     venue = VENUE_INDEX.get(r.get("会場"), UNKNOWN_VENUE)
+    kind = KIND_CODE.get(r.get("種別"), UNKNOWN_3BIT)
+    dist = r.get("距離")
+    dist = UNKNOWN_DIST if dist is None else DIST_CODE.get(int(dist), OTHER_DIST)
+    fixed = 1 if r.get("進入固定") else 0
     return ((rno & 0xF) | (weather << 4) | (wind << 7) | (kimarite << 12)
-            | (wakunari << 15) | (venue << 16))
+            | (wakunari << 15) | (venue << 16) | (kind << 21) | (dist << 24)
+            | (fixed << 26))
 
 
 def compact(r):
