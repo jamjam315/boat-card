@@ -318,6 +318,118 @@
   }
   registerServiceWorker();
 
+  // ==== 通知(Web Push)の購読 ====
+  // 工程1では「購読を作って保存する/やめて消す」までを実装する。
+  // 送信側(毎朝の配信)は工程2。つまりONにしても、この時点では1通も届かない。
+  //
+  // 【匿名アカウントでも購読できるようにしている理由】
+  // 購読はブラウザ単位で、保存先の行は user_id に紐づく。匿名のままでも
+  // お気に入りは同じ user_id に紐づいているので、通知の対象は正しく作れる。
+  // ログインを必須にすると「お気に入りは使えるのに通知だけログイン必須」と
+  // ちぐはぐになるため、匿名でも許可する。ただしブラウザのデータを消すと
+  // 匿名アカウントごと切れてしまうので、UI側で「ログインしておくと
+  // 引き継げます」と添える(index.html)。
+  var VAPID_PUBLIC_KEY =
+    "BE4DAw7wz7PEwrbNxhXQEtzbsndFFBaoTeVYGAS-RWr3FS1_xkNsHgH2zUxgiJmeOKBuDcz1bbmLSIx-NqnB1zE";
+  var SUBS_TABLE = "push_subscriptions";
+
+  function notifySupported() {
+    return ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+  }
+
+  // VAPID公開鍵(base64url)を、subscribe が求める Uint8Array に変換する。
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = window.atob(base64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function currentSubscription() {
+    if (!notifySupported()) return Promise.resolve(null);
+    return navigator.serviceWorker.ready
+      .then(function (reg) { return reg.pushManager.getSubscription(); })
+      .catch(function () { return null; });
+  }
+
+  /**
+   * 通知まわりの現在の状態を返す。UI側はこれだけ見れば表示を決められる。
+   *   unsupported   … このブラウザは通知に対応していない
+   *   need-install  … iOSでホーム画面に追加していない(iOSはこれが必須)
+   *   denied        … 通知を拒否済み(ブラウザ設定からしか戻せない)
+   *   unavailable   … Supabaseに繋がっておらず、購読を保存できない
+   *   on / off      … 購読済み / 未購読
+   */
+  function notifyState() {
+    if (!notifySupported()) return Promise.resolve({ state: "unsupported" });
+    if (isIOS() && !isStandalone()) return Promise.resolve({ state: "need-install" });
+    if (Notification.permission === "denied") return Promise.resolve({ state: "denied" });
+    if (!supaReady) return Promise.resolve({ state: "unavailable" });
+    return currentSubscription().then(function (sub) {
+      return { state: sub ? "on" : "off" };
+    });
+  }
+
+  /** 通知をONにする。許可ダイアログはこの中でだけ出す(=必ずタップ起点)。 */
+  function enableNotify() {
+    if (!notifySupported()) return Promise.reject(new Error("unsupported"));
+    if (isIOS() && !isStandalone()) return Promise.reject(new Error("need-install"));
+    if (!supaReady || !supaClient || !supaUserId) return Promise.reject(new Error("unavailable"));
+
+    return Notification.requestPermission().then(function (perm) {
+      if (perm !== "granted") throw new Error("denied");
+      return navigator.serviceWorker.ready;
+    }).then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (sub) return sub;
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,   // 通知を必ず表示する(サイレントpushはしない)
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      });
+    }).then(function (sub) {
+      var json = sub.toJSON();
+      return supaClient.from(SUBS_TABLE).upsert({
+        user_id: supaUserId,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+        updated_at: new Date().toISOString()
+      }, { onConflict: "endpoint" }).then(function (res) {
+        if (res.error) {
+          // 保存できないのに購読だけ残ると「ONに見えるのに届かない」状態に
+          // なるため、購読ごと取り消して元に戻す。
+          return sub.unsubscribe().catch(function () {}).then(function () {
+            throw new Error("save-failed");
+          });
+        }
+        return { state: "on" };
+      });
+    });
+  }
+
+  /** 通知をOFFにする。購読を取り消し、保存してある行も消す。 */
+  function disableNotify() {
+    return currentSubscription().then(function (sub) {
+      if (!sub) return { state: "off" };
+      var endpoint = sub.endpoint;
+      return sub.unsubscribe().catch(function () { return false; }).then(function () {
+        if (!supaReady || !supaClient) return { state: "off" };
+        return supaClient.from(SUBS_TABLE).delete().eq("endpoint", endpoint)
+          .then(function () { return { state: "off" }; }, function () { return { state: "off" }; });
+      });
+    });
+  }
+
+  window.TeiyomiNotify = {
+    isSupported: notifySupported,
+    getState: notifyState,
+    enable: enableNotify,
+    disable: disableNotify
+  };
+
   // ==== ホーム画面への追加案内(A2HS) ====
 
   // beforeinstallpromptはブラウザが好きなタイミングで発火するため、

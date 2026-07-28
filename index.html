@@ -346,6 +346,7 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   <div id="featured"></div>
   <div id="favToday"></div>
   <div id="authBox"></div>
+  <div id="notifyBox"></div>
 
   <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="players/">🔍 選手一覧</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
   <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
@@ -720,9 +721,87 @@ function renderAuthBox(){
     try{ box.innerHTML=""; }catch(e2){}   // ログイン欄を出さないだけにして、他は壊さない
   }
 }
+// 通知(お気に入り選手の出走お知らせ)の設定欄。
+// 許可ダイアログは「オンにする」を押した時だけ出す(勝手には出さない)。
+// 実際の描画は状態(未対応/ホーム画面追加が必要/拒否済み/オン/オフ)で分岐する。
+// 配信の仕組みはまだ作っていないため、オンにしても今は届かない旨を明記する。
+const NOTIFY_LEAD = "毎朝、お気に入り選手の出走をお知らせします（3名まで。プレミアムは全員＋データの見どころつき）。";
+function renderNotifyBox(){
+  const box = document.getElementById("notifyBox");
+  if(!box) return;
+  if(!window.TeiyomiNotify){ box.innerHTML=""; return; }
+  TeiyomiNotify.getState().then(({state})=>{
+    if(state === "unsupported"){
+      box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">お使いのブラウザは通知に対応していません。</p></div>`;
+      return;
+    }
+    if(state === "need-install"){
+      box.innerHTML = `<div class="authbox">
+        <div class="authbox-row"><span>🔔 出走のお知らせを受け取る</span>
+          <button type="button" class="authbox-btn" id="notifyInstallBtn">📲 追加のしかた</button></div>
+        <p class="authbox-notice">iPhone・iPadでは、<b>ホーム画面に追加してから開いた場合のみ</b>通知を受け取れます（Appleの仕様）。</p>
+      </div>`;
+      document.getElementById("notifyInstallBtn").addEventListener("click", ()=>{
+        try{ TeiyomiFavorites.showAddToHomeGuide(); }catch(e){}
+      });
+      return;
+    }
+    if(state === "denied"){
+      box.innerHTML = `<div class="authbox">
+        <div class="authbox-row"><span>🔔 出走のお知らせ</span><span class="authbox-msg" style="margin:0;">ブロック中</span></div>
+        <p class="authbox-notice">通知がブラウザ側でブロックされています。受け取るには、ブラウザの設定でこのサイトの通知を「許可」に変更してください。</p>
+      </div>`;
+      return;
+    }
+    if(state === "unavailable"){
+      box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">いま通知の設定ができません。時間をおいて再度お試しください。</p></div>`;
+      return;
+    }
+
+    const user = (window.TeiyomiAuth && TeiyomiAuth.getUser()) || null;
+    const anonNote = (user && user.isAnonymous)
+      ? `<br>ログインしておくと、機種変更やブラウザのデータを消したあとも設定を引き継げます。` : "";
+
+    if(state === "on"){
+      box.innerHTML = `<div class="authbox">
+        <div class="authbox-row"><span>🔔 出走のお知らせ：<b>オン</b></span>
+          <button type="button" class="authbox-btn" id="notifyOffBtn">オフにする</button></div>
+        <p class="authbox-notice">${NOTIFY_LEAD}<br><b>配信は準備中です。</b>オンにしておくと、始まったときから届きます。${anonNote}</p>
+      </div>`;
+      document.getElementById("notifyOffBtn").addEventListener("click", function(){
+        this.disabled = true; this.textContent = "処理中…";
+        TeiyomiNotify.disable().catch(()=>{}).then(renderNotifyBox);
+      });
+      return;
+    }
+
+    box.innerHTML = `<div class="authbox">
+      <div class="authbox-row"><span>🔔 出走のお知らせ</span>
+        <button type="button" class="authbox-btn" id="notifyOnBtn">オンにする</button></div>
+      <p class="authbox-notice">${NOTIFY_LEAD}<br><b>配信は準備中です。</b>オンにしておくと、始まったときから届きます。${anonNote}</p>
+      <p class="authbox-msg" id="notifyMsg"></p>
+    </div>`;
+    document.getElementById("notifyOnBtn").addEventListener("click", function(){
+      const btn = this, msg = document.getElementById("notifyMsg");
+      btn.disabled = true; btn.textContent = "処理中…";
+      TeiyomiNotify.enable().then(renderNotifyBox).catch(err=>{
+        const m = (err && err.message) || "";
+        // 許可されなかった・ホーム画面追加が必要、の2つは「状態そのものが変わった」
+        // ので描き直す(専用の説明が出る)。それ以外はこの場に理由を出して、
+        // ボタンを押せる状態に戻す。ここで描き直すと理由が消えてしまうため。
+        if(m === "denied" || m === "need-install"){ renderNotifyBox(); return; }
+        msg.textContent = m === "save-failed"
+          ? "設定を保存できませんでした。時間をおいて再度お試しください。"
+          : "通知をオンにできませんでした。時間をおいて再度お試しください。";
+        btn.disabled = false; btn.textContent = "オンにする";
+      });
+    });
+  }).catch(()=>{ try{ box.innerHTML=""; }catch(e){} });
+}
+
 // ログイン状態が変わった(マジックリンクから戻った・ログアウトした等)ら再描画する。
 // お気に入りの再同期(teiyomi-favorites-synced)でも本日出走お知らせを更新し直す。
-window.addEventListener("teiyomi-auth-changed", ()=>{ authFormOpen=false; renderAuthBox(); });
+window.addEventListener("teiyomi-auth-changed", ()=>{ authFormOpen=false; renderAuthBox(); renderNotifyBox(); });
 
 function renderVenues(){
   const box=document.getElementById("venues"); box.innerHTML="";
@@ -950,7 +1029,7 @@ function renderCard(){
      </div>${raceLinkHtml}${cmpHtml}${rows}</div>`
     + trendPanel(v.name);
 }
-renderFeatured(); renderFavoriteToday(); renderAuthBox(); renderVenues(); renderRaces(); renderCard();
+renderFeatured(); renderFavoriteToday(); renderAuthBox(); renderNotifyBox(); renderVenues(); renderRaces(); renderCard();
 </script>
 </body>
 </html>
