@@ -17,16 +17,15 @@
 // 1通も送らずに終了する。届かないことより、間違った情報が届くことのほうが
 // 害が大きい、という判断。
 //
-// 【なぜGitHub ActionsではなくEdge Functionなのか】
-// 送信には全ユーザーの購読・お気に入り・契約状態を読む必要があり、
-// service roleキーが要る。GitHub側にもその鍵を置くと、いちばん強い鍵の
-// 置き場所が増えてしまう。data.jsは公開URLなのでSupabase内から取れる。
+// 【文面】組み立ては _shared/morning-message.ts に集約している
+// (テスト送信と同じ文面を使うため)。プレミアムの人だけ、選手ごとに
+// 「見どころ」を最大1つ添える。
 import webPush from 'npm:web-push@^3'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
+import {
+  buildMessage, loadFrames, loadToday, todayJst, type Entry,
+} from '../_shared/morning-message.ts'
 
-const DATA_URL = 'https://teiyomi.com/data.js'
-const SITE_URL = 'https://teiyomi.com/'
-const FREE_LIMIT = 3                       // 無料プランで通知する人数の上限
 const ACTIVE_STATUSES = ['active', 'trialing']
 const VAPID_SUBJECT = 'mailto:mtpworks.info@gmail.com'
 // 公開鍵は秘密ではないので直書きする。環境変数にすると、フロント(favorites.js)と
@@ -46,62 +45,6 @@ webPush.setVapidDetails(
   VAPID_PUBLIC_KEY,
   Deno.env.get('VAPID_PRIVATE_KEY') as string,
 )
-
-/** 今日(JST)の YYYY-MM-DD。端末やサーバーのタイムゾーンに依存させない。 */
-function todayJst(): string {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date())
-}
-
-/** data.js の "2026年7月28日" を "2026-07-28" にする。読めなければnull。 */
-function parseDataDate(label: unknown): string | null {
-  if (typeof label !== 'string') return null
-  const m = /^(\d{4})年(\d{1,2})月(\d{1,2})日$/.exec(label.trim())
-  if (!m) return null
-  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
-}
-
-type Entry = { name: string; venue: string; race: number; deadline: string }
-
-/** data.js を取ってきて、登番 → 本日の出走(いちばん早いレース) の対応表にする。 */
-async function loadToday(): Promise<{ date: string | null; byToban: Map<string, Entry> }> {
-  const res = await fetch(DATA_URL, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`data.js fetch failed: HTTP ${res.status}`)
-  const text = await res.text()
-  const json = text.slice(text.indexOf('=') + 1).trim().replace(/;\s*$/, '')
-  const data = JSON.parse(json)
-
-  const byToban = new Map<string, Entry>()
-  for (const venue of data.venues ?? []) {
-    for (const race of venue.races ?? []) {
-      for (const boat of race.boats ?? []) {
-        const cur = byToban.get(boat.t)
-        // 同じ日に複数走る場合(節またぎ等)は、いちばん早い締切のレースを載せる。
-        if (!cur || (race.dl && cur.deadline && race.dl < cur.deadline)) {
-          byToban.set(boat.t, {
-            name: boat.name, venue: venue.name, race: race.no, deadline: race.dl,
-          })
-        }
-      }
-    }
-  }
-  return { date: parseDataDate(data.date), byToban }
-}
-
-/** 通知の本文を組み立てる。無料プランで載せきれない分は末尾に人数だけ添える。 */
-function buildMessage(entries: Entry[], hiddenCount: number) {
-  const body = entries
-    .map((e) => `${e.name}（${e.venue}${e.race}R 締切${e.deadline}）`)
-    .join('／')
-  return {
-    title: `本日の出走（${entries.length + hiddenCount}名）`,
-    body: hiddenCount > 0
-      ? `${body}／他${hiddenCount}名（プレミアムで全員通知）`
-      : body,
-    url: SITE_URL,
-  }
-}
 
 export default {
   async fetch(req: Request): Promise<Response> {
@@ -127,6 +70,9 @@ export default {
       )
       return Response.json({ sent: 0, skipped: 'stale_data', dataDate: todayData.date })
     }
+
+    // 枠の見どころ用。読めなくても通知自体は出す(その材料を使わないだけ)。
+    const frames = await loadFrames()
 
     // ---- 送り先の組み立て ----
     const { data: subs, error: subErr } = await supabaseAdmin
@@ -187,10 +133,9 @@ export default {
       // 出走が無い日は送らない。毎朝「今日はいません」が届くほうが煩わしい。
       if (matched.length === 0) { skippedNoRace++; continue }
 
-      const isPremium = premium.has(userId)
-      const shown = isPremium ? matched : matched.slice(0, FREE_LIMIT)
-      const hidden = isPremium ? 0 : matched.length - shown.length
-      const payload = JSON.stringify(buildMessage(shown, hidden))
+      const payload = JSON.stringify(
+        buildMessage(matched, { premium: premium.has(userId), frames }),
+      )
 
       let ok = false
       for (const s of subsByUser.get(userId) ?? []) {
@@ -227,6 +172,7 @@ export default {
     const summary = {
       date: today, users: userIds.length, sentUsers, sentPush,
       removedSubscriptions: removed, skippedNoRace, skippedAlreadySent: skippedDone,
+      framesLoaded: !!frames,
     }
     console.log('[send-morning-push]', JSON.stringify(summary))
     return Response.json(summary)
