@@ -299,6 +299,25 @@
     }
   };
 
+  // ==== Service Workerの登録(通知の土台) ====
+  // 通知(Web Push)にはService Workerが必須なので、対応ブラウザでは先に登録して
+  // おく。sw.js は fetch を扱わない通知専用なので、登録しても表示・通信の挙動は
+  // 一切変わらない(工程0時点では通知も出ない。購読する導線がまだ無いため)。
+  // 登録に失敗してもサイトは今までどおり動くよう、握りつぶす。
+  //
+  // updateViaCache: 'none' は sw.js 自身をキャッシュから使い回さないための指定。
+  // 中身を差し替えたときに、古いsw.jsが残り続けるのを防ぐ。
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    try {
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })
+        .then(function () {}, function () {});
+    } catch (e) {
+      // 登録できない環境(古いブラウザ・プライベートモード等)でも何も起きない
+    }
+  }
+  registerServiceWorker();
+
   // ==== ホーム画面への追加案内(A2HS) ====
 
   // beforeinstallpromptはブラウザが好きなタイミングで発火するため、

@@ -413,6 +413,9 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 <meta property="og:image" content="https://teiyomi.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
 <link rel="stylesheet" href="/race.css">
 </head>
 <body>
