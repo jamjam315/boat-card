@@ -10,10 +10,11 @@
 // この判断を変える場合は、少なくとも data.js とレースページを
 // network-first にしてからにすること。
 //
-// 【現時点(工程0)では通知は一切出ない】
-// push を受け取る土台を用意しただけで、購読(subscribe)する導線も
-// VAPID鍵も、送信側の仕組みもまだ無い。購読が存在しない以上、
-// push イベントが配信されることもない。中身は工程2で実装する。
+// 【通知の中身】
+// 送信側(Edge Function send-morning-push)から
+//   {"title": "...", "body": "...", "url": "https://teiyomi.com/"}
+// のJSONが届く。中身の組み立ては全部サーバー側でやっているので、
+// ここは受け取って表示するだけに徹する。
 
 // 新しい sw.js を置いたら、古いものを待たずに差し替える。
 // キャッシュを持たないので、途中で入れ替わっても表示に影響しない。
@@ -28,11 +29,34 @@ self.addEventListener('activate', function (event) {
 // ---- 通知の受け口(骨組み。中身は工程2) ----
 
 self.addEventListener('push', function (event) {
-  // 工程2で、送られてきたJSON(会場・レース番号・締切時刻など)を読んで
-  // showNotification する。今は購読者が存在しないためここには到達しない。
-  // 何もしないまま抜けると、ブラウザによっては「サイトが更新されました」の
-  // 既定の通知が出ることがあるため、将来ここを空のままにはしないこと。
-  if (!event.data) return;
+  // userVisibleOnly: true で購読しているため、pushを受けたら必ず通知を出す
+  // 決まりになっている。出さないまま抜けると、ブラウザが代わりに
+  // 「このサイトはバックグラウンドで更新されました」という既定の通知を出す。
+  // そうならないよう、中身が読めなかった場合でも最低限の通知を出す。
+  var payload = { title: '艇読み', body: '', url: '/' };
+  if (event.data) {
+    try {
+      var d = event.data.json();
+      payload.title = d.title || payload.title;
+      payload.body = d.body || '';
+      payload.url = d.url || '/';
+    } catch (e) {
+      payload.body = event.data.text();
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      lang: 'ja',
+      // 同じtagにしておくと、朝の便が二重に届いても通知が積み上がらず
+      // 新しいほうで置き換わる(利用者から見て静か)。
+      tag: 'teiyomi-morning',
+      renotify: false,
+      data: { url: payload.url }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', function (event) {
