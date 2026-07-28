@@ -42,6 +42,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      # 結果の収集(results.yml)は毎晩01:00の1回きりで、失敗すると無音でその日が
+      # 欠ける(2025-09-15の146レースが10か月気づかれなかった)。2回動くこちら側で
+      # 取りこぼしを拾い直す。既にある日は重複スキップされるので、通常は
+      # 「0レース追加」で終わり、追加の負荷はK票2日ぶんのダウンロードだけ。
+      # ここで拾った分の集計(stats.js等)は、次の01:00の結果収集で作り直される。
+      - name: 前日ぶんの結果を取りこぼしていないか拾い直す
+        run: python collect_results.py --days 2
+
       - name: 今日の番組表を取得して data.js を作る
         run: python fetch_update.py
 
@@ -77,7 +85,7 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A program/ raw/
+          git add -A program/ raw/ results/
           if git diff --staged --quiet; then
             echo "変化なし"
             exit 0
@@ -89,3 +97,11 @@ jobs:
             git pull --rebase origin data || exit 1
           done
           exit 1
+
+      # 最後に置いているのは、ここで落ちても data.js 等の更新を止めないため。
+      # 「気づくための警報」であって、サイト更新を妨げる関門ではない。
+      # 0件の日があればワークフローが赤くなる。判定を「1件以上あるか」だけに
+      # している理由は check_recent_results.py の説明を参照(荒天で23レースまで
+      # 減った日が実在するため、件数のしきい値では誤報になる)。
+      - name: 直近の結果データが欠けていないか確認
+        run: python check_recent_results.py
