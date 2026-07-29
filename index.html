@@ -75,36 +75,6 @@ body{background:var(--bg); color:var(--ink);
 .feat-k{font-size:10.5px; font-weight:600; color:var(--ink2); border:1px solid var(--line2);
   border-radius:5px; padding:1px 6px; margin-left:3px;}
 
-.favtoday{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
-  margin-top:16px; padding:14px 18px;}
-.favtoday-head{font-size:13px; font-weight:600; color:var(--ink);}
-.favtoday-row{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between;
-  gap:4px 10px; padding:7px 0; border-top:1px dashed var(--line2);}
-.favtoday-row:first-of-type{border-top:none; padding-top:9px;}
-.favtoday-name{font-size:14px; font-weight:600;}
-.favtoday-name a{color:inherit; text-decoration:underline; text-decoration-color:var(--line2);
-  text-decoration-thickness:1.5px; text-underline-offset:3px;}
-.favtoday-races{font-size:12.5px; color:var(--ink2);}
-.favtoday-quiet{font-size:12.5px; color:var(--muted);}
-
-.authbox{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
-  margin-top:12px; padding:12px 16px; font-size:12.5px; color:var(--ink2);}
-.authbox-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
-.authbox-btn{background:none; border:none; padding:10px 2px; margin:-10px -2px; font:inherit; font-size:12.5px; color:var(--accent);
-  cursor:pointer; text-decoration:underline; text-decoration-color:var(--line2); -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation; min-height:44px;}
-.authbox-btn:disabled{opacity:.5; cursor:default;}
-.authbox-form{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
-.authbox-input{flex:1 1 160px; font-size:16px; padding:10px; border:1px solid var(--line2); border-radius:8px;
-  background:var(--surface); color:var(--ink); font-family:inherit; min-width:0; min-height:44px; touch-action:manipulation;}
-.authbox-submit{font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; border:none;
-  background:var(--accent); color:#fff; cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap;
-  touch-action:manipulation; min-height:44px;}
-.authbox-submit:disabled{opacity:.5; cursor:default;}
-.authbox-msg{font-size:11.5px; color:var(--muted); margin:6px 0 0;}
-.authbox-notice{font-size:11px; color:var(--muted); margin:8px 0 0; padding-top:8px; border-top:1px dashed var(--line2); line-height:1.6;}
-.authbox-email{font-weight:600; color:var(--ink);}
-
 .seg{margin-top:18px;}
 .seg-label{font-size:11.5px; color:var(--muted); letter-spacing:.08em; margin:0 0 7px 2px; flex-shrink:0;}
 .chips{display:flex; gap:7px; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:thin;}
@@ -343,15 +313,14 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   <p class="datameta nums" id="dataMetaNormal">データ取得：<span id="genAt">—</span> 時点</p>
   <div class="stale-warn nums" id="staleWarn" style="display:none"></div>
 
-  <div id="featured"></div>
-  <div id="favToday"></div>
-  <div id="authBox"></div>
-  <div id="notifyBox"></div>
 
-  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="players/">🔍 選手一覧</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
+  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="players/">🔍 選手一覧</a><a class="guide-link" href="mypage.html">⭐ マイページ</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
   <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
 
   <main id="card"></main>
+
+  <!-- 「今日の注目選手」は出走一覧の下に置く(開いてすぐレースが見えることを優先)。 -->
+  <div id="featured"></div>
 
   <p class="legend" aria-label="枠番の色">枠の色＝艇番（公式の枠番カラー）：
     <span><b style="background:#fff"></b>1</span><span><b style="background:#2b2b2b"></b>2</span>
@@ -603,205 +572,6 @@ function renderFeatured(){
     <div class="feat-meta"><b>${F.name}</b><span class="feat-k">${F.k}</span> ・ ${F.age}歳 ・ ${F.br}支部 ・ 今日 ${F.venue} ${racesTxt} に出走</div>
   </a>`;
 }
-function renderFavoriteToday(){
-  // お気に入り選手(登番)と本日の番組表(DATA)を、その場で突き合わせるだけの表示。
-  // Supabase等の新しい保存先は作らず、既存のfavorites.js(list())とDATAを読むだけ。
-  // 何が起きても(データ欠損・favorites.js未読込等)トップページ自体は壊さない。
-  const box = document.getElementById("favToday");
-  if(!box) return;
-  try{
-    if(!window.TeiyomiFavorites || !window.DATA || !Array.isArray(DATA.venues)){ box.innerHTML=""; return; }
-    const favs = TeiyomiFavorites.list();
-    if(!favs.length){ box.innerHTML=""; return; }
-    const favSet = new Set(favs);
-
-    // 登番ごとに「会場名 → その日出るレース番号の配列」を集める。
-    const found = {};
-    DATA.venues.forEach(v=>{
-      v.races.forEach(r=>{
-        r.boats.forEach(b=>{
-          if(!favSet.has(b.t)) return;
-          if(!found[b.t]) found[b.t] = {name:b.name, venues:{}};
-          const races = found[b.t].venues[v.name] || (found[b.t].venues[v.name]=[]);
-          if(!races.includes(r.no)) races.push(r.no);
-        });
-      });
-    });
-
-    const hitTobans = favs.filter(t=>found[t]);   // お気に入り登録順を保つ
-    if(!hitTobans.length){
-      box.innerHTML = `<div class="favtoday"><div class="favtoday-quiet">本日、お気に入り選手の出走はありません。</div></div>`;
-      return;
-    }
-    const rows = hitTobans.map(t=>{
-      const f = found[t];
-      const racesTxt = Object.keys(f.venues).map(vn=>{
-        const nos = f.venues[vn].slice().sort((a,b)=>a-b);
-        return `${vn} ${nos.map(n=>`${n}R`).join("・")}`;
-      }).join("、");
-      const nameHtml = PLAYER_PAGES.has(t)
-        ? `<a href="players/${t}.html" target="_blank" rel="noopener">${f.name}</a>` : f.name;
-      return `<div class="favtoday-row"><span class="favtoday-name">${nameHtml}</span><span class="favtoday-races nums">${racesTxt}</span></div>`;
-    }).join("");
-    box.innerHTML = `<div class="favtoday"><div class="favtoday-head">⭐ お気に入り選手が本日出走します</div>${rows}</div>`;
-  }catch(e){
-    try{ box.innerHTML=""; }catch(e2){}   // お知らせを出さないだけにして、他は壊さない
-  }
-}
-// Supabaseとの裏同期(favorites.js)が後から完了した場合も反映されるよう再描画する。
-window.addEventListener("teiyomi-favorites-synced", renderFavoriteToday);
-
-// ログイン(メールのマジックリンク)は任意。ログインしなくても、お気に入りは
-// これまで通り匿名+localStorageで通常通り動く(favorites.js側の設計を踏襲)。
-// ここでは表示だけを担当し、実際の送信・ログアウトはfavorites.jsのTeiyomiAuthへ委ねる。
-let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
-function renderAuthBox(){
-  const box = document.getElementById("authBox");
-  if(!box) return;
-  try{
-    if(!window.TeiyomiAuth){ box.innerHTML=""; return; }
-    const user = TeiyomiAuth.getUser();
-    if(user === null){ box.innerHTML=""; return; }   // 認証状態がまだ確定していない(初期化中/未接続)
-
-    if(!user.isAnonymous){
-      box.innerHTML = `<div class="authbox"><div class="authbox-row">
-        <span>✅ ログイン中：<span class="authbox-email">${user.email||""}</span></span>
-        <button type="button" class="authbox-btn" id="authLogoutBtn">ログアウト</button>
-      </div></div>`;
-      document.getElementById("authLogoutBtn").addEventListener("click", function(){
-        this.disabled = true; this.textContent = "処理中…";
-        TeiyomiAuth.signOut().catch(()=>{}).then(()=>{ authFormOpen=false; renderAuthBox(); });
-      });
-      return;
-    }
-
-    if(authFormOpen === "sent"){
-      box.innerHTML = `<div class="authbox">📧 ログイン用のメールを送りました。届いたメールのリンクを押してください。
-        <p class="authbox-notice">送信元は認証サービス「Supabase」です。英語表示の場合がありますが、正規のメールです。</p>
-      </div>`;
-      return;
-    }
-
-    if(authFormOpen === true){
-      // <form>で囲み、ボタンタップだけでなくスマホの仮想キーボードの「次へ/Go/Enter」
-      // でも送信できるようにする(タップが小さなボタンに正確に当たらなくても送信できる
-      // 経路を用意する。実機で送信ボタンのタップが反応しない報告への対処)。
-      box.innerHTML = `<div class="authbox">
-        <p style="margin:0 0 4px;">お気に入りを他の端末とも共有したい場合、メールアドレスでログインできます(任意)。</p>
-        <form class="authbox-form" id="authForm">
-          <input type="email" class="authbox-input" id="authEmailInput" placeholder="メールアドレス" autocomplete="email" required>
-          <button type="submit" class="authbox-submit" id="authSubmitBtn">送信</button>
-        </form>
-        <p class="authbox-notice">送信すると、認証サービス「Supabase」から確認メールが届きます。メール内のリンクを押すとログイン完了です。英語表示の場合がありますが、正規のメールです。</p>
-        <p class="authbox-msg" id="authMsg"></p>
-      </div>`;
-      document.getElementById("authForm").addEventListener("submit", function(ev){
-        ev.preventDefault();
-        const btn = document.getElementById("authSubmitBtn");
-        const email = document.getElementById("authEmailInput").value.trim();
-        const msgEl = document.getElementById("authMsg");
-        if(!email || email.indexOf("@")===-1){ msgEl.textContent = "メールアドレスを入力してください。"; return; }
-        btn.disabled = true; btn.textContent = "送信中…";
-        TeiyomiAuth.sendMagicLink(email).then(()=>{
-          authFormOpen = "sent"; renderAuthBox();
-        }).catch(()=>{
-          msgEl.textContent = "送信に失敗しました。時間をおいて再度お試しください。";
-          btn.disabled = false; btn.textContent = "送信";
-        });
-      });
-      return;
-    }
-
-    box.innerHTML = `<div class="authbox"><div class="authbox-row">
-      <span>お気に入りを他の端末とも共有できます</span>
-      <button type="button" class="authbox-btn" id="authOpenBtn">🔑 ログイン</button>
-    </div></div>`;
-    document.getElementById("authOpenBtn").addEventListener("click", ()=>{ authFormOpen=true; renderAuthBox(); });
-  }catch(e){
-    try{ box.innerHTML=""; }catch(e2){}   // ログイン欄を出さないだけにして、他は壊さない
-  }
-}
-// 通知(お気に入り選手の出走お知らせ)の設定欄。
-// 許可ダイアログは「オンにする」を押した時だけ出す(勝手には出さない)。
-// 実際の描画は状態(未対応/ホーム画面追加が必要/拒否済み/オン/オフ)で分岐する。
-// 配信の仕組みはまだ作っていないため、オンにしても今は届かない旨を明記する。
-const NOTIFY_LEAD = "毎朝、お気に入り選手の出走をお知らせします（3名まで。プレミアムは全員＋データの見どころつき）。";
-function renderNotifyBox(){
-  const box = document.getElementById("notifyBox");
-  if(!box) return;
-  if(!window.TeiyomiNotify){ box.innerHTML=""; return; }
-  TeiyomiNotify.getState().then(({state})=>{
-    if(state === "unsupported"){
-      box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">お使いのブラウザは通知に対応していません。</p></div>`;
-      return;
-    }
-    if(state === "need-install"){
-      box.innerHTML = `<div class="authbox">
-        <div class="authbox-row"><span>🔔 出走のお知らせを受け取る</span>
-          <button type="button" class="authbox-btn" id="notifyInstallBtn">📲 追加のしかた</button></div>
-        <p class="authbox-notice">iPhone・iPadでは、<b>ホーム画面に追加してから開いた場合のみ</b>通知を受け取れます（Appleの仕様）。</p>
-      </div>`;
-      document.getElementById("notifyInstallBtn").addEventListener("click", ()=>{
-        try{ TeiyomiFavorites.showAddToHomeGuide(); }catch(e){}
-      });
-      return;
-    }
-    if(state === "denied"){
-      box.innerHTML = `<div class="authbox">
-        <div class="authbox-row"><span>🔔 出走のお知らせ</span><span class="authbox-msg" style="margin:0;">ブロック中</span></div>
-        <p class="authbox-notice">通知がブラウザ側でブロックされています。受け取るには、ブラウザの設定でこのサイトの通知を「許可」に変更してください。</p>
-      </div>`;
-      return;
-    }
-    if(state === "unavailable"){
-      box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">いま通知の設定ができません。時間をおいて再度お試しください。</p></div>`;
-      return;
-    }
-
-    const user = (window.TeiyomiAuth && TeiyomiAuth.getUser()) || null;
-    const anonNote = (user && user.isAnonymous)
-      ? `<br>ログインしておくと、機種変更やブラウザのデータを消したあとも設定を引き継げます。` : "";
-
-    if(state === "on"){
-      box.innerHTML = `<div class="authbox">
-        <div class="authbox-row"><span>🔔 出走のお知らせ：<b>オン</b></span>
-          <button type="button" class="authbox-btn" id="notifyOffBtn">オフにする</button></div>
-        <p class="authbox-notice">${NOTIFY_LEAD}<br><b>配信は準備中です。</b>オンにしておくと、始まったときから届きます。${anonNote}</p>
-      </div>`;
-      document.getElementById("notifyOffBtn").addEventListener("click", function(){
-        this.disabled = true; this.textContent = "処理中…";
-        TeiyomiNotify.disable().catch(()=>{}).then(renderNotifyBox);
-      });
-      return;
-    }
-
-    box.innerHTML = `<div class="authbox">
-      <div class="authbox-row"><span>🔔 出走のお知らせ</span>
-        <button type="button" class="authbox-btn" id="notifyOnBtn">オンにする</button></div>
-      <p class="authbox-notice">${NOTIFY_LEAD}<br><b>配信は準備中です。</b>オンにしておくと、始まったときから届きます。${anonNote}</p>
-      <p class="authbox-msg" id="notifyMsg"></p>
-    </div>`;
-    document.getElementById("notifyOnBtn").addEventListener("click", function(){
-      const btn = this, msg = document.getElementById("notifyMsg");
-      btn.disabled = true; btn.textContent = "処理中…";
-      TeiyomiNotify.enable().then(renderNotifyBox).catch(err=>{
-        const m = (err && err.message) || "";
-        // 許可されなかった・ホーム画面追加が必要、の2つは「状態そのものが変わった」
-        // ので描き直す(専用の説明が出る)。それ以外はこの場に理由を出して、
-        // ボタンを押せる状態に戻す。ここで描き直すと理由が消えてしまうため。
-        if(m === "denied" || m === "need-install"){ renderNotifyBox(); return; }
-        msg.textContent = m === "save-failed"
-          ? "設定を保存できませんでした。時間をおいて再度お試しください。"
-          : "通知をオンにできませんでした。時間をおいて再度お試しください。";
-        btn.disabled = false; btn.textContent = "オンにする";
-      });
-    });
-  }).catch(()=>{ try{ box.innerHTML=""; }catch(e){} });
-}
-
-// ログイン状態が変わった(マジックリンクから戻った・ログアウトした等)ら再描画する。
-// お気に入りの再同期(teiyomi-favorites-synced)でも本日出走お知らせを更新し直す。
-window.addEventListener("teiyomi-auth-changed", ()=>{ authFormOpen=false; renderAuthBox(); renderNotifyBox(); });
 
 function renderVenues(){
   const box=document.getElementById("venues"); box.innerHTML="";
@@ -1029,7 +799,7 @@ function renderCard(){
      </div>${raceLinkHtml}${cmpHtml}${rows}</div>`
     + trendPanel(v.name);
 }
-renderFeatured(); renderFavoriteToday(); renderAuthBox(); renderNotifyBox(); renderVenues(); renderRaces(); renderCard();
+renderFeatured(); renderVenues(); renderRaces(); renderCard();
 </script>
 </body>
 </html>

@@ -157,10 +157,31 @@
   var loaded = null;
   var painted = false;
 
+  // #careerCard を指して来たとき、着地位置がずれるのを直す。
+  // このカードはページの最後にあり、中身が入る前はページ自体が短いため、
+  // ブラウザはアンカーへ飛ぼうとしてもスクロール量の上限で打ち切られる。
+  // そのあと中身が入ってページが伸びても、スクロール位置は戻らない
+  // (マイページの⭐から来ると数百px下にずれた状態になっていた)。
+  // 描画が終わった時点で一度だけ位置を合わせ直す。
+  // 位置合わせは2回に分ける。1回目は中身を入れた直後、2回目はブラウザ自身が
+  // 遅れて行うアンカー移動のあと(そちらが後から上書きしてしまうため)。
+  // 2回目は「まだずれている場合」だけ動かすので、読み終えて自分でスクロールした
+  // 人の画面を勝手に動かすことはない。
+  var anchorFixed = false;
+  function fixAnchor() {
+    if (anchorFixed || window.location.hash !== "#" + CARD_ID) return;
+    anchorFixed = true;
+    setTimeout(function () { card.scrollIntoView(); }, 0);
+    setTimeout(function () {
+      if (card.getBoundingClientRect().top > 40) card.scrollIntoView();
+    }, 300);
+  }
+
   function paint(premium) {
     if (!loaded) return;
     painted = true;
     body.innerHTML = render(loaded, premium) + (premium ? "" : gateHtml());
+    fixAnchor();
   }
 
   fetch("/players/career/" + encodeURIComponent(toban) + ".json", { cache: "no-store" })
