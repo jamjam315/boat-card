@@ -4,10 +4,7 @@
   <url><loc>https://teiyomi.com/guide.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/privacy.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/about.html</loc><lastmod>2026-07-29</lastmod></url>
-  <url><loc>https://teiyomi.com/tokushoho.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/</loc><lastmod>2026-07-29</lastmod></url>
-  <url><loc>https://teiyomi.com/backtest.html</loc><lastmod>2026-07-29</lastmod></url>
-  <url><loc>https://teiyomi.com/backtest-custom.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/2538.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/2878.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3024.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -73,6 +70,7 @@
   <url><loc>https://teiyomi.com/players/3381.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3385.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3388.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/3391.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3392.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3401.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3406.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -189,6 +187,7 @@
   <url><loc>https://teiyomi.com/players/3641.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3642.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3643.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/3644.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3645.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3647.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3652.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -328,6 +327,7 @@
   <url><loc>https://teiyomi.com/players/3898.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3900.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3901.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/3902.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3904.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3905.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/3906.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -643,6 +643,7 @@
   <url><loc>https://teiyomi.com/players/4301.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4302.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4303.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/4304.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4305.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4306.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4308.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -719,6 +720,7 @@
   <url><loc>https://teiyomi.com/players/4396.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4397.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4398.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/4399.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4400.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4401.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4402.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -1008,6 +1010,7 @@
   <url><loc>https://teiyomi.com/players/4752.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4753.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4754.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/4756.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4757.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4758.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/4759.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -1219,6 +1222,7 @@
   <url><loc>https://teiyomi.com/players/5027.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5028.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5029.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/5030.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5031.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5032.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5033.html</loc><lastmod>2026-07-29</lastmod></url>
@@ -1390,6 +1394,7 @@
   <url><loc>https://teiyomi.com/players/5212.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5213.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5214.html</loc><lastmod>2026-07-29</lastmod></url>
+  <url><loc>https://teiyomi.com/players/5215.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5216.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5217.html</loc><lastmod>2026-07-29</lastmod></url>
   <url><loc>https://teiyomi.com/players/5218.html</loc><lastmod>2026-07-29</lastmod></url>
