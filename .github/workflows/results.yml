@@ -54,6 +54,12 @@ jobs:
       # 直近3年で集計するので、日が進むにつれて窓がずれる=毎晩作り直す。
       - name: 選手の枠別成績を計算(通知の見どころ用)
         run: python build_frame_stats.py
+      # 級別の履歴に使う期別ファイル(fan)。年2回しか増えないので、既にある期は
+      # ダウンロードもしない。新しい期が出た日だけ1件増える。
+      - name: 級別の期別ファイルを取り込む(新しい期が出たときだけ)
+        run: python collect_fan_history.py
+      - name: 選手のキャリア推移を計算(年別成績+級別変遷)
+        run: python build_player_career.py
       - name: バックテスト集計(全国まとめ)を計算
         run: python build_backtest.py
       - name: バックテスト(自由条件指定用の中間データ)を計算
@@ -67,7 +73,7 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A backtest-data/
+          git add -A backtest-data/ players/career/
           git add stats.js players.js backtest.js frames.js
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
@@ -80,7 +86,7 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A results/ raw/K/
+          git add -A results/ raw/ fan/
           if git diff --staged --quiet; then
             echo "変化なし"
             exit 0
