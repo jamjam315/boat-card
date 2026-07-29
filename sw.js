@@ -12,7 +12,7 @@
 //
 // 【通知の中身】
 // 送信側(Edge Function send-morning-push)から
-//   {"title": "...", "body": "...", "url": "https://teiyomi.com/"}
+//   {"title": "...", "body": "...", "url": "https://teiyomi.com/mypage.html"}
 // のJSONが届く。中身の組み立ては全部サーバー側でやっているので、
 // ここは受け取って表示するだけに徹する。
 
@@ -62,16 +62,35 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   // 通知をタップしたら、既に開いている艇読みのタブがあればそれを前面に、
   // 無ければ新しく開く。通知に url が入っていればその画面へ。
+  //
+  // 既存タブを前面に出すだけだと、トップを開きっぱなしの人は
+  // 通知の行き先(マイページ)に着かない。そのため、行き先と違う画面を
+  // 開いているタブは navigate() で行き先へ移してから前面に出す。
   event.notification.close();
   var target = (event.notification.data && event.notification.data.url) || '/';
+  var targetUrl = new URL(target, self.registration.scope).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      var same = null;   // 既に行き先を開いているタブ
+      var other = null;  // 艇読みの別の画面を開いているタブ
       for (var i = 0; i < list.length; i++) {
-        if (list[i].url.indexOf(self.registration.scope) === 0 && 'focus' in list[i]) {
-          return list[i].focus();
-        }
+        var c = list[i];
+        if (c.url.indexOf(self.registration.scope) !== 0 || !('focus' in c)) continue;
+        if (c.url === targetUrl) { same = c; break; }
+        if (!other) other = c;
       }
-      if (self.clients.openWindow) return self.clients.openWindow(target);
+      if (same) return same.focus();
+      if (other && 'navigate' in other) {
+        // navigate() は環境によって失敗する(未対応・別オリジンへの遷移など)。
+        // 失敗しても通知が無反応にならないよう、そのときは前面に出すだけにする。
+        return other.navigate(targetUrl).then(function (c) {
+          return (c || other).focus();
+        }).catch(function () {
+          return other.focus();
+        });
+      }
+      if (other) return other.focus();
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
   );
 });

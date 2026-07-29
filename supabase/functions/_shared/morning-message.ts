@@ -2,7 +2,9 @@
 // send-morning-push(本番の朝の便)と send-test-push(自分宛のテスト)の両方が使う。
 // 同じ文面を2か所に書くと、片方だけ直して食い違うため。
 
-export const SITE_URL = 'https://teiyomi.com/'
+// 通知をタップしたときの行き先。トップではなくマイページにするのは、
+// 通知に出した「本日の出走」の全員ぶんと⭐お気に入りがそこに揃っているため。
+export const TAP_URL = 'https://teiyomi.com/mypage.html'
 const DATA_URL = 'https://teiyomi.com/data.js'
 const FRAMES_URL = 'https://teiyomi.com/frames.js'
 
@@ -159,5 +161,5 @@ export function buildMessage(
     body += opts.premium ? `／ほか${hidden}名` : `／他${hidden}名（プレミアムで全員通知）`
   }
 
-  return { title: `本日の出走（${total}名）`, body, url: SITE_URL }
+  return { title: `本日の出走（${total}名）`, body, url: TAP_URL }
 }
