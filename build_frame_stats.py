@@ -7,8 +7,18 @@ results/{年}.jsonl から「選手(登番) × 枠(艇番)」ごとの成績を�
 出力: window.FRAMES = {
   "updated": 生成日, "from": 集計開始日, "to": 集計最終日, "min": 最低標本数,
   "th": {"1": 0.708, ...},                 枠ごとの「上位15%」の1着率(閾値)
+  "avg": {"1": 0.552, ...},                枠ごとの全体の1着率(通知に併記する基準)
   "players": {"4082": {"1": [n, 1着, 3着内], ...}}
 }
+
+【avg(枠平均)を一緒に出す理由】
+通知に「4枠で1着率17%」と書くと、4枠の水準を知らない人には低い数字に見える
+(実際は4枠の平均が約10%なので、17%は上位15%に入る好成績)。基準となる枠平均を
+併記して「4枠で1着率17%(平均10%)」と読めるようにするため、ここで一緒に書き出す。
+閾値(th)と同じく、通知側にはコードに直書きさせない。
+なお avg は標本30未満の選手も含めた全体の1着率(=その枠の素の水準)で、
+th の分布(標本30以上の組だけ)とは母集団が違う。基準として見せるのは
+「枠そのものの平均」であるべきなので、こちらは絞り込まない。
 
 【期間を直近3年にした理由】
 このサイトの他の集計(stats.js・players.js・backtest.js)は直近1年に揃えているが、
@@ -61,6 +71,8 @@ def main():
 
     # (登番, 枠) -> [出走, 1着, 3着内]
     tally = {}
+    # 枠 -> [出走, 1着]。選手で割らない、その枠そのものの水準(通知に併記する平均)。
+    frame_tally = {f: [0, 0] for f in range(1, 7)}
     for r in records:
         if r["date"] < cutoff:
             continue
@@ -75,6 +87,11 @@ def main():
                 row[1] += 1
             if b["着"] <= 3:
                 row[2] += 1
+            total = frame_tally.get(b["艇"])
+            if total is not None:
+                total[0] += 1
+                if b["着"] == 1:
+                    total[1] += 1
 
     # 枠ごとの閾値(標本が足りる組だけで分布を作る)
     th = {}
@@ -83,6 +100,9 @@ def main():
                        if f == frame and row[0] >= MIN_N)
         if rates:
             th[str(frame)] = round(percentile(rates, TOP_RATIO), 4)
+
+    # 枠ごとの全体の1着率(通知で「(平均◯%)」として見せる基準)
+    avg = {str(f): round(t[1] / t[0], 4) for f, t in frame_tally.items() if t[0]}
 
     players = {}
     kept = 0
@@ -95,7 +115,7 @@ def main():
     out = {
         "updated": datetime.date.today().isoformat(),
         "from": cutoff, "to": latest, "min": MIN_N,
-        "th": th, "players": players,
+        "th": th, "avg": avg, "players": players,
     }
     js = "window.FRAMES = " + json.dumps(out, ensure_ascii=False, separators=(",", ":")) + ";\n"
     with open(OUT, "w", encoding="utf-8") as f:
@@ -106,6 +126,8 @@ def main():
           f"期間 {cutoff}〜{latest} / {os.path.getsize(OUT):,} bytes")
     print("  枠ごとの閾値(上位15%の1着率): " +
           " ".join(f"{f}枠{th[f]:.1%}" for f in sorted(th)))
+    print("  枠ごとの平均(全体の1着率): " +
+          " ".join(f"{f}枠{avg[f]:.1%}" for f in sorted(avg)))
 
 
 if __name__ == "__main__":

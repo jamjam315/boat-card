@@ -40,6 +40,7 @@ export type Entry = {
 export type Frames = {
   min: number
   th: Record<string, number>
+  avg?: Record<string, number>   // 枠ごとの全体の1着率(「(平均◯%)」の基準)
   players: Record<string, Record<string, [number, number, number]>>
 }
 
@@ -123,7 +124,13 @@ export function pickReason(e: Entry, frames: Frames | null): string | null {
     const th = frames.th?.[String(e.frame)]
     if (row && th && row[0] >= (frames.min ?? 30)) {
       const rate = row[1] / row[0]
-      if (rate >= th) return `${e.frame}枠で1着率${Math.round(rate * 100)}%`
+      if (rate >= th) {
+        // 枠の水準は枠ごとに全く違う(1枠55% / 6枠3%)。数字だけ出すと
+        // 「4枠で1着率17%」が低成績に見えてしまうので、枠平均を併記する。
+        const avg = frames.avg?.[String(e.frame)]
+        const base = typeof avg === 'number' ? `（平均${Math.round(avg * 100)}%）` : ''
+        return `${e.frame}枠で1着率${Math.round(rate * 100)}%${base}`
+      }
     }
   }
   return null
