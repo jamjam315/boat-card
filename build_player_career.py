@@ -8,6 +8,29 @@
 - 級別の変遷(fan/ の期別ファイルから)
 - generated_at(生成日時)
 
+【第2弾で入れるもの(2026-07-30)…「勝ち方」の内訳】
+- kimarite   1着したときの決まり手6種の件数
+- courses    進入コース1〜6別の出走・1着・2連対と、そのコースでの決まり手内訳
+- venues     会場別の出走・1着・2連対
+- conditions 雨・強風(8m以上)・波高(15cm以上)の条件別
+- finals     優勝戦・準優勝戦
+- maezuke    前づけ(艇番と進入コースが違う)の出走・1着・2連対
+- flying     年別のF(フライング)・L(出遅れ)の件数
+
+【全国の基準値は共通ファイルに置く】
+同じ集計を全選手ぶん合計したものを players/career/_national.json に書き出す。
+選手JSONには埋めない。理由:
+  - frames.js と同じ作法(基準値は共通ファイル、表示側は読むだけ。数値の直書きをしない)
+  - 2,114選手に同じ値を複製すると無駄で、片方だけ古くなる事故が起きる
+  - stats.js は直近1年の集計なので、全期間のキャリアと並べると期間が食い違う
+  - 選手別と全国を同じループで作るので、定義のズレが構造的に起きない
+
+【集計の定義(results再生成時の定義と完全に一致させる)】
+- 出走数 = 全出走。完走しなくても(失格・転覆・フライング)出走は出走
+- 1着・2連対 = 記録どおり(着==1 / 着<=2)。非完走(着=None)は数えない
+- 決まり手 = その選手が1着で、かつレースに決まり手がある場合のみ数える
+- 同着は除外しない(公式の結果どおり。同着1着は両者を1着として数える)
+
 【入れないもの(意図的)】
 順位・偏差値・スコア・「絶好調」等の評価語は一切入れない。ここは事実の数値だけを
 出す層で、どう見せるか・どう注記するかは表示側の仕事。出走数が少ない年も
@@ -38,6 +61,157 @@ import data_paths
 
 OUT_DIR = os.path.join("players", "career")
 FAN_DIR = os.path.join(data_paths.DATA_ROOT, "fan")
+NATIONAL_PATH = os.path.join(OUT_DIR, "_national.json")
+
+KIMARITE = ["逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
+
+# 条件の線引き。いずれも「その条件のレースが十分あるか」を実データで見て決めている:
+#   雨      … 全体の9.7%(49,984レース)。単独で成立する
+#   強風8m〜… 8m以上は全体の約1.5%。7m以下は日常的すぎて「強風」と呼べない
+#   波高15cm〜… 15cm以上は約0.6%。なお公式データは15cm以上が5cm刻みでしか出てこない
+STRONG_WIND = 8      # m
+HIGH_WAVE = 15       # cm
+FINAL_KINDS = ["優勝戦", "準優勝戦"]
+
+
+def new_wlt():
+    """出走・1着・2連対の入れ物。"""
+    return [0, 0, 0]
+
+
+def wlt_doc(row):
+    """[出走, 1着, 2連対] を、率つきのJSONの形にする。母数0でも構造は出す。"""
+    starts, wins, top2 = row
+    return {
+        "starts": starts, "wins": wins, "top2": top2,
+        "win_rate": round(wins / starts, 4) if starts else None,
+        "top2_rate": round(top2 / starts, 4) if starts else None,
+    }
+
+
+class Tally:
+    """1人ぶん(または全国ぶん)の「勝ち方」の集計。選手別と全国で同じものを使う。"""
+
+    def __init__(self):
+        self.kimarite = collections.Counter()               # 1着したときの決まり手
+        self.courses = {c: new_wlt() for c in range(1, 7)}  # 進入コース別
+        self.courses_kimarite = {c: collections.Counter() for c in range(1, 7)}
+        self.venues = collections.defaultdict(new_wlt)
+        self.conditions = {k: new_wlt() for k in ("rain", "strong_wind", "high_wave")}
+        self.finals = {k: new_wlt() for k in FINAL_KINDS}
+        self.maezuke = new_wlt()
+        self.starts = 0
+        self.wins = 0
+        self.flying = collections.defaultdict(lambda: [0, 0])   # 年 -> [F, L]
+        # 条件・大舞台の「コース別」内訳。全国の基準値でのみ書き出す(理由は doc_national)。
+        self.cond_by_course = {k: {c: new_wlt() for c in range(1, 7)}
+                               for k in ("rain", "strong_wind", "high_wave")}
+        self.final_by_course = {k: {c: new_wlt() for c in range(1, 7)} for k in FINAL_KINDS}
+
+    def add(self, r, b):
+        """1出走ぶんを足す。r=レース, b=その選手の艇。"""
+        chaku = b["着"]                      # 非完走は None
+        won = (chaku == 1)
+        top2 = (chaku is not None and chaku <= 2)
+        kim = r.get("決まり手") if won else None
+
+        self.starts += 1
+        if won:
+            self.wins += 1
+            if kim:
+                self.kimarite[kim] += 1
+
+        def bump(row):
+            row[0] += 1
+            if won:
+                row[1] += 1
+            if top2:
+                row[2] += 1
+
+        course = b.get("進")
+        if course in self.courses:
+            bump(self.courses[course])
+            if kim:
+                self.courses_kimarite[course][kim] += 1
+
+        bump(self.venues[r["会場"]])
+
+        def bump_cond(key):
+            bump(self.conditions[key])
+            if course in self.cond_by_course[key]:
+                bump(self.cond_by_course[key][course])
+
+        if r.get("天候") == "雨":
+            bump_cond("rain")
+        wind = r.get("風速")
+        if isinstance(wind, (int, float)) and wind >= STRONG_WIND:
+            bump_cond("strong_wind")
+        wave = r.get("波高")
+        if isinstance(wave, (int, float)) and wave >= HIGH_WAVE:
+            bump_cond("high_wave")
+
+        kind = r.get("種別")
+        if kind in self.finals:
+            bump(self.finals[kind])
+            if course in self.final_by_course[kind]:
+                bump(self.final_by_course[kind][course])
+
+        # 前づけ = 枠番(艇)と進入コース(進)が違う出走
+        if course is not None and b.get("艇") != course:
+            bump(self.maezuke)
+
+        stt = b.get("STt") or ""
+        if stt in ("F", "L"):
+            year = r["date"][:4]
+            self.flying[year][0 if stt == "F" else 1] += 1
+
+    def doc(self):
+        """JSONに書き出す形。母数0のセクションも構造は残す(表示側が「データなし」を出せるように)。"""
+        return {
+            "kimarite": {
+                "total_wins": self.wins,
+                "counts": {k: self.kimarite.get(k, 0) for k in KIMARITE},
+            },
+            "courses": {
+                str(c): dict(wlt_doc(self.courses[c]),
+                             kimarite={k: self.courses_kimarite[c].get(k, 0)
+                                       for k in KIMARITE if self.courses_kimarite[c].get(k)})
+                for c in range(1, 7)
+            },
+            # 会場は走ったことがある場所だけ入れる(24場ぶん0を並べても情報が無いため)。
+            # venues というセクション自体は必ず出すので、表示側は空でも扱える。
+            "venues": {v: wlt_doc(row) for v, row in sorted(self.venues.items())},
+            "conditions": {k: wlt_doc(row) for k, row in self.conditions.items()},
+            "finals": {k: wlt_doc(self.finals[k]) for k in FINAL_KINDS},
+            "maezuke": dict(wlt_doc(self.maezuke),
+                            rate=round(self.maezuke[0] / self.starts, 4) if self.starts else None),
+            "flying": [{"year": int(y), "F": v[0], "L": v[1]}
+                       for y, v in sorted(self.flying.items())],
+        }
+
+    def doc_national(self):
+        """全国の基準値。選手別の doc() に「コース別の内訳」を足したもの。
+
+        【なぜコース別の内訳が要るのか(実測で判明)】
+        全選手を合計すると、どの条件でも1着は6艇に1人なので、全国の
+        「雨の1着率」も「優勝戦の1着率」も「会場ごとの1着率」も必ず
+        16.7%(=1/6)になる。表示側がこれを「(平均17%)」として出すと、
+        何の情報も無い数字を見せることになる。
+        意味のある基準は、同じ条件を「コース別」に割ったもの:
+          全体の1コース1着率 54.5% に対して、雨のときの1コース1着率はどうか。
+        会場別も同じ理由で全国平均は1/6にしかならないため、比較に使うなら
+        courses(コース別1着率)か、選手自身の通年成績を基準にすること。
+        """
+        d = self.doc()
+        d["conditions_by_course"] = {
+            k: {str(c): wlt_doc(self.cond_by_course[k][c]) for c in range(1, 7)}
+            for k in self.cond_by_course
+        }
+        d["finals_by_course"] = {
+            k: {str(c): wlt_doc(self.final_by_course[k][c]) for c in range(1, 7)}
+            for k in FINAL_KINDS
+        }
+        return d
 
 
 def class_periods():
@@ -75,9 +249,20 @@ def main():
     # 登番 -> 年 -> [出走, 1着, 2連対(=2着以内)]
     tally = collections.defaultdict(lambda: collections.defaultdict(lambda: [0, 0, 0]))
     names = {}
+    ways = collections.defaultdict(Tally)   # 登番 -> 勝ち方の集計
+    national = Tally()                      # 全国の基準値(同じ定義・同じ期間)
+    races = 0
+    date_min = date_max = None
     for r in results_store.iter_records():
         year = r["date"][:4]
+        races += 1
+        if date_min is None or r["date"] < date_min:
+            date_min = r["date"]
+        if date_max is None or r["date"] > date_max:
+            date_max = r["date"]
         for b in r["結果"]:
+            ways[b["登番"]].add(r, b)
+            national.add(r, b)
             row = tally[b["登番"]][year]
             # 出走数は「完走しなくても1走」。失格・転覆・フライングも出走に数える
             # (2026-07-30までは、そういうレースがresultsに存在しなかった)。
@@ -142,14 +327,40 @@ def main():
             "years": years,
             "classes": classes,
         }
+        # 「勝ち方」の各セクションを足す(既存キーは触らない)。
+        doc.update(ways[toban].doc())
         path = os.path.join(OUT_DIR, f"{toban}.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
         written += 1
         total_bytes += os.path.getsize(path)
 
+    # ---- 全国の基準値(表示側が「(平均◯%)」を組み立てるための共通ファイル) ----
+    nat = {
+        "generated_at": generated_at,
+        "from": date_min, "to": date_max, "races": races,
+        "starts": national.starts,
+        "note": "選手JSONとまったく同じ定義・同じ期間で集計した全国の水準。"
+                "出走数=全出走(非完走を含む)、1着・2連対は記録どおり、"
+                "決まり手は1着かつレースに決まり手がある場合のみ。"
+                "stats.js は直近1年の集計なので、こことは期間が違う。",
+        "compare_note": "conditions/finals/venues の win_rate は、全選手を合計すると"
+                        "どの条件でも必ず1/6(16.7%)になる(1レースの1着は6艇に1人のため)。"
+                        "基準値として使えないので表示に出さないこと。"
+                        "比較に使うなら conditions_by_course / finals_by_course "
+                        "(同じ条件をコース別に割ったもの)か、courses(全体のコース別1着率)、"
+                        "あるいは選手自身の通年成績を基準にする。",
+        "thresholds": {"strong_wind_m": STRONG_WIND, "high_wave_cm": HIGH_WAVE},
+    }
+    nat.update(national.doc_national())
+    with open(NATIONAL_PATH, "w", encoding="utf-8") as f:
+        json.dump(nat, f, ensure_ascii=False, separators=(",", ":"))
+
     print(f"[done] {OUT_DIR}/ 生成: {written:,}選手 / 合計 {total_bytes:,} bytes "
+          f"/ 平均 {total_bytes // written if written else 0:,} bytes/人 "
           f"/ 級別 {len(periods)}期分({periods[0]['from']}〜{periods[-1]['to']})")
+    print(f"       全国の基準値: {NATIONAL_PATH} ({os.path.getsize(NATIONAL_PATH):,} bytes) "
+          f"/ {races:,}レース {national.starts:,}出走 ({date_min}〜{date_max})")
 
 
 if __name__ == "__main__":
