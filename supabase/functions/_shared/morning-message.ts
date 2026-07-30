@@ -58,7 +58,21 @@ export function parseDataDate(label: unknown): string | null {
   return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : null
 }
 
-/** window.XXX = {...}; の形のJSファイルから中身のJSONを取り出す。 */
+/**
+ * window.XXX = {...}; の形のJSファイルから中身のJSONを取り出す。
+ *
+ * 【キャッシュ回避を「やらない」ことの記録(2026-07-30に実測)】
+ * data.js は GitHub Pages(Fastly経由)が Cache-Control: max-age=600 で配るため、
+ * エッジは最大10分ぶん古いコピーを返し得る(Ageヘッダーが実際に伸びるのを確認)。
+ * ただし次の回避策はいずれも効かないことを実測で確認した:
+ *   - URLに毎回違うクエリを付ける … GitHub Pagesはクエリをキャッシュキーから
+ *     外すため、新しいクエリでも同じ Age の古いコピーが返る(Age:92で一致)
+ *   - リクエストヘッダー Cache-Control: no-cache / no-store / Pragma: no-cache
+ *     … いずれも無視される(Age:125のまま)
+ * fetch の cache:'no-store' もDeno側のキャッシュにしか効かない。
+ * つまり「読む側の工夫」では新しさを保証できない。保証したい場合は、
+ * data.jsを公開したCI側が公開反映を確認してから送信を叩く形にする必要がある。
+ */
 async function loadWindowJson(url: string): Promise<any> {
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
