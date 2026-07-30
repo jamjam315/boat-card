@@ -79,10 +79,13 @@ def main():
         year = r["date"][:4]
         for b in r["結果"]:
             row = tally[b["登番"]][year]
+            # 出走数は「完走しなくても1走」。失格・転覆・フライングも出走に数える
+            # (2026-07-30までは、そういうレースがresultsに存在しなかった)。
             row[0] += 1
-            if b["着"] == 1:
+            chaku = b["着"]        # 非完走艇は None
+            if chaku == 1:
                 row[1] += 1
-            if b["着"] <= 2:
+            if chaku is not None and chaku <= 2:
                 row[2] += 1
             if b.get("名"):
                 names[b["登番"]] = b["名"]

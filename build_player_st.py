@@ -15,7 +15,7 @@ MIN_RACES = 8   # ST癖はこれ未満だと「癖」と呼べないので除外
 
 def main():
     st = {}
-    p3 = {}   # 登番 -> [本数, 3着以内本数]  (開始種別を問わず、着順があるレース全てが対象)
+    p3 = {}   # 登番 -> [本数, 3着以内本数]  (開始種別を問わず全出走が対象。非完走も1走に数える)
     if not results_store.exists():
         print("[skip] results/ が無いので players.js は作りません")
         return
@@ -32,10 +32,10 @@ def main():
             continue
         for x in d.get("結果", []):
             touban = x["登番"]
+            # 出走数は全出走(非完走=着Noneも1走)。3着以内はもちろん完走艇だけ。
             chaku = x.get("着")
-            if chaku is not None:
-                n, hit = p3.get(touban, (0, 0))
-                p3[touban] = (n + 1, hit + (1 if chaku <= 3 else 0))
+            n, hit = p3.get(touban, (0, 0))
+            p3[touban] = (n + 1, hit + (1 if chaku is not None and chaku <= 3 else 0))
             # ST癖は通常スタートのみ（フライング等STt付き・欠測は除外）
             if x.get("STt", "") == "" and x.get("ST") is not None:
                 st.setdefault(touban, []).append(x["ST"])

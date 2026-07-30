@@ -82,15 +82,17 @@ def main():
             if row is None:
                 row = [0, 0, 0]
                 tally[key] = row
+            # 非完走艇(着=None)も出走には数える。1着・3着内には数えない。
+            chaku = b["着"]
             row[0] += 1
-            if b["着"] == 1:
+            if chaku == 1:
                 row[1] += 1
-            if b["着"] <= 3:
+            if chaku is not None and chaku <= 3:
                 row[2] += 1
             total = frame_tally.get(b["艇"])
             if total is not None:
                 total[0] += 1
-                if b["着"] == 1:
+                if chaku == 1:
                     total[1] += 1
 
     # 枠ごとの閾値(標本が足りる組だけで分布を作る)

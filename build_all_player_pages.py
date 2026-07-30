@@ -305,7 +305,8 @@ def kon_block(prof):
     if n < 2:
         return f'<div class="kon">{label}データ少なめ（{n}走）</div>'
     flow = ks["r"][-3:]
-    flow_str = "→".join(f"{c}着" if c <= 3 else "着外" for c in flow)
+    # 着順は非完走(失格・転覆・フライング等)だと None。着順が無いので「着外」と出す。
+    flow_str = "→".join(f"{c}着" if c is not None and c <= 3 else "着外" for c in flow)
     # 進入は際立つ時だけ一言添える(「進入まちまち」=特徴なしは出さない)。
     # STの安定度はカードのSTバッジと二重表現かつほぼ常に「ばらつき」で情報にならないため出さない。
     avgc = sum(ks["c"]) / len(ks["c"])

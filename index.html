@@ -549,7 +549,9 @@ function konSetsuLine(ks){
   if(n<2) return `<div class="kon thin">${label}データ少なめ（${n}走）</div>`;
 
   // 着順の流れ(直近3走を新しい順に見せる)
-  const flow = ks.r.slice(-3).map(c => c<=3 ? `${c}着` : "着外").join("→");
+  // 着順は非完走(失格・転覆・フライング等)だと null。JSでは null<=3 が true に
+  // なってしまい「null着」と出るので、明示的に弾いて「着外」にする。
+  const flow = ks.r.slice(-3).map(c => (c!==null && c<=3) ? `${c}着` : "着外").join("→");
 
   // STの安定度はカードに既にSTバッジがあり二重表現かつほぼ常に「ばらつき」で情報にならないため、ここには出さない。
   const hint = courseHint(ks);

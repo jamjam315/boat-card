@@ -11,7 +11,7 @@
 公式サーバーに優しく：1ファイルごとに数秒あけてダウンロードします。
 """
 import sys, os, glob, time, json, shutil, datetime, zoneinfo, subprocess, urllib.request, urllib.error
-from parse_results import parse_results
+from parse_results import parse_results, boat_record
 import results_store
 import data_paths
 
@@ -106,13 +106,9 @@ def append_from_txt(txt_path, date_iso, keys, fout):
                "レース名": r.get("レース名"), "種別": r.get("種別"), "距離": r.get("距離"),
                "進入固定": r.get("進入固定"),
                "払戻": r.get("払戻"),   # ← 追加：単勝〜3連複の配当・人気
-               "結果": [{"着": x["着順"], "艇": x["艇番"], "進": x["進入コース"],
-                        "ST": x["ST"], "STt": x["ST種別"], "登番": x["登番"],
-                        "展": x.get("展示"),   # ← 追加：展示タイム
-                        "モ": x.get("モーター番号"), "名": x["選手名"],   # ← 追加：前回使用者の割り出し用
-                        # ↓ 2026-07-26に追加：ボート番号とレースタイム("1.51.3"の形)
-                        "ボ": x.get("ボート番号"), "RT": x.get("レースタイム")}
-                       for x in r["結果"]]}
+               # 艇1件ぶんの形は parse_results.boat_record() に集約している
+               # (書き出す側が2か所あり、片方だけ直すと食い違うため)。
+               "結果": [boat_record(x) for x in r["結果"]]}
         fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
         added += 1
     return added

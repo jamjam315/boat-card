@@ -93,8 +93,9 @@ def aggregate(races):
                 tansho[b]["ret"] += payout_amount(p_tan, lambda k: k == bs)
 
             # 複勝: 2着以内なら的中。複勝は通常2行あるため、この艇番の行だけを拾う。
+            # 非完走(着=None)は出走に数えたうえで、はずれとして扱う。
             fukusho[b]["n"] += 1
-            if chaku <= 2:
+            if chaku is not None and chaku <= 2:
                 fukusho[b]["hit"] += 1
                 fukusho[b]["ret"] += payout_amount(p_fuku, lambda k: k == bs)
 

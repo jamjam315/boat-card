@@ -175,7 +175,8 @@ def kon_setsu_line(ks):
     n = len(ks["r"])
     if n < 2:
         return f'<div class="kon thin">{label}データ少なめ（{n}走）</div>'
-    flow = "→".join(f"{c}着" if c <= 3 else "着外" for c in ks["r"][-3:])
+    # 着順は非完走(失格・転覆・フライング等)だと None。着順が無いので「着外」と出す。
+    flow = "→".join(f"{c}着" if c is not None and c <= 3 else "着外" for c in ks["r"][-3:])
     tail = f'<span class="thin">（{label}{n}走）</span>' if n < 4 else ""
     kon_title = "今節＝今の開催中の成績" if label == "今節" else "直近＝過去1か月・全会場の成績(今節の走行数が少ない時に表示)"
     hint = course_hint(ks)

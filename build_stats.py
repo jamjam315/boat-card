@@ -27,8 +27,14 @@ def blank():
     return {c: {"n": 0, "w1": 0, "w2": 0, "w3": 0, "st": 0.0, "stn": 0} for c in range(1, 7)}
 
 def add(acc, course, chaku, st):
+    # chaku は非完走艇(失格・転覆・フライング等)では None。
+    # 出走(n)には数え、着順で決まる的中(w1/w2/w3)には数えない。
     a = acc[course]
     a["n"] += 1
+    if chaku is None:
+        if st is not None:
+            a["st"] += st; a["stn"] += 1
+        return
     if chaku == 1: a["w1"] += 1
     if chaku <= 2: a["w2"] += 1
     if chaku <= 3: a["w3"] += 1

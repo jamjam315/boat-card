@@ -30,7 +30,7 @@ K票の生データを取り込み後に毎回消していたため、この作�
 """
 import sys, os, glob, json, time, shutil, datetime, zoneinfo, subprocess
 import urllib.request, urllib.error
-from parse_results import parse_results
+from parse_results import parse_results, boat_record
 import data_paths
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
@@ -124,11 +124,7 @@ def to_record(date_iso, r):
         "レース名": r.get("レース名"), "種別": r.get("種別"), "距離": r.get("距離"),
         "進入固定": r.get("進入固定"),
         "払戻": r.get("払戻"),
-        "結果": [{"着": x["着順"], "艇": x["艇番"], "進": x["進入コース"],
-                 "ST": x["ST"], "STt": x["ST種別"], "登番": x["登番"],
-                 "展": x.get("展示"), "モ": x.get("モーター番号"), "名": x["選手名"],
-                 "ボ": x.get("ボート番号"), "RT": x.get("レースタイム")}
-                for x in r["結果"]],
+        "結果": [boat_record(x) for x in r["結果"]],
     }
 
 
