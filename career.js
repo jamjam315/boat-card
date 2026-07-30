@@ -61,6 +61,27 @@
       ".cr-cl-name{flex:0 0 2.2em; font-weight:600;}" +
       ".cr-cl-rate{flex:1 1 auto; text-align:right; color:var(--muted); font-size:11px;" +
       "font-variant-numeric:tabular-nums lining-nums;}" +
+      // 勝ち方のセクション。行の作りは上の cr-line と同じで、ラベルが長い
+      // (「まくり差し」)ぶんだけ幅を広げ、右側に母数と基準値を添える。
+      // 勝ち方のラベルは最長6文字(「外からの進入」「波高15cm〜」)。5.4emだと
+      // この2つが2行に折り返して行の高さが揃わなくなるため、6.4emにしている。
+      ".cr-lbl.w{flex:0 0 6.4em;}" +
+      ".cr-side{flex:0 0 auto; font-size:11px; color:var(--muted); white-space:nowrap;" +
+      "font-variant-numeric:tabular-nums lining-nums;}" +
+      ".cr-item{margin-top:9px;}" +
+      ".cr-item:first-of-type{margin-top:0;}" +
+      ".cr-ihead{display:flex; align-items:baseline; justify-content:space-between; gap:8px;" +
+      "font-size:12.5px; color:var(--ink); margin-bottom:4px;}" +
+      ".cr-ihead b{font-size:13px; font-weight:600;}" +
+      ".cr-vlist{display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:4px 14px;}" +
+      ".cr-v{display:flex; align-items:baseline; gap:6px; font-size:12px;" +
+      "font-variant-numeric:tabular-nums lining-nums;}" +
+      ".cr-v-name{flex:1 1 auto; color:var(--ink2); overflow:hidden; text-overflow:ellipsis;" +
+      "white-space:nowrap;}" +
+      ".cr-v-val{flex:0 0 auto;}" +
+      ".cr-v-n{flex:0 0 auto; font-size:11px; color:var(--muted);}" +
+      ".cr-none{font-size:12px; color:var(--muted); margin:0;}" +
+      ".cr-fine{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.6;}" +
       ".cr-note{font-size:11px; color:var(--muted); margin-top:10px; line-height:1.6;}" +
       ".cr-gate{background:var(--surface); border:1px solid var(--accent); border-radius:10px;" +
       "margin-top:14px; padding:14px 16px;}" +
@@ -109,6 +130,164 @@
       '<span class="cr-cl-rate">' + esc(rate) + '</span></div>';
   }
 
+  // ---- 勝ち方の表示 ----
+  var KIMARITE = ["逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"];
+  var COURSE_KEYS = ["1", "2", "3", "4", "5", "6"];
+
+  function n(v) { return (v || 0).toLocaleString("ja-JP"); }
+  function ratio(a, b) { return b ? a / b : null; }
+
+  /** ラベル・バー・値の1行。side には母数や基準値を添える(無いときは省く)。 */
+  function bar(label, rate, side, sub) {
+    return '<div class="cr-line"><span class="cr-lbl w">' + esc(label) + '</span>' +
+      '<span class="cr-bar' + (sub ? " sub" : "") + '"><i style="width:' + width(rate) + '%"></i></span>' +
+      '<span class="cr-val">' + pct(rate) + '</span>' +
+      (side ? '<span class="cr-side">' + esc(side) + '</span>' : "") + '</div>';
+  }
+  function section(title, inner) {
+    return '<div class="cr-sec"><p class="cr-sec-ttl">' + esc(title) + '</p>' + inner + '</div>';
+  }
+  function none(msg) { return '<p class="cr-none">' + esc(msg) + '</p>'; }
+
+  /** 年別を足した本人の通算。条件別・大舞台の「本人全体」の基準に使う。 */
+  function overall(doc) {
+    var s = 0, w = 0, t = 0;
+    (doc.years || []).forEach(function (y) { s += y.starts; w += y.wins; t += y.top2; });
+    return { starts: s, wins: w, top2: t, win_rate: ratio(w, s), top2_rate: ratio(t, s) };
+  }
+
+  /** 【無料】1着したときの決まり手の内訳。全国の構成比を併記する。 */
+  function kimariteSection(doc, nat) {
+    var k = doc.kimarite || {};
+    var total = k.total_wins || 0;
+    if (!total) {
+      return section("勝ち方（1着したときの決まり手）",
+        none("まだ1着がありません。1着が出ると、その決まり方をここに出します。"));
+    }
+    var counts = k.counts || {};
+    var natCounts = (nat && nat.kimarite && nat.kimarite.counts) || null;
+    var natTotal = (nat && nat.kimarite && nat.kimarite.total_wins) || 0;
+    var rows = KIMARITE.map(function (name) {
+      var c = counts[name] || 0;
+      var side = n(c) + "本";
+      if (natCounts && natTotal) {
+        side += "／全国" + pct(ratio(natCounts[name] || 0, natTotal));
+      }
+      return bar(name, ratio(c, total), side);
+    }).join("");
+    return section("勝ち方（1着したときの決まり手）",
+      '<p class="cr-fine">1着 ' + n(total) + '本の内訳です。' +
+      (natCounts ? "「全国」は同じ期間の全レースでの構成比です。" : "") + '</p>' + rows);
+  }
+
+  /** コース別の1着率。基準は全国の同じコースの1着率。 */
+  function coursesSection(doc, nat) {
+    var cs = doc.courses || {};
+    var natCs = (nat && nat.courses) || null;
+    var inner = COURSE_KEYS.map(function (c) {
+      var x = cs[c] || {};
+      if (!x.starts) return bar(c + "コース", null, "データなし");
+      var side = n(x.starts) + "走";
+      if (natCs && natCs[c] && natCs[c].win_rate != null) {
+        side += "／平均" + pct(natCs[c].win_rate);
+      }
+      var kim = x.kimarite || {};
+      var top = null;
+      Object.keys(kim).forEach(function (name) {
+        if (!top || kim[name] > kim[top]) top = name;
+      });
+      return bar(c + "コース", x.win_rate, side) +
+        (top ? '<p class="cr-fine" style="margin-top:2px;">主に ' + esc(top) +
+               '（' + n(kim[top]) + '本）</p>' : "");
+    }).join("");
+    return section("コース別の1着率", inner +
+      '<p class="cr-fine">「平均」は同じ期間の全国のコース別1着率です。</p>');
+  }
+
+  /** 会場別。出走数の多い順に並べるだけで、順位や優劣の色は付けない。 */
+  function venuesSection(doc) {
+    var v = doc.venues || {};
+    var names = Object.keys(v);
+    if (!names.length) return section("会場別の1着率", none("データなし"));
+    names.sort(function (a, b) { return v[b].starts - v[a].starts; });
+    var items = names.map(function (name) {
+      return '<div class="cr-v"><span class="cr-v-name">' + esc(name) + '</span>' +
+        '<span class="cr-v-val">' + pct(v[name].win_rate) + '</span>' +
+        '<span class="cr-v-n">' + n(v[name].starts) + '走</span></div>';
+    }).join("");
+    return section("会場別の1着率（" + names.length + "場）",
+      '<div class="cr-vlist">' + items + '</div>' +
+      '<p class="cr-fine">出走数の多い順です。並び順に良し悪しの意味はありません。</p>');
+  }
+
+  /** 条件別。基準は本人の通算1着率(全国平均は全選手合計すると必ず1/6になり使えない)。 */
+  function conditionsSection(doc, own, nat) {
+    var c = doc.conditions || {};
+    var th = (nat && nat.thresholds) || {};
+    var wind = th.strong_wind_m || 8, wave = th.high_wave_cm || 15;
+    var defs = [
+      ["rain", "雨"],
+      ["strong_wind", "強風" + wind + "m〜"],
+      ["high_wave", "波高" + wave + "cm〜"],
+    ];
+    var base = own.win_rate;
+    var inner = defs.map(function (d) {
+      var x = c[d[0]] || {};
+      if (!x.starts) return bar(d[1], null, "データなし");
+      return bar(d[1], x.win_rate, n(x.starts) + "走／本人全体" + pct(base));
+    }).join("");
+    return section("条件別の1着率", inner +
+      '<p class="cr-fine">比べる相手はこの選手自身の通算1着率（' + pct(base) + '・' +
+      n(own.starts) + '走）です。母数が少ない条件もそのまま出しています。</p>');
+  }
+
+  /** 大舞台。優勝戦・準優勝戦。基準は本人全体。 */
+  function finalsSection(doc, own) {
+    var f = doc.finals || {};
+    var inner = ["優勝戦", "準優勝戦"].map(function (name) {
+      var x = f[name] || {};
+      if (!x.starts) return bar(name, null, "出走なし");
+      // 下段のラベルに字下げの全角スペースを入れるとラベル枠(5.4em)を超えて
+      // 2行に折り返すため、字下げは付けない。薄いバー(sub)で従属関係を示す。
+      return bar(name, x.win_rate, n(x.starts) + "走／本人全体" + pct(own.win_rate)) +
+        bar("2連対率", x.top2_rate, n(x.starts) + "走／本人全体" + pct(own.top2_rate), true);
+    }).join("");
+    return section("大舞台（優勝戦・準優勝戦）", inner);
+  }
+
+  /** 進入の癖。内に入ったのか外になったのかを分ける(意味が正反対のため)。 */
+  function entrySection(doc) {
+    var m = doc.maezuke || {};
+    var u = m.uchi || {}, s = m.soto || {};
+    var inner =
+      bar("枠なり", m.wakunari_rate, n(m.wakunari_starts) + "走") +
+      bar("内に入った", u.rate, n(u.starts) + "走") +
+      (u.starts ? bar("その1着率", u.win_rate, n(u.wins) + "本", true) : "") +
+      bar("外からの進入", s.rate, n(s.starts) + "走") +
+      (s.starts ? bar("その1着率", s.win_rate, n(s.wins) + "本", true) : "");
+    var fine = '<p class="cr-fine">「内に入った」は枠より内のコースから、' +
+      '「外からの進入」は枠より外のコースからスタートした出走です。' +
+      '上3つは全出走に占める割合、その下は各々の中での1着率です。</p>';
+    var fl = (doc.flying || []).filter(function (r) { return r.F || r.L; });
+    if (fl.length) {
+      fine += '<p class="cr-fine">フライング・出遅れ：' + fl.map(function (r) {
+        var parts = [];
+        if (r.F) parts.push("F" + r.F);
+        if (r.L) parts.push("L" + r.L);
+        return r.year + "年 " + parts.join("・");
+      }).join(" / ") + '</p>';
+    }
+    return section("進入の癖", inner + fine);
+  }
+
+  function waysHtml(doc, nat, premium) {
+    var html = kimariteSection(doc, nat);
+    if (!premium) return html;
+    var own = overall(doc);
+    return html + coursesSection(doc, nat) + venuesSection(doc) +
+      conditionsSection(doc, own, nat) + finalsSection(doc, own) + entrySection(doc);
+  }
+
   function render(doc, premium) {
     var years = doc.years || [];
     var classes = doc.classes || [];
@@ -136,9 +315,11 @@
         html += '<div class="cr-sec"><p class="cr-sec-ttl">級別の変遷（' + classes.length + '期）</p>' +
           classes.map(classRow).join("") + '</div>';
       }
+      html += waysHtml(doc, national, true);
       html += '<p class="cr-note">1着率＝1着数÷出走数、2連対率＝2着以内÷出走数。' +
         '「勝率（公式・点数）」は着順に応じた点数の平均で、1着率とは計算方法が異なります。</p>';
     } else {
+      html += waysHtml(doc, national, false);
       html += '<p class="cr-note">1着率＝1着数÷出走数、2連対率＝2着以内÷出走数。</p>';
     }
     return html;
@@ -146,7 +327,8 @@
 
   function gateHtml() {
     return '<div class="cr-gate"><h3>この先はプレミアム限定です</h3>' +
-      '<p>データがある全年の推移と、級別の変遷はプレミアムにご登録いただくとご覧いただけます。</p>' +
+      '<p>データがある全年の推移、級別の変遷、そしてコース別・会場別・条件別・大舞台・' +
+      '進入の癖といった「勝ち方」の内訳は、プレミアムにご登録いただくとご覧いただけます。</p>' +
       '<p class="sub">直近' + FREE_YEARS + '年の成績は、これまで通り無料でご覧いただけます。</p>' +
       '<a class="cta" href="/premium/">プレミアムを見る</a></div>';
   }
@@ -155,6 +337,7 @@
   ensureStyle();
   var body = document.getElementById("careerBody");
   var loaded = null;
+  var national = null;    // players/career/_national.json(全国の基準値)
   var painted = false;
 
   // #careerCard を指して来たとき、着地位置がずれるのを直す。
@@ -184,12 +367,24 @@
     fixAnchor();
   }
 
-  fetch("/players/career/" + encodeURIComponent(toban) + ".json", { cache: "no-store" })
-    .then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    })
-    .then(function (doc) {
+  // 全国の基準値。全選手で同じ内容なのでブラウザのキャッシュに任せる
+  // (選手ページを見て回っても取得は1回で済む)。取れなくても本人の数字は
+  // そのまま出すので、失敗は静かに握りつぶして null のままにする。
+  var natReady = fetch("/players/career/_national.json")
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { national = d; })
+    .catch(function () { national = null; });
+
+  Promise.all([
+    fetch("/players/career/" + encodeURIComponent(toban) + ".json", { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }),
+    natReady,
+  ])
+    .then(function (res) {
+      var doc = res[0];
       loaded = doc;
       paint(false);   // まず無料部分を出す(会員判定を待たせない)
       if (!window.TeiyomiMembership) return;

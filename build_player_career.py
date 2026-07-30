@@ -100,6 +100,11 @@ class Tally:
         self.conditions = {k: new_wlt() for k in ("rain", "strong_wind", "high_wave")}
         self.finals = {k: new_wlt() for k in FINAL_KINDS}
         self.maezuke = new_wlt()
+        # 枠と進入がずれた出走の内訳。「前づけ」の一語でまとめると、自分で内を取りに
+        # 行った走り(進<艇)と、他艇に押し出されて外になった走り(進>艇)が混ざる。
+        # 意味が正反対なので分けて持つ。合計は maezuke と一致する。
+        self.maezuke_uchi = new_wlt()   # 進 < 艇 = 枠より内のコースに入った
+        self.maezuke_soto = new_wlt()   # 進 > 艇 = 枠より外のコースになった
         self.starts = 0
         self.wins = 0
         self.flying = collections.defaultdict(lambda: [0, 0])   # 年 -> [F, L]
@@ -156,9 +161,11 @@ class Tally:
             if course in self.final_by_course[kind]:
                 bump(self.final_by_course[kind][course])
 
-        # 前づけ = 枠番(艇)と進入コース(進)が違う出走
-        if course is not None and b.get("艇") != course:
+        # 枠番(艇)と進入コース(進)が違う出走。内に入ったのか外になったのかを分ける。
+        frame = b.get("艇")
+        if course is not None and frame is not None and frame != course:
             bump(self.maezuke)
+            bump(self.maezuke_uchi if course < frame else self.maezuke_soto)
 
         stt = b.get("STt") or ""
         if stt in ("F", "L"):
@@ -183,8 +190,18 @@ class Tally:
             "venues": {v: wlt_doc(row) for v, row in sorted(self.venues.items())},
             "conditions": {k: wlt_doc(row) for k, row in self.conditions.items()},
             "finals": {k: wlt_doc(self.finals[k]) for k in FINAL_KINDS},
-            "maezuke": dict(wlt_doc(self.maezuke),
-                            rate=round(self.maezuke[0] / self.starts, 4) if self.starts else None),
+            "maezuke": dict(
+                wlt_doc(self.maezuke),
+                rate=round(self.maezuke[0] / self.starts, 4) if self.starts else None,
+                # 内訳(uchi+soto=合計)。意味が正反対なので表示側でも分けて出す。
+                uchi=dict(wlt_doc(self.maezuke_uchi),
+                          rate=round(self.maezuke_uchi[0] / self.starts, 4) if self.starts else None),
+                soto=dict(wlt_doc(self.maezuke_soto),
+                          rate=round(self.maezuke_soto[0] / self.starts, 4) if self.starts else None),
+                # 枠なり = 枠と進入が同じ出走。uchi+soto+wakunari=総出走。
+                wakunari_starts=self.starts - self.maezuke[0],
+                wakunari_rate=round((self.starts - self.maezuke[0]) / self.starts, 4) if self.starts else None,
+            ),
             "flying": [{"year": int(y), "F": v[0], "L": v[1]}
                        for y, v in sorted(self.flying.items())],
         }
