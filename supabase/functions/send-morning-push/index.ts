@@ -29,7 +29,8 @@
 import webPush from 'npm:web-push@^3'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import {
-  buildMessage, loadFrames, loadToday, todayJst, type Entry,
+  buildMessage, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
+  type Alert, type Entry,
 } from '../_shared/morning-message.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
@@ -78,7 +79,9 @@ export default {
     }
 
     // 枠の見どころ用。読めなくても通知自体は出す(その材料を使わないだけ)。
-    const frames = await loadFrames()
+    // ナイター/デイの区分は5bと同じ判定(meta.json)を使う。読めなければ
+    // 開催区分を指定した条件だけが一致しなくなる(他の条件は普通に効く)。
+    const [frames, nightVenues] = await Promise.all([loadFrames(), loadNightVenues()])
 
     // ---- 送り先の組み立て ----
     const { data: subs, error: subErr } = await supabaseAdmin
@@ -92,16 +95,23 @@ export default {
     const userIds = [...new Set(subs.map((s) => s.user_id))]
 
     // 購読者ぶんだけまとめて引く(利用者が数千規模になったら分割が必要)。
-    const [favRes, memRes, logRes] = await Promise.all([
+    const [favRes, memRes, logRes, alertRes] = await Promise.all([
       supabaseAdmin.from('favorite_players').select('user_id,toban,created_at')
         .in('user_id', userIds).order('created_at', { ascending: true }),
       supabaseAdmin.from('memberships').select('user_id,status').in('user_id', userIds),
       supabaseAdmin.from('push_send_log').select('user_id').eq('send_date', today),
+      // 条件アラート。有効なものだけ。テーブルがまだ無い環境でも朝の便を
+      // 止めないよう、ここのエラーは致命的に扱わない(下でnull扱いにする)。
+      supabaseAdmin.from('race_alerts').select('id,user_id,toban,cond,label')
+        .in('user_id', userIds).eq('enabled', true),
     ])
     if (favRes.error || memRes.error || logRes.error) {
       console.error('[send-morning-push] 取得に失敗:',
         favRes.error?.message, memRes.error?.message, logRes.error?.message)
       return Response.json({ error: 'lookup_failed' }, { status: 500 })
+    }
+    if (alertRes.error) {
+      console.warn('[send-morning-push] 条件アラートを取得できませんでした:', alertRes.error.message)
     }
 
     const premium = new Set(
@@ -118,6 +128,13 @@ export default {
       favByUser.set(f.user_id, list)
     }
 
+    const alertsByUser = new Map<string, Alert[]>()
+    for (const a of (alertRes.data ?? []) as Alert[]) {
+      const list = alertsByUser.get(a.user_id) ?? []
+      list.push(a)
+      alertsByUser.set(a.user_id, list)
+    }
+
     const subsByUser = new Map<string, typeof subs>()
     for (const s of subs) {
       const list = subsByUser.get(s.user_id) ?? []
@@ -127,6 +144,7 @@ export default {
 
     // ---- 送信 ----
     let sentUsers = 0, sentPush = 0, removed = 0, skippedNoRace = 0, skippedDone = 0
+    let alertUsers = 0   // 条件アラートが1件以上当たった人数(効きを見るための記録)
 
     for (const userId of userIds) {
       if (alreadySent.has(userId)) { skippedDone++; continue }
@@ -136,11 +154,20 @@ export default {
         const entry = todayData.byToban.get(toban)
         if (entry) matched.push(entry)
       }
+
+      // 保存した条件に当てはまる本日の出走(プレミアムのみ)。
+      const isPremium = premium.has(userId)
+      const hits = isPremium
+        ? matchAlerts(alertsByUser.get(userId) ?? [], todayData.allByToban, today, nightVenues)
+        : []
+      if (hits.length > 0) alertUsers++
+
       // 出走が無い日は送らない。毎朝「今日はいません」が届くほうが煩わしい。
-      if (matched.length === 0) { skippedNoRace++; continue }
+      // 条件に一致していれば、お気に入りの出走が無くても知らせる。
+      if (matched.length === 0 && hits.length === 0) { skippedNoRace++; continue }
 
       const payload = JSON.stringify(
-        buildMessage(matched, { premium: premium.has(userId), frames }),
+        buildMessage(matched, { premium: isPremium, frames, alerts: hits }),
       )
 
       let ok = false
@@ -179,6 +206,7 @@ export default {
       date: today, users: userIds.length, sentUsers, sentPush,
       removedSubscriptions: removed, skippedNoRace, skippedAlreadySent: skippedDone,
       framesLoaded: !!frames,
+      alerts: (alertRes.data ?? []).length, alertUsers, nightVenuesLoaded: !!nightVenues,
     }
     console.log('[send-morning-push]', JSON.stringify(summary))
     return Response.json(summary)

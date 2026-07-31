@@ -21,7 +21,8 @@ import { withSupabase } from 'npm:@supabase/server@^1'
 import webPush from 'npm:web-push@^3'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import {
-  buildMessage, loadFrames, loadToday, type Entry,
+  buildMessage, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
+  type Alert, type Entry,
 } from '../_shared/morning-message.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
@@ -85,8 +86,8 @@ export default {
       const premium = realPremium || forced
 
       // 本番と同じ材料で組み立てる。お気に入りが今日走らなければ見本で代用。
-      const [today, frames] = await Promise.all([
-        loadToday().catch(() => null), loadFrames(),
+      const [today, frames, nightVenues] = await Promise.all([
+        loadToday().catch(() => null), loadFrames(), loadNightVenues(),
       ])
       const { data: favs } = await supabaseAdmin
         .from('favorite_players').select('toban,created_at')
@@ -99,10 +100,18 @@ export default {
           if (e) matched.push(e)
         }
       }
+      // 条件アラートも本番と同じ関数で照合する(文面のズレを作らないため)。
+      const { data: alerts } = await supabaseAdmin
+        .from('race_alerts').select('id,user_id,toban,cond,label')
+        .eq('user_id', userId).eq('enabled', true)
+      const hits = today
+        ? matchAlerts((alerts ?? []) as Alert[], today.allByToban, todayJst(), nightVenues)
+        : []
+
       const usedSample = matched.length === 0
       if (usedSample) matched.push(sampleEntry())
 
-      const message = buildMessage(matched, { premium, frames })
+      const message = buildMessage(matched, { premium, frames, alerts: hits })
       const payload = JSON.stringify({
         ...message,
         title: `[テスト] ${message.title}`,
@@ -128,6 +137,8 @@ export default {
       return Response.json({
         sent, removedSubscriptions: removed,
         premium, forcedPremium: forced, usedSampleEntry: usedSample,
+        alerts: (alerts ?? []).length, alertHits: hits.length,
+        alertRaces: hits.map((e) => `${e.venue}${e.race}R ${e.deadline} ${e.name}`),
         preview: message,
       })
     },
