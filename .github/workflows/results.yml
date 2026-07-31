@@ -60,6 +60,10 @@ jobs:
         run: python collect_fan_history.py
       - name: 選手のキャリア推移を計算(年別成績+級別変遷)
         run: python build_player_career.py
+      - name: 選手バックテスト用の索引を作る(選手別・5bの選手条件で読む)
+        # その選手が出たレースだけを1ファイルにまとめる。5b本体の
+        # backtest-data/ には手を触れないので、既存の取得量は変わらない。
+        run: python build_player_bt.py
       - name: バックテスト集計(全国まとめ)を計算
         run: python build_backtest.py
       - name: バックテスト(自由条件指定用の中間データ)を計算
@@ -73,7 +77,7 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A backtest-data/ players/career/
+          git add -A backtest-data/ players/career/ players/bt/
           git add stats.js players.js backtest.js frames.js
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
