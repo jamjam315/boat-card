@@ -145,6 +145,7 @@ const PLAYER_PAGES = new Set((window.PLAYER_PAGES || []).map(String));
 
 // ===== ログイン(トップから移設。文言・挙動そのまま) =====
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
+let authSentEmail = "";     // 送信先。6桁コードの検証に同じアドレスが要るため覚えておく
 function renderAuthBox(){
   const box = document.getElementById("authBox");
   if(!box) return;
@@ -166,9 +167,33 @@ function renderAuthBox(){
     }
 
     if(authFormOpen === "sent"){
-      box.innerHTML = `<div class="authbox">📧 ログイン用のメールを送りました。届いたメールのリンクを押してください。
+      // リンクと6桁コードの両方を出す。メールアプリ内のブラウザでリンクを開くと
+      // PWAとは別の保存領域にセッションが作られてしまい、PWA側に反映されない
+      // ことがあるため、リンクを踏まずに済むコード入力も用意している。
+      box.innerHTML = `<div class="authbox">📧 ログイン用のメールを送りました。
+        <p style="margin:6px 0 0;">メールのリンクをタップするか、記載の<b>6桁コード</b>をここに入力してください。</p>
+        <form class="authbox-form" id="authCodeForm">
+          <input type="text" class="authbox-input" id="authCodeInput" placeholder="6桁コード"
+                 inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+          <button type="submit" class="authbox-submit" id="authCodeBtn">コードでログイン</button>
+        </form>
         <p class="authbox-notice">送信元は認証サービス「Supabase」です。英語表示の場合がありますが、正規のメールです。</p>
+        <p class="authbox-msg" id="authCodeMsg"></p>
       </div>`;
+      document.getElementById("authCodeForm").addEventListener("submit", function(ev){
+        ev.preventDefault();
+        const btn = document.getElementById("authCodeBtn");
+        const msgEl = document.getElementById("authCodeMsg");
+        const code = document.getElementById("authCodeInput").value.replace(/[^0-9]/g, "");
+        if(code.length !== 6){ msgEl.textContent = "6桁の数字を入力してください。"; return; }
+        btn.disabled = true; btn.textContent = "確認中…"; msgEl.textContent = "";
+        // 成功したときの後処理(お気に入りの同期・表示更新)は、マジックリンクで
+        // 戻ってきた時と同じ teiyomi-auth-changed の経路に任せる。
+        TeiyomiAuth.verifyLoginCode(authSentEmail, code).catch(()=>{
+          msgEl.textContent = "コードが違うか、期限切れです。もう一度お試しください。";
+          btn.disabled = false; btn.textContent = "コードでログイン";
+        });
+      });
       return;
     }
 
@@ -179,7 +204,7 @@ function renderAuthBox(){
           <input type="email" class="authbox-input" id="authEmailInput" placeholder="メールアドレス" autocomplete="email" required>
           <button type="submit" class="authbox-submit" id="authSubmitBtn">送信</button>
         </form>
-        <p class="authbox-notice">送信すると、認証サービス「Supabase」から確認メールが届きます。メール内のリンクを押すとログイン完了です。英語表示の場合がありますが、正規のメールです。</p>
+        <p class="authbox-notice">送信すると、認証サービス「Supabase」から確認メールが届きます。メール内のリンクを押すか、記載の6桁コードを入力するとログイン完了です。英語表示の場合がありますが、正規のメールです。</p>
         <p class="authbox-msg" id="authMsg"></p>
       </div>`;
       document.getElementById("authForm").addEventListener("submit", function(ev){
@@ -190,6 +215,7 @@ function renderAuthBox(){
         if(!email || email.indexOf("@")===-1){ msgEl.textContent = "メールアドレスを入力してください。"; return; }
         btn.disabled = true; btn.textContent = "送信中…";
         TeiyomiAuth.sendMagicLink(email).then(()=>{
+          authSentEmail = email;
           authFormOpen = "sent"; renderAuthBox();
         }).catch(()=>{
           msgEl.textContent = "送信に失敗しました。時間をおいて再度お試しください。";

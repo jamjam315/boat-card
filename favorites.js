@@ -179,10 +179,19 @@
       .then(function () {}, function () {});
   }
 
+  // 直前の送信がどちらの経路だったか。6桁コードの検証(verifyOtp)は経路ごとに
+  // typeが違うため、当てにいく順番を決めるのに使う。
+  //   updateUser({email})   … 匿名→本会員の昇格。メールは「Change Email Address」
+  //                            テンプレートで届き、type は "email_change"
+  //   signInWithOtp({email}) … 通常のログイン。「Magic Link」テンプレートで届き、
+  //                            type は "email"
+  var lastOtpFlow = null;
+
   function sendMagicLink(email) {
     if (!supaReady || !supaClient) return Promise.reject(new Error("Supabase未接続です"));
     var redirectTo = window.location.origin + window.location.pathname;
     var wasAnonymous = !!(currentUser && currentUser.is_anonymous);
+    lastOtpFlow = wasAnonymous ? "email_change" : "email";
     if (wasAnonymous) {
       // 優先パス：今の匿名ユーザーにメールを紐づけて本会員へ昇格させる
       // (uidが変わらないため、お気に入りの移行処理が不要)。
@@ -190,6 +199,7 @@
         if (!r.error) return r;
         // 既に別アカウントで使われているメール等はここでエラーになるので、
         // 通常のログインメール(そのアカウントへのサインイン)にフォールバックする。
+        lastOtpFlow = "email";   // フォールバックしたので通常ログイン側のメールになる
         return supaClient.auth
           .signInWithOtp({ email: email, options: { emailRedirectTo: redirectTo } })
           .then(function (r2) { if (r2.error) throw r2.error; return r2; });
@@ -198,6 +208,45 @@
     return supaClient.auth
       .signInWithOtp({ email: email, options: { emailRedirectTo: redirectTo } })
       .then(function (r) { if (r.error) throw r.error; return r; });
+  }
+
+  /**
+   * メールに書かれた6桁コードでログインする。
+   *
+   * 【なぜリンクだけでは足りないのか】
+   * Gmail・LINE等のアプリ内ブラウザでマジックリンクを開くと、そのアプリ専用の
+   * 保存領域にセッションが作られる。ホーム画面から起動したPWAとは別の場所なので、
+   * PWA側は「ログインしていない」ままになる(2026-07-31にXperiaで実際に起きた)。
+   * コードを手で入力する方式なら、セッションはいま開いている画面に作られるため、
+   * この「部屋が違う」問題が構造的に起きない。
+   *
+   * マジックリンク経路には一切手を入れていない(両方使える)。
+   */
+  function verifyLoginCode(email, code) {
+    if (!supaReady || !supaClient) return Promise.reject(new Error("Supabase未接続です"));
+    var token = String(code == null ? "" : code).replace(/[^0-9]/g, "");
+    if (token.length !== 6) return Promise.reject(new Error("invalid-code"));
+
+    // 送信時に通った経路のtypeを先に試し、外れたらもう一方も試す。
+    // (同じメールに対して両経路を続けて使った場合など、想定外の順序でも通す)
+    var types = lastOtpFlow === "email_change"
+      ? ["email_change", "email"]
+      : ["email", "email_change"];
+
+    function attempt(i) {
+      if (i >= types.length) return Promise.reject(new Error("invalid-code"));
+      return supaClient.auth
+        .verifyOtp({ email: email, token: token, type: types[i] })
+        .then(
+          function (r) { return r && r.error ? attempt(i + 1) : r; },
+          function () { return attempt(i + 1); }
+        );
+    }
+
+    // 成功後の処理(お気に入りの同期・UIへの通知)は onAuthStateChange →
+    // handleAuthChange が担う。マジックリンクで戻ってきた時とまったく同じ経路を
+    // 通すため、ここでは独自の後処理を書かない。
+    return attempt(0);
   }
 
   function signOut() {
@@ -280,6 +329,7 @@
       return { id: currentUser.id, email: currentUser.email || null, isAnonymous: !!currentUser.is_anonymous };
     },
     sendMagicLink: sendMagicLink,
+    verifyLoginCode: verifyLoginCode,
     signOut: signOut,
 
     // ---- 他ページ(プレミアム関連・バックテスト5b)から再利用するための読み取り口 ----
