@@ -81,6 +81,9 @@
       ".cr-v-val{flex:0 0 auto;}" +
       ".cr-v-n{flex:0 0 auto; font-size:11px; color:var(--muted);}" +
       ".cr-none{font-size:12px; color:var(--muted); margin:0;}" +
+      ".cr-verify{display:block; padding:11px; border-radius:9px; border:1px solid var(--accent);" +
+      "color:var(--accent); font-size:13.5px; font-weight:700; text-align:center;" +
+      "text-decoration:none;}" +
       ".cr-fine{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.6;}" +
       ".cr-note{font-size:11px; color:var(--muted); margin-top:10px; line-height:1.6;}" +
       ".cr-gate{background:var(--surface); border:1px solid var(--accent); border-radius:10px;" +
@@ -280,12 +283,20 @@
     return section("進入の癖", inner + fine);
   }
 
+  /** 「読む」から「検証する」への導線。5b側が ?toban= を読んで初期選択する。 */
+  function verifyLink(doc) {
+    return '<div class="cr-sec"><a class="cr-verify" href="/backtest-custom.html?toban=' +
+      encodeURIComponent(doc.toban) + '">この選手で検証する →</a>' +
+      '<p class="cr-fine">この選手の舟券を毎レース買い続けていたら、いくらになっていたかを調べられます。</p></div>';
+  }
+
   function waysHtml(doc, nat, premium) {
     var html = kimariteSection(doc, nat);
     if (!premium) return html;
     var own = overall(doc);
     return html + coursesSection(doc, nat) + venuesSection(doc) +
-      conditionsSection(doc, own, nat) + finalsSection(doc, own) + entrySection(doc);
+      conditionsSection(doc, own, nat) + finalsSection(doc, own) + entrySection(doc) +
+      verifyLink(doc);
   }
 
   function render(doc, premium) {

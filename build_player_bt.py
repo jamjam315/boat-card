@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-選手バックテスト(5bの選手条件)用の索引を players/bt/{登番}.json に書き出す。
+選手バックテスト(5bの選手条件)用の索引を players/bt/{登番}/{年}.json に書き出す。
 
 【なぜ選手別のファイルにするのか】
 5bは backtest-data/{会場}-{年}.json をブラウザが直接ダウンロードして集計する
@@ -39,12 +39,24 @@
 単勝・複勝は1レース100円、2連単1着ながしは5点なので500円。
 build_backtest.py の finalize(unit) と同じ。ファイルの stake に書いておく。
 
+【年で分けている理由(2026-07-31)】
+当初は1選手1ファイルだったが、2つの実害があったため年ごとに分けた:
+  1. gitは1行の追記でもファイル全体を新しく保存する。1選手1ファイル(圧縮後14KB)
+     だと、毎日出走する中央値583人ぶんが書き換わり、履歴が毎日8MB・年3.0GB増える。
+     年で分ければ書き換わるのは当年ファイルだけになり、年0.4GB程度に収まる。
+  2. 「過去1年」を検証したいだけの人に全期間(100KB)を落とさせるのは無駄。
+     年で分ければ6KB程度で済む。
+5b本体が会場×年で分割していて「読み込み量が期間の長さにほぼ比例する」ことを
+設計の柱にしているので、作法としてもこちらが一貫する。
+
 入力:
   results/{年}.jsonl  … data ブランチ(data_paths が場所を決める)
 出力:
-  players/bt/{登番}.json … main側(ブラウザが直接読む公開ファイル)
+  players/bt/{登番}/index.json … 名前・期間・存在する年の一覧・列の意味・投資単位
+  players/bt/{登番}/{年}.json  … その年の行だけ
+  いずれも main 側(ブラウザが直接読む公開ファイル)
 """
-import json, os, datetime, collections
+import json, os, glob, datetime, collections
 import results_store
 from build_backtest_custom import pack_meta
 
@@ -90,32 +102,59 @@ def main():
                 names[b["登番"]] = b["名"]
 
     os.makedirs(OUT_DIR, exist_ok=True)
+    # 1選手1ファイルだった頃の players/bt/{登番}.json が残っていると、
+    # 古い数字を配り続けてしまうので消す(年分割への切り替えは1回きり)。
+    old = glob.glob(os.path.join(OUT_DIR, "*.json"))
+    for p in old:
+        os.remove(p)
+
     generated_at = datetime.datetime.now().isoformat(timespec="seconds")
-    written = total_bytes = 0
+    players = files = total_bytes = 0
     for toban, rs in rows.items():
         rs.sort(key=lambda x: x[0])
-        doc = {
+        by_year = collections.defaultdict(list)
+        for row in rs:
+            by_year[row[0][:4]].append(row)
+
+        d = os.path.join(OUT_DIR, toban)
+        os.makedirs(d, exist_ok=True)
+        index = {
             "toban": toban,
             "name": names.get(toban),
             "generated_at": generated_at,
             "from": rs[0][0], "to": rs[-1][0],
             "races": len(rs),
+            "years": {y: len(v) for y, v in sorted(by_year.items())},
             "stake": STAKE,
             "columns": ["date", "m", "frame", "chaku", "tan", "fuku", "nagashi2t"],
             "note": "1行=この選手の1出走。chaku=null は非完走(失格・転覆・フライング等)で、"
                     "確実なハズレとして分母に入れる。払戻が0でも出走は出走として数える。"
                     "m のビットの意味は build_backtest_custom.py の docstring を参照。"
                     "5艇以下のレースは複勝が1着ぶんしか発売されないため、2着でも fuku が0のことがある。",
-            "rows": rs,
         }
-        path = os.path.join(OUT_DIR, f"{toban}.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
-        written += 1
-        total_bytes += os.path.getsize(path)
+        for name, doc in [("index", index)] + [(y, {"year": int(y), "rows": v})
+                                               for y, v in sorted(by_year.items())]:
+            path = os.path.join(d, f"{name}.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+            files += 1
+            total_bytes += os.path.getsize(path)
+        players += 1
 
-    print(f"[done] {OUT_DIR}/ 生成: {written:,}選手 / {races:,}レースから / "
-          f"合計 {total_bytes:,} bytes / 平均 {total_bytes // written if written else 0:,} bytes/人")
+    # 選手を名前で探せるようにするための小さな索引(登番→名前)。
+    # players_index.js は登番の一覧しか持たず名前が無いので、5bの選手入力の
+    # オートコンプリートに使えない。ここで名前を持っているので一緒に書き出す。
+    name_index = {t: names.get(t) for t in sorted(rows) if names.get(t)}
+    idx_path = os.path.join(OUT_DIR, "_index.json")
+    with open(idx_path, "w", encoding="utf-8") as f:
+        json.dump(name_index, f, ensure_ascii=False, separators=(",", ":"))
+    files += 1
+    total_bytes += os.path.getsize(idx_path)
+    print(f"       選手名の索引: {idx_path} ({os.path.getsize(idx_path):,} bytes / {len(name_index):,}人)")
+
+    print(f"[done] {OUT_DIR}/ 生成: {players:,}選手 / {files:,}ファイル / {races:,}レースから / "
+          f"合計 {total_bytes:,} bytes / 平均 {total_bytes // players if players else 0:,} bytes/人"
+          + (f" / 旧形式の1選手1ファイルを{len(old):,}件削除" if old else ""))
 
 
 if __name__ == "__main__":

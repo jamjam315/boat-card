@@ -60,6 +60,9 @@ body{background:var(--bg); color:var(--ink);
 .bt-select{font-size:13.5px; color:var(--ink); background:var(--surface); border:1px solid var(--line2);
   border-radius:8px; padding:8px 10px; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; width:100%;}
 .bt-select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+/* 選手名の入力欄だけは16px。文字入力欄が16px未満だと、iOSがフォーカス時に
+   画面を勝手に拡大してしまう(selectでは起きないので他はそのままでよい)。 */
+#playerInput{font-size:16px; cursor:text;}
 
 .bt-row{display:flex; gap:8px; flex-wrap:wrap;}
 .bt-pill{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
@@ -169,9 +172,18 @@ body{background:var(--bg); color:var(--ink);
 
   <div id="btApp" hidden>
 
+  <div class="bt-step" id="stepPlayer">
+    <p class="bt-step-title"><span class="n">0</span>選手 <span class="bt-badge">任意</span></p>
+    <p class="bt-pill-note">選手を指定すると「その選手の舟券を買い続けた場合」を検証します。指定しなければ、これまで通り艇番で検証します。</p>
+    <input class="bt-select" id="playerInput" list="playerList" placeholder="選手名 または 登番（例: 4218）" autocomplete="off">
+    <datalist id="playerList"></datalist>
+    <p class="bt-pill-note" id="playerPicked" style="display:none;"></p>
+  </div>
+
   <div class="bt-step" id="stepVenue">
     <p class="bt-step-title"><span class="n">1</span>会場</p>
     <select class="bt-select" id="selVenue"><option value="zenkoku">全国</option></select>
+    <p class="bt-pill-note" id="venueLockNote" style="display:none;">選手を指定している間は全国のみです（選手のデータは会場をまたいで1本にまとめてあるため）。会場でしぼりたい場合は選手の指定を外してください。</p>
   </div>
 
   <div class="bt-step" id="stepPeriod">
@@ -429,6 +441,7 @@ body{background:var(--bg); color:var(--ink);
 
   var state = {
     venue: "zenkoku",
+    toban: null,        // 選手モードの登番(null=通常モード)
     period: null,
     bet: null,
     mode: "axis",       // axis | box
@@ -453,6 +466,24 @@ body{background:var(--bg); color:var(--ink);
   };
   var meta = null;
   var fileCache = {};   // "{romaji}-{年}" → 読み込み済みレコード配列(会場・期間切替のたびの再ダウンロードを避ける)
+
+  // ---------- 選手モード ----------
+  // 選手を指定すると players/bt/{登番}/{年}.json(その選手が出たレースだけ)を読み、
+  // 「その選手の舟券を毎レース買い続けた場合」を集計する。指定しなければ従来どおり
+  // backtest-data/ を読んで艇番で検証する(通常モードの数字・挙動は一切変わらない)。
+  var PLAYER_BETS = [
+    {key:"t",  col:4, label:"単勝",           stakeKey:"tan",       hit:function(c){ return c === 1; }},
+    {key:"f",  col:5, label:"複勝",           stakeKey:"fuku",      hit:function(c){ return c !== null && c <= 2; }},
+    {key:"2t", col:6, label:"2連単1着ながし", stakeKey:"nagashi2t", hit:function(c){ return c === 1; }}
+  ];
+  var playerNames = null;      // {登番: 名前}
+  var playerCache = {};        // "{登番}/{年}" → rows
+  var playerIndexCache = {};   // 登番 → index.json
+
+  function playerBetDef(key){
+    for(var i=0;i<PLAYER_BETS.length;i++){ if(PLAYER_BETS[i].key === key) return PLAYER_BETS[i]; }
+    return null;
+  }
 
   // ---------- 組み合わせ生成(順列・組み合わせ) ----------
   function permute(arr, k){
@@ -595,6 +626,7 @@ body{background:var(--bg); color:var(--ink);
     BET_TYPES.forEach(function(b){
       var btn = document.createElement("button");
       btn.type = "button"; btn.className = "bt-pill"; btn.textContent = b.label;
+      btn.setAttribute("data-bet", b.key);
       btn.setAttribute("role", "tab"); btn.setAttribute("aria-selected", "false");
       btn.addEventListener("click", function(){
         state.bet = b.key;
@@ -921,8 +953,11 @@ body{background:var(--bg); color:var(--ink);
   }
 
   function syncRunEnabled(){
-    var combos = buildCombos();
-    var ok = !!state.venue && !!state.period && !!state.bet && combos.length > 0;
+    // 選手モードは買う艇が「その選手が乗っている艇」で自動的に決まるので、
+    // 買い目の選択(combos)は要件から外す。
+    var ok = state.toban
+      ? (!!state.period && !!state.bet)
+      : (!!state.venue && !!state.period && !!state.bet && buildCombos().length > 0);
     document.getElementById("runBtn").disabled = !ok;
   }
 
@@ -945,6 +980,165 @@ body{background:var(--bg); color:var(--ink);
       .then(function(arrays){ return arrays.reduce(function(acc,a){ return acc.concat(a); }, []); });
   }
 
+  // ---------- 選手モードの読み込みと表示切り替え ----------
+  function loadPlayerNames(){
+    if(playerNames) return Promise.resolve(playerNames);
+    return fetch("players/bt/_index.json")
+      .then(function(r){ return r.ok ? r.json() : {}; })
+      .then(function(d){ playerNames = d; fillPlayerList(); return d; })
+      .catch(function(){ playerNames = {}; return playerNames; });
+  }
+  function fillPlayerList(){
+    var dl = document.getElementById("playerList");
+    if(!dl || !playerNames) return;
+    var html = "";
+    Object.keys(playerNames).forEach(function(t){
+      html += '<option value="' + playerNames[t] + "（" + t + "）" + '"></option>';
+    });
+    dl.innerHTML = html;
+  }
+  /** 入力欄の文字から登番を決める。「名前（登番）」・登番4桁・氏名のいずれでも拾う。 */
+  function resolveToban(text){
+    var s = String(text == null ? "" : text).trim();
+    if(!s) return null;
+    var m = s.match(/(\d{4})/);
+    if(m && (!playerNames || playerNames[m[1]])) return m[1];
+    if(playerNames){
+      var keys = Object.keys(playerNames);
+      for(var i=0;i<keys.length;i++){ if(playerNames[keys[i]] === s) return keys[i]; }
+    }
+    return null;
+  }
+  function loadPlayerIndex(toban){
+    if(playerIndexCache[toban]) return Promise.resolve(playerIndexCache[toban]);
+    return fetch("players/bt/" + encodeURIComponent(toban) + "/index.json")
+      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(d){ playerIndexCache[toban] = d; return d; });
+  }
+  function loadPlayerYear(toban, year){
+    var key = toban + "/" + year;
+    if(playerCache[key]) return Promise.resolve(playerCache[key]);
+    return fetch("players/bt/" + encodeURIComponent(toban) + "/" + year + ".json")
+      .then(function(r){ return r.ok ? r.json() : { rows: [] }; })
+      .then(function(d){ playerCache[key] = d.rows || []; return playerCache[key]; })
+      .catch(function(){ playerCache[key] = []; return playerCache[key]; });
+  }
+
+  /** 選手モードの有無に応じて、会場・券種・買い目の見せ方を切り替える。 */
+  function applyPlayerMode(){
+    var on = !!state.toban;
+    var picked = document.getElementById("playerPicked");
+    var sel = document.getElementById("selVenue");
+    var lock = document.getElementById("venueLockNote");
+    var target = document.getElementById("stepTarget");
+
+    if(on){
+      var nm = (playerNames && playerNames[state.toban]) || "";
+      picked.style.display = "";
+      picked.textContent = "検証する選手：" + (nm ? nm + "（" + state.toban + "）" : state.toban) +
+        " ／ この選手の舟券を毎レース買い続けた場合を集計します。";
+      // 選手のデータは会場をまたいで1本なので、会場は全国に固定する。
+      state.venue = "zenkoku";
+      sel.value = "zenkoku"; sel.disabled = true;
+      lock.style.display = "";
+      // 買う艇は「その選手が乗っている艇」で自動的に決まるため、買い目の指定は要らない。
+      target.style.display = "none";
+    }else{
+      picked.style.display = "none";
+      sel.disabled = false;
+      lock.style.display = "none";
+      target.style.display = "";
+    }
+
+    // 券種は選手モードだと単勝・複勝・2連単(1着ながし)のみ。
+    var row = document.getElementById("betRow");
+    Array.prototype.forEach.call(row.children, function(btn){
+      var key = btn.getAttribute("data-bet");
+      var ok = !on || !!playerBetDef(key);
+      btn.disabled = !ok;
+      btn.style.opacity = ok ? "" : ".4";
+      if(on){
+        var d = playerBetDef(key);
+        btn.textContent = d ? d.label : (betDef(key) || {}).label;
+      }else{
+        btn.textContent = (betDef(key) || {}).label;
+      }
+    });
+    if(on && state.bet && !playerBetDef(state.bet)){
+      state.bet = null;
+      Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
+    }
+    renderTarget();
+    syncRunEnabled();
+    hideResult();
+  }
+
+  function setToban(toban){
+    state.toban = toban || null;
+    var input = document.getElementById("playerInput");
+    if(toban && playerNames && playerNames[toban]){
+      input.value = playerNames[toban] + "（" + toban + "）";
+    }else if(!toban){
+      input.value = "";
+    }
+    applyPlayerMode();
+  }
+
+  function initPlayerStep(){
+    var input = document.getElementById("playerInput");
+    loadPlayerNames().then(function(){
+      // ?toban=4218 で来たとき(キャリアカードの「この選手で検証する」)は初期選択する。
+      var q = new URLSearchParams(window.location.search).get("toban");
+      var t = q ? resolveToban(q) : null;
+      if(t) setToban(t);
+      else applyPlayerMode();
+    });
+    input.addEventListener("change", function(){ setToban(resolveToban(input.value)); });
+    input.addEventListener("input", function(){
+      if(!input.value.trim() && state.toban) setToban(null);
+    });
+  }
+
+  /** 選手モードの集計。読むのはその選手・その期間の年ファイルだけ。 */
+  function runPlayerBacktest(period, loading){
+    var bet = playerBetDef(state.bet);
+    return loadPlayerIndex(state.toban).then(function(idx){
+      var cutoffYear = Number(periodCutoff(period).slice(0, 4));
+      var years = Object.keys(idx.years || {}).filter(function(y){ return Number(y) >= cutoffYear; });
+      loading.textContent = years.length > 1 ? "データを読み込み中…(" + years.length + "年分)" : "集計中…";
+      return Promise.all(years.map(function(y){ return loadPlayerYear(state.toban, y); }))
+        .then(function(lists){
+          loading.textContent = "集計中…";
+          var cutoff = periodCutoff(period);
+          var pass = buildFilter();
+          var stake = (idx.stake && idx.stake[bet.stakeKey]) || 100;
+          var n = 0, hit = 0, ret = 0;
+          for(var i=0;i<lists.length;i++){
+            var rows = lists[i];
+            for(var j=0;j<rows.length;j++){
+              var r = rows[j];
+              if(r[0] < cutoff) continue;
+              if(pass && !pass({ d: r[0], m: r[1] })) continue;
+              n++;
+              ret += r[bet.col];
+              // 的中は着で判定する。単勝が未発売だったり、5艇レースで複勝が
+              // 1着ぶんしか無い場合に「払戻>0」で判定すると的中率が実際より
+              // 低く出るため、払戻ではなく着順で数える。
+              if(bet.hit(r[3])) hit++;
+            }
+          }
+          var nm = (playerNames && playerNames[state.toban]) || state.toban;
+          showResult({
+            raceCount: n, hitCount: hit, totalPayout: ret,
+            totalStake: n * stake, points: stake / 100,
+            head: nm + "・" + period.label + "・" + bet.label,
+            cond: filterLabel(),
+            playerNote: bet.key === "f"
+          });
+        });
+    });
+  }
+
   function runBacktest(){
     var loading = document.getElementById("loadingMsg");
     var period = null;
@@ -956,6 +1150,18 @@ body{background:var(--bg); color:var(--ink);
     // スピナー画像等は使わず短い文言のみ。
     loading.textContent = years.length > 1 ? "データを読み込み中…(過去" + years.length + "年分)" : "集計中…";
     document.getElementById("runBtn").disabled = true;
+
+    // 選手モードは読むファイルも集計の仕方も別(その選手の年ファイルだけを読む)。
+    if(state.toban){
+      runPlayerBacktest(period, loading).then(function(){
+        loading.style.display = "none";
+        syncRunEnabled();
+      }).catch(function(){
+        loading.textContent = "データの読み込みに失敗しました。時間をおいて再度お試しください。";
+        syncRunEnabled();
+      });
+      return;
+    }
 
     loadVenuePeriod(state.venue, period).then(function(records){
       loading.textContent = "集計中…";
@@ -1041,9 +1247,16 @@ body{background:var(--bg); color:var(--ink);
     retEl.textContent = pct(retRate);
     retEl.className = "val nums" + (retRate >= 1 ? " hi" : "");
     document.getElementById("rStake").textContent = yen(r.totalStake);
-    document.getElementById("resultNote").textContent =
-      "1レースあたり " + r.points + "点(" + (r.points*100).toLocaleString("ja-JP") + "円)。総払戻 " + yen(r.totalPayout) +
+    var note = "1レースあたり " + r.points + "点(" + (r.points*100).toLocaleString("ja-JP") + "円)。総払戻 " + yen(r.totalPayout) +
       "。的中率・回収率は小数第1位まで。回収率100%以上は色を分けています(推奨の意味ではありません)。";
+    if(state.toban){
+      // 出走数に何を含めているかを毎回書く(母数の意味が変わると数字の意味も変わるため)。
+      note += " 非完走(F・失格等)も出走として含みます。";
+      if(r.playerNote){
+        note += " 5艇以下のレースは複勝が1着分のみ発売のため、2着でも払戻が無い場合があります。";
+      }
+    }
+    document.getElementById("resultNote").textContent = note;
   }
 
   // ---------- 初期化 ----------
@@ -1056,6 +1269,7 @@ body{background:var(--bg); color:var(--ink);
     renderPeriods();
     renderBetTypes();
     renderFilters();
+    initPlayerStep();   // 選手の入力欄(?toban= があれば初期選択も)
     document.getElementById("runBtn").addEventListener("click", runBacktest);
   }).catch(function(){
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",
