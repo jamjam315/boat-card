@@ -48,6 +48,14 @@ RATE_LABELS = ["全国勝率", "全国2連率", "当地勝率", "当地2連率",
 
 VENUE = re.compile(r'^(\d{2})BBGN')
 RACE  = re.compile(r'^[\s　]*([０-９]+)Ｒ')   # 全角レース番号
+
+# レース見出し行(「レース条件」)から 種別・距離・進入固定 を取り出すための形。
+#   例) "４Ｒ サンライズＹ 進入固定 Ｈ１８００ｍ 電話投票締切予定０９：５０"
+#        ↑番号  ↑レース名   ↑中間部   ↑距離
+# 「進入固定」はレース名そのものに含まれることがある(例「進入固定戦隊」)ため、
+# レース名の直後〜距離の手前(中間部)にあるかどうかで判定する。名前に入っている
+# だけのレースを進入固定戦と誤判定しないための線引き。
+RACE_COND = re.compile(r'^[\s　]*[0-9０-９]+[RＲ][\s　]+(\S+)(.*?)[HＨ][\s　]*([0-9０-９]+)[\s　]*[mｍ]')
 DAY   = re.compile(r'第[\s　]*([０-９]+)日')   # 開催の何日目か
 
 KIMARITE_CODES = set("123456SFK")   # 今節成績で使われる文字(着順・妨害・フライング・欠場)
@@ -89,6 +97,30 @@ def parse_boat(line):
         rec[lab] = float(v) if "." in v else int(v)
     rec["今節着順"] = parse_kon_shosei(tail)   # 例: ["5","5","1","5","6"]
     return rec
+
+
+def race_conditions(meta):
+    """レース条件の文字列から (種別, 距離, 進入固定) を取り出す。
+
+    朝の時点で分かるレースの属性はB票にしか無い(結果のK票は夜まで出ない)。
+    条件アラート(保存した絞り込みと今日の出走表の照合)で、5bと同じ軸を
+    朝に判定できるようにするために使う。
+
+    種別の分類は parse_results.classify_race をそのまま使う。5bのしぼり込みと
+    同じ分類でないと、「検証した条件」と「通知の条件」がずれてしまうため。
+
+    読み取れない書式のときは、その項目だけ None を返す(推測で埋めない)。
+    """
+    from parse_results import classify_race
+    m = RACE_COND.match(meta or "")
+    if not m:
+        return None, None, None
+    name, middle, dist = m.group(1), m.group(2), m.group(3)
+    try:
+        distance = int(dist.translate(ZEN2HAN))
+    except ValueError:
+        distance = None
+    return classify_race(name), distance, ("進入固定" in middle)
 
 
 def parse_program(path):

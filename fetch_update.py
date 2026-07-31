@@ -14,7 +14,7 @@ data.js側に "which":"今節"/"直近" として残し、表示側でラベル�
 """
 import sys, os, glob, time, json, datetime, zoneinfo, subprocess, urllib.request, urllib.error
 from collections import defaultdict
-from parse_program import parse_program
+from parse_program import parse_program, race_conditions
 import results_store
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
@@ -149,8 +149,13 @@ def build():
             # 「今節はいつ始まったか」= 今日 - (開催◯日目 - 1)。前回モーター使用者の割り出しで、
             # 同じ節の中の記録を「前回」と誤認しないための境界線として使う。
             venue_kstart[r["会場"]] = (d - datetime.timedelta(days=day - 1)).isoformat() if day else None
+        # 朝の時点で分かるレースの属性(種別・距離・進入固定)。B票の見出し行から取る。
+        # 条件アラートが「5bで検証した絞り込み」を今日の出走表と照合するために使う。
+        # 表示側は今のところ使わない(既存の見た目は変わらない)。
+        kind, dist, fixed = race_conditions(r.get("レース条件"))
         venues[r["会場"]].append({
             "no": r["レース番号"], "dl": r["締切予定"],
+            "kind": kind, "dist": dist, "fixed": fixed,
             "boats": [{
                 "n": b["艇番"], "t": b["登番"], "name": b["選手名"], "k": b["級別"], "age": b["年齢"],
                 "br": b["支部"], "wt": fan_weights.get(b["登番"], b["体重"]),
