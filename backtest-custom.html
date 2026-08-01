@@ -63,6 +63,25 @@ body{background:var(--bg); color:var(--ink);
 /* 選手名の入力欄だけは16px。文字入力欄が16px未満だと、iOSがフォーカス時に
    画面を勝手に拡大してしまう(selectでは起きないので他はそのままでよい)。 */
 #playerInput{font-size:16px; cursor:text;}
+/* 条件アラートの保存 */
+.bt-alert-btn{width:100%; padding:12px; border-radius:9px; border:1px solid var(--accent);
+  background:var(--surface); color:var(--accent); font-size:13.5px; font-weight:700;
+  font-family:inherit; cursor:pointer;}
+.bt-alert-box{margin-top:12px; padding:14px; border-radius:10px; border:1px solid var(--line2);
+  background:var(--surface);}
+.bt-alert-ttl{margin:0 0 8px; font-size:13.5px; font-weight:700;}
+.bt-alert-player{margin:0 0 8px; font-size:13px;}
+.bt-alert-list{margin:0 0 10px; padding-left:1.2em; font-size:12.5px; color:var(--ink2); line-height:1.8;}
+.bt-alert-unusable{margin:0 0 10px; font-size:12px; color:var(--muted); line-height:1.7;}
+.bt-alert-lead{margin:0 0 12px; font-size:12.5px; color:var(--ink2);}
+.bt-alert-actions{display:flex; gap:8px; flex-wrap:wrap;}
+.bt-alert-save{flex:1 1 auto; padding:11px 16px; border-radius:9px; border:none;
+  background:var(--accent); color:#fff; font-size:13.5px; font-weight:700;
+  font-family:inherit; cursor:pointer;}
+.bt-alert-save:disabled{opacity:.5; cursor:default;}
+.bt-alert-cancel{flex:0 0 auto; padding:11px 16px; border-radius:9px; border:1px solid var(--line2);
+  background:transparent; color:var(--ink2); font-size:13px; font-family:inherit; cursor:pointer;}
+.bt-alert-msg{margin:10px 0 0; font-size:12.5px; color:var(--ink2); min-height:1em;}
 
 .bt-row{display:flex; gap:8px; flex-wrap:wrap;}
 .bt-pill{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
@@ -294,6 +313,23 @@ body{background:var(--bg); color:var(--ink);
     </div>
     <p class="bt-warn" id="resultWarn" style="display:none;"></p>
     <p class="bt-result-note" id="resultNote"></p>
+
+    <!-- 選手モードのときだけ出る。押すと保存の確認を開く。 -->
+    <div id="alertArea" style="display:none; margin-top:14px;">
+      <button type="button" class="bt-alert-btn" id="alertOpenBtn">🔔 この絞り込みで通知する</button>
+      <div class="bt-alert-box" id="alertBox" style="display:none;">
+        <p class="bt-alert-ttl">この条件で通知します</p>
+        <p class="bt-alert-player" id="alertPlayer"></p>
+        <ul class="bt-alert-list" id="alertCondList"></ul>
+        <p class="bt-alert-unusable" id="alertUnusable" style="display:none;"></p>
+        <p class="bt-alert-lead">毎朝、今日の出走表に一致があればお知らせします。</p>
+        <div class="bt-alert-actions">
+          <button type="button" class="bt-alert-save" id="alertSaveBtn">保存する</button>
+          <button type="button" class="bt-alert-cancel" id="alertCancelBtn">やめる</button>
+        </div>
+        <p class="bt-alert-msg" id="alertMsg"></p>
+      </div>
+    </div>
   </div>
 
   </div><!-- /#btApp -->
@@ -302,6 +338,7 @@ body{background:var(--bg); color:var(--ink);
 </div>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
+<script src="alerts.js"></script>
 <script>
 // ---------- プレミアムの壁 ----------
 // 【重要・将来サーバー側防御へ移すときの目印】
@@ -1139,6 +1176,111 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  // ---------- 条件アラートの保存 ----------
+  // 朝に判定できる条件だけを cond に入れる。形は alerts.js の先頭と
+  // _shared/morning-message.ts の AlertCond に合わせる(独自に項目を足さない)。
+  function buildAlertCond(){
+    var f = state.filter, cond = {};
+    var months = f.month === "custom" ? (f.months.length ? f.months.slice() : null)
+                                      : optByKey(MONTH_OPTS, f.month).months;
+    if(months && months.length) cond.months = months.slice().sort(function(a,b){ return a-b; });
+    var races = f.rno === "custom" ? (f.races.length ? f.races.slice() : null)
+                                   : optByKey(RNO_OPTS, f.rno).races;
+    if(races && races.length) cond.races = races.slice().sort(function(a,b){ return a-b; });
+    if(f.kind !== "all") cond.kinds = [optByKey(KIND_OPTS, f.kind).label];
+    if(f.dist !== "all") cond.dists = [Number(f.dist)];
+    if(f.fixed !== "all") cond.fixed = (f.fixed === "on");
+    if(f.session === "night" || f.session === "day") cond.session = f.session;
+    return cond;
+  }
+
+  // レースが終わるまで分からない条件。保存はするが照合には使えないので、
+  // 何が使えないのかを保存前に正直に見せる。
+  function unusableLabels(){
+    var f = state.filter, out = [];
+    if(f.weather !== "all") out.push("天候：" + optByKey(WEATHER_OPTS, f.weather).label);
+    if(f.wind !== "all") out.push("風速：" + optByKey(WIND_OPTS, f.wind).label);
+    if(f.kimarite !== "all") out.push("決まり手：" + optByKey(KIMARITE_OPTS, f.kimarite).label);
+    if(f.entry !== "all") out.push("進入：" + optByKey(ENTRY_OPTS, f.entry).label);
+    return out;
+  }
+
+  function alertLabelFor(name, cond){
+    var s = window.TeiyomiAlerts ? TeiyomiAlerts.condSummary(cond) : "";
+    var label = name + (s ? "／" + s : "");
+    return label.length > 80 ? label.slice(0, 79) + "…" : label;
+  }
+
+  function renderAlertBox(){
+    var cond = buildAlertCond();
+    var name = (playerNames && playerNames[state.toban]) || state.toban;
+    document.getElementById("alertPlayer").textContent =
+      name + (playerNames && playerNames[state.toban] ? "（" + state.toban + "）" : "");
+    var ul = document.getElementById("alertCondList");
+    var labels = TeiyomiAlerts.condLabels(cond);
+    ul.innerHTML = labels.length
+      ? labels.map(function(t){ return "<li>" + t.replace(/[&<>]/g, "") + "</li>"; }).join("")
+      : '<li>この選手が走るすべてのレース</li>';
+    var un = unusableLabels();
+    var unEl = document.getElementById("alertUnusable");
+    if(un.length){
+      unEl.style.display = "";
+      unEl.textContent = "通知に使えない条件：" + un.join(" ／ ") + "（レースが終わるまで分からないため）";
+    }else{
+      unEl.style.display = "none";
+    }
+    document.getElementById("alertMsg").textContent = "";
+    document.getElementById("alertSaveBtn").disabled = false;
+    document.getElementById("alertSaveBtn").textContent = "保存する";
+  }
+
+  function saveAlert(){
+    var btn = document.getElementById("alertSaveBtn");
+    var msg = document.getElementById("alertMsg");
+    var cond = buildAlertCond();
+    var name = (playerNames && playerNames[state.toban]) || state.toban;
+    btn.disabled = true; btn.textContent = "保存中…"; msg.textContent = "";
+    TeiyomiAlerts.list().then(function(rows){
+      var same = TeiyomiAlerts.findSame(rows, state.toban, cond);
+      if(same){
+        msg.textContent = "同じ条件が既に保存されています。";
+        btn.disabled = false; btn.textContent = "保存する";
+        return null;
+      }
+      return TeiyomiAlerts.create({
+        toban: state.toban,
+        cond: cond,
+        // 画面で指定した内容そのまま。「通知に使えない条件」を後から見せるために残す。
+        raw_cond: { filter: state.filter, bet: state.bet, period: state.period, venue: state.venue },
+        label: alertLabelFor(name, cond)
+      }).then(function(){
+        msg.textContent = "保存しました。マイページで確認・削除できます。";
+        btn.textContent = "保存しました";
+      });
+    }).catch(function(err){
+      var text = String((err && (err.message || "")) || "");
+      if(/10件|check_violation/.test(text) || (err && err.status === 400 && /race_alerts/.test(text))){
+        msg.textContent = "条件アラートは10件までです。マイページで整理できます。";
+      }else if(text === "not-logged-in"){
+        msg.textContent = "ログインすると保存できます。";
+      }else{
+        msg.textContent = "保存できませんでした。時間をおいて再度お試しください。";
+      }
+      btn.disabled = false; btn.textContent = "保存する";
+    });
+  }
+
+  function initAlertUi(){
+    document.getElementById("alertOpenBtn").addEventListener("click", function(){
+      renderAlertBox();
+      document.getElementById("alertBox").style.display = "";
+    });
+    document.getElementById("alertCancelBtn").addEventListener("click", function(){
+      document.getElementById("alertBox").style.display = "none";
+    });
+    document.getElementById("alertSaveBtn").addEventListener("click", saveAlert);
+  }
+
   function runBacktest(){
     var loading = document.getElementById("loadingMsg");
     var period = null;
@@ -1257,6 +1399,13 @@ body{background:var(--bg); color:var(--ink);
       }
     }
     document.getElementById("resultNote").textContent = note;
+
+    // 保存ボタンは選手モードのときだけ。押す前の状態に戻しておく。
+    var alertArea = document.getElementById("alertArea");
+    if(alertArea){
+      alertArea.style.display = state.toban ? "" : "none";
+      document.getElementById("alertBox").style.display = "none";
+    }
   }
 
   // ---------- 初期化 ----------
@@ -1270,6 +1419,7 @@ body{background:var(--bg); color:var(--ink);
     renderBetTypes();
     renderFilters();
     initPlayerStep();   // 選手の入力欄(?toban= があれば初期選択も)
+    initAlertUi();      // 「この絞り込みで通知する」
     document.getElementById("runBtn").addEventListener("click", runBacktest);
   }).catch(function(){
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",

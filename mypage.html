@@ -101,6 +101,14 @@ body{background:var(--bg); color:var(--ink);
 .plan-badge.off{background:var(--muted);}
 .plan a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 
+/* ---- 条件アラート ---- */
+.al-row{display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px dashed var(--line2);}
+.al-row:first-of-type{border-top:none; padding-top:2px;}
+.al-main{flex:1 1 auto; min-width:0;}
+.al-name{margin:0; font-size:13px; font-weight:600; color:var(--ink); overflow-wrap:anywhere;}
+.al-cond{margin:2px 0 0; font-size:11.5px; color:var(--muted); line-height:1.6; overflow-wrap:anywhere;}
+.al-act{flex:0 0 auto; display:flex; gap:10px;}
+
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 </style>
@@ -128,6 +136,9 @@ body{background:var(--bg); color:var(--ink);
   <p class="sec-label">通知</p>
   <div id="notifyBox"></div>
 
+  <p class="sec-label">🔔 条件アラート</p>
+  <div id="alertsBox"></div>
+
   <p class="sec-label">ご契約</p>
   <div id="planBox"></div>
 
@@ -138,6 +149,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="players_index.js"></script>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
+<script src="alerts.js"></script>
 <script>
 (function(){
 "use strict";
@@ -431,9 +443,77 @@ function renderPlan(state){
 // ===== 初期表示と更新 =====
 renderAuthBox(); renderFavoriteToday(); renderFavList(); renderNotifyBox(); renderPlan(null);
 window.addEventListener("teiyomi-favorites-synced", ()=>{ renderFavoriteToday(); renderFavList(); });
+// ===== 条件アラート(5bで保存した絞り込みの管理) =====
+// 保存は5b側。ここは一覧・オンオフ・削除だけ。壁は既存の membership.js を使う。
+let alertsPremium = null;   // null=判定中 / true / false
+function renderAlertsBox(){
+  const box = document.getElementById("alertsBox");
+  if(!box) return;
+  if(alertsPremium !== true){
+    // 契約が確定するまでは何も出さない(点滅を避ける)。未契約なら静かに案内だけ。
+    box.innerHTML = alertsPremium === false
+      ? `<div class="authbox">条件アラートはプレミアムの機能です。<a href="premium/index.html">プレミアムを見る</a></div>`
+      : "";
+    return;
+  }
+  if(!window.TeiyomiAlerts){ box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="authbox" id="alertsInner">読み込み中…</div>`;
+  TeiyomiAlerts.list().then(rows=>{
+    const inner = document.getElementById("alertsInner");
+    if(!inner) return;
+    if(!rows || rows.length === 0){
+      inner.innerHTML = `5bのバックテストで条件を保存すると、ここに表示されます。
+        <p class="authbox-notice" style="margin-top:8px;"><a href="backtest-custom.html">条件を指定して検証する</a></p>`;
+      return;
+    }
+    inner.innerHTML = rows.map(r=>{
+      const summary = TeiyomiAlerts.condSummary(r.cond);
+      const name = (r.label || r.toban).replace(/[&<>]/g, "");
+      return `<div class="al-row" data-id="${r.id}">
+        <div class="al-main">
+          <p class="al-name">${name}</p>
+          <p class="al-cond">${summary.replace(/[&<>]/g, "")}</p>
+        </div>
+        <div class="al-act">
+          <button type="button" class="authbox-btn al-toggle">${r.enabled ? "オン" : "オフ"}</button>
+          <button type="button" class="authbox-btn al-del">削除</button>
+        </div>
+      </div>`;
+    }).join("") + `<p class="authbox-notice">保存できるのは${TeiyomiAlerts.MAX}件までです。オフにすると通知だけ止まり、条件は残ります。</p>`;
+
+    inner.querySelectorAll(".al-row").forEach(row=>{
+      const id = row.getAttribute("data-id");
+      const rec = rows.find(x=>x.id === id);
+      row.querySelector(".al-toggle").addEventListener("click", function(){
+        const on = !rec.enabled;
+        this.disabled = true;
+        TeiyomiAlerts.setEnabled(id, on).then(()=>{
+          rec.enabled = on; this.textContent = on ? "オン" : "オフ"; this.disabled = false;
+        }).catch(()=>{ this.disabled = false; });
+      });
+      row.querySelector(".al-del").addEventListener("click", function(){
+        if(!window.confirm("この条件を削除しますか？")) return;
+        this.disabled = true;
+        TeiyomiAlerts.remove(id).then(()=>{ renderAlertsBox(); })
+          .catch(()=>{ this.disabled = false; });
+      });
+    });
+  }).catch(()=>{
+    const inner = document.getElementById("alertsInner");
+    if(inner) inner.textContent = "条件アラートを読み込めませんでした。";
+  });
+}
+if(window.TeiyomiMembership){
+  TeiyomiMembership.onChange(state=>{
+    alertsPremium = state ? !!state.active : false;
+    renderAlertsBox();
+  });
+}
+
 window.addEventListener("teiyomi-auth-changed", ()=>{
   authFormOpen = false;
   renderAuthBox(); renderNotifyBox(); renderFavoriteToday(); renderFavList();
+  renderAlertsBox();
 });
 if(window.TeiyomiMembership) TeiyomiMembership.onChange(renderPlan);
 })();
