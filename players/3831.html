@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>安藤裕貴の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑</title>
 <meta name="description" content="安藤裕貴選手（B1・愛知支部、51歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/3831.html">

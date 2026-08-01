@@ -327,6 +327,14 @@ def render_page(prof):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>{title}</title>
 <meta name="description" content="{description}">
 <link rel="canonical" href="{url}">
