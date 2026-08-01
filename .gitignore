@@ -19,3 +19,22 @@
 /backfill_*_stdout.txt
 
 __pycache__/
+
+# ===== 秘密の値を、うっかり公開してしまわないための保険 =====
+# mainブランチはGitHub Pagesでそのまま全世界に公開される。ここに置いた
+# ファイルは誰でも読めてしまうため、鍵やパスワードの類は名前の時点で弾く。
+# (Supabaseのサービスロールキー・Stripeのシークレットキー・VAPIDの秘密鍵などは
+#  リポジトリではなく、SupabaseとGitHubのシークレット設定に入れる)
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/.env.*
+*.pem
+*.key
+*.p8
+*.p12
+service-account*.json
+
+# エディタ・作業ツールの手元設定(この端末の都合であって、サイトの一部ではない)
+.claude/
