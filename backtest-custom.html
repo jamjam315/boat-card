@@ -1380,6 +1380,30 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  /**
+   * ログイン状態が決まるまで待つ。
+   * favorites.js は Supabase の SDK をCDNから読み、設定を取り、セッションを
+   * 復元し終えてから teiyomi-auth-changed を出す。それまで getAccessToken() は
+   * null を返すので、DBを読む処理はこれを待ってから始める。
+   * 待っても決まらない場合(未接続・オフライン)は諦めて先に進む。
+   */
+  function whenAuthReady(){
+    return new Promise(function(resolve){
+      if(!window.TeiyomiAuth) return resolve();
+      if(TeiyomiAuth.getUser()) return resolve();
+      var done = false;
+      function finish(){
+        if(done) return;
+        done = true;
+        window.removeEventListener("teiyomi-auth-changed", onChange);
+        resolve();
+      }
+      function onChange(){ if(TeiyomiAuth.getUser()) finish(); }
+      window.addEventListener("teiyomi-auth-changed", onChange);
+      setTimeout(finish, 8000);
+    });
+  }
+
   function initNoteUi(){
     document.getElementById("noteOpenBtn").addEventListener("click", function(){
       renderNoteBox();
@@ -1393,14 +1417,26 @@ body{background:var(--bg); color:var(--ink);
     // ?note={id} で来たら、その条件に戻して自動で実行する。
     var id = new URLSearchParams(window.location.search).get("note");
     if(!id || !window.TeiyomiNotes) return;
-    // 選手名の一覧を先に待つ(先に復元すると入力欄に名前が入らない)。
-    loadPlayerNames().then(function(){
+    var thenEl = document.getElementById("noteThen");
+    thenEl.style.display = "";
+    thenEl.textContent = "記録した条件を読み込んでいます…";
+    // 認証の準備 → 選手名の一覧、の順で待ってから取りに行く。
+    // ここを待たないと、このページの初期化(meta.jsonの取得)のほうが
+    // favorites.jsのSupabase接続より先に終わるため、アクセストークンがまだ無く、
+    // 取得が失敗して「何も起きない」状態になる(2026-08-01に実機で発生)。
+    whenAuthReady().then(loadPlayerNames).then(function(){
       return TeiyomiNotes.get(id);
     }).then(function(note){
-      if(!note) return;
+      if(!note){
+        thenEl.textContent = "この検証ノートが見つかりませんでした。";
+        return;
+      }
       openedNote = note;
       applyNoteCond(note.cond);
-    }).catch(function(){ /* 取れなければ普通の画面のまま */ });
+    }).catch(function(){
+      // 黙って何もしないと「開いたのに戻らない」と見えるので、理由を出す。
+      thenEl.textContent = "記録した条件を読み込めませんでした。ページを再読み込みしてお試しください。";
+    });
   }
 
   // ---------- 条件アラートの保存 ----------
