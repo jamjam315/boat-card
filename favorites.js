@@ -162,7 +162,7 @@
       .eq("user_id", supaUserId)
       .then(function (res) {
         if (res.error) throw res.error;
-        var remote = (res.data || []).map(function (row) { return String(row.toban); });
+        var remote = (res.data || []).map(function (row) { return String(row.toban); }).filter(isToban);
         var local = readAll();
         var localSet = {}, remoteSet = {};
         local.forEach(function (t) { localSet[t] = true; });
@@ -288,12 +288,20 @@
       });
   }
 
+  // 登番(選手の背番号)は数字だけの並び。お気に入りはあとから
+  // リンク先のURLや要素のidに埋め込まれるため、形が正しいものだけを通す。
+  function isToban(t) {
+    return /^\d{3,5}$/.test(String(t));
+  }
+
   function readAll() {
     try {
       var raw = localStorage.getItem(FAV_KEY);
       if (!raw) return [];
       var arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr.map(String) : [];
+      // 端末の保存領域は外から書き換えられうるので、読むたびに形を確かめる。
+      // おかしな値は無かったことにする(黙って落とす)。
+      return Array.isArray(arr) ? arr.map(String).filter(isToban) : [];
     } catch (e) {
       return [];
     }
@@ -317,6 +325,7 @@
     },
     toggle: function (toban) {
       toban = String(toban);
+      if (!isToban(toban)) return false;   // 形がおかしいものは登録させない
       var arr = readAll();
       var idx = arr.indexOf(toban);
       var added = idx === -1;

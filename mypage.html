@@ -193,6 +193,11 @@ const esc = s => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+// 登番(選手の背番号)は数字だけの並び。お気に入りは端末に保存された値で、
+// あとからリンク先のURLや要素のidに埋め込むため、形が正しいものだけを通す。
+// おかしな値は表示しないだけにする(黙って落とす)。
+const isToban = t => /^\d{3,5}$/.test(String(t));
+
 // ===== ログイン(トップから移設。文言・挙動そのまま) =====
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
 let authSentEmail = "";     // 送信先。6桁コードの検証に同じアドレスが要るため覚えておく
@@ -291,7 +296,7 @@ function renderFavoriteToday(){
   if(!box) return;
   try{
     if(!window.TeiyomiFavorites || !window.DATA || !Array.isArray(DATA.venues)){ box.innerHTML=""; return; }
-    const favs = TeiyomiFavorites.list();
+    const favs = TeiyomiFavorites.list().filter(isToban);
     if(!favs.length){
       box.innerHTML = `<div class="favtoday"><div class="favtoday-quiet">お気に入りに登録すると、本日の出走がここに出ます。</div></div>`;
       return;
@@ -320,7 +325,7 @@ function renderFavoriteToday(){
         return `${esc(vn)} ${nos.map(n=>`${n}R`).join("・")}`;
       }).join("、");
       const nameHtml = PLAYER_PAGES.has(t)
-        ? `<a href="players/${t}.html" target="_blank" rel="noopener">${esc(f.name)}</a>` : esc(f.name);
+        ? `<a href="players/${esc(t)}.html" target="_blank" rel="noopener">${esc(f.name)}</a>` : esc(f.name);
       return `<div class="favtoday-row"><span class="favtoday-name">${nameHtml}</span><span class="favtoday-races nums">${racesTxt}</span></div>`;
     }).join("");
     box.innerHTML = `<div class="favtoday"><div class="favtoday-head">⭐ お気に入り選手が本日出走します</div>${rows}</div>`;
@@ -351,7 +356,7 @@ function renderFavList(){
   if(!box) return;
   try{
     if(!window.TeiyomiFavorites){ box.innerHTML=""; return; }
-    const favs = TeiyomiFavorites.list();
+    const favs = TeiyomiFavorites.list().filter(isToban);
     if(!favs.length){
       box.innerHTML = `<div class="favlist"><div class="fl-empty">まだお気に入りの選手がいません。<br>
         <a href="players/">選手一覧</a>や選手ページの☆から登録できます。</div></div>`;
@@ -359,9 +364,9 @@ function renderFavList(){
     }
     // 先に名前だけで並べ、級別は取れたものから差し込む(表示を待たせない)。
     box.innerHTML = `<div class="favlist">` + favs.map(t=>
-      `<a class="fl-row" href="players/${t}.html#careerCard">
-         <span class="fl-name" id="fl-name-${t}">${t}</span>
-         <span class="fl-badge" id="fl-badge-${t}" style="display:none;"></span>
+      `<a class="fl-row" href="players/${esc(t)}.html#careerCard">
+         <span class="fl-name" id="fl-name-${esc(t)}">${esc(t)}</span>
+         <span class="fl-badge" id="fl-badge-${esc(t)}" style="display:none;"></span>
          <span class="fl-go">キャリア ›</span>
        </a>`).join("") + `</div>
       <p class="fl-note">タップすると、その選手のキャリア（年別の成績と級別）へ直接移動します。</p>`;
