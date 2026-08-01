@@ -119,6 +119,12 @@ body{background:var(--bg); color:var(--ink);
 .bt-points b{font-size:14.5px;}
 .bt-hint{font-size:11.5px; color:var(--muted); margin-top:8px;}
 .bt-run-hint{font-size:11.5px; color:var(--muted); margin:8px 2px 0; text-align:center; min-height:1em;}
+/* 選手欄の案内。小さい注記だと「名前を入れないと進めない」と思われるため、
+   囲って本文サイズで見せる。 */
+.bt-player-tip{margin:0 0 10px; padding:11px 13px; border-radius:9px;
+  background:var(--accent-soft); color:var(--ink);}
+.bt-player-tip p{margin:0; font-size:13px; line-height:1.75;}
+.bt-player-tip p.sub{margin-top:5px; font-size:12px; color:var(--ink2);}
 /* お試しで動かした人への案内(結果の下) */
 .bt-trial-pitch{margin-top:14px; padding:14px 16px; border-radius:10px;
   border:1px solid var(--accent); background:var(--surface);}
@@ -217,7 +223,12 @@ body{background:var(--bg); color:var(--ink);
 
   <div class="bt-step" id="stepPlayer">
     <p class="bt-step-title"><span class="n">0</span>選手 <span class="bt-badge">任意</span></p>
-    <p class="bt-pill-note">選手を指定すると「その選手の舟券を買い続けた場合」を検証します。指定しなければ、これまで通り艇番で検証します。</p>
+    <!-- 空欄のままでも進めることを、見落とされない大きさで伝える。
+         ここが小さいと「名前を入れないと先に進めない」と思われてしまう。 -->
+    <div class="bt-player-tip" id="playerTip">
+      <p><b>空欄のままでも検証できます。</b>その場合は艇番（1号艇の単勝など）を自分で選ぶ形になります。</p>
+      <p class="sub">選手を入れると、その選手の舟券を毎レース買い続けた場合を検証します。</p>
+    </div>
     <input class="bt-select" id="playerInput" list="playerList" placeholder="選手名 または 登番（例: 4218）" autocomplete="off">
     <datalist id="playerList"></datalist>
     <p class="bt-pill-note" id="playerTrial" style="display:none;">お試し：吉川喜継選手（4218）で体験できます。</p>
@@ -1214,11 +1225,14 @@ body{background:var(--bg); color:var(--ink);
   }
 
   function setToban(toban){
-    // お試しは1人だけ。他の選手を入れた場合は、壁と同じトーンで案内して戻す。
-    if(trialMode && toban && toban !== TRIAL_TOBAN){
+    // お試しは「吉川喜継選手だけ」。他の選手を入れた場合も、空にした場合も
+    // (空にすると艇番での検証に入ってしまうため)、案内して戻す。
+    if(trialMode && toban !== TRIAL_TOBAN){
       var msg = document.getElementById("playerTrial");
       msg.style.display = "";
-      msg.textContent = "お試しは吉川喜継選手のみです。プレミアムで全選手を検証できます。";
+      msg.textContent = toban
+        ? "お試しは吉川喜継選手のみです。プレミアムで全選手を検証できます。"
+        : "お試しは吉川喜継選手のみです。艇番での検証と全2,114選手はプレミアムでご利用いただけます。";
       toban = TRIAL_TOBAN;
     }
     state.toban = toban || null;
@@ -1238,7 +1252,11 @@ body{background:var(--bg); color:var(--ink);
   function applyTrial(on){
     trialMode = !!on;
     var note = document.getElementById("playerTrial");
-    if(!trialMode){ note.style.display = "none"; return; }
+    var tip = document.getElementById("playerTip");
+    if(!trialMode){ note.style.display = "none"; if(tip) tip.style.display = ""; return; }
+    // お試しでは空欄にできない(艇番での検証はプレミアム)ので、
+    // 「空欄のままでも検証できます」の案内は出さない。嘘になるため。
+    if(tip) tip.style.display = "none";
     note.style.display = "";
     note.textContent = "お試し：吉川喜継選手（4218）で体験できます。";
     // お試しは選手モードだけ(艇番での検証はプレミアム)。
@@ -1263,6 +1281,8 @@ body{background:var(--bg); color:var(--ink);
     });
     input.addEventListener("change", function(){ setToban(resolveToban(input.value)); });
     input.addEventListener("input", function(){
+      // 入力中に空になったら選手指定を外す。お試しのときは setToban 側で
+      // 吉川喜継選手に戻す(艇番での検証はプレミアムのため)。
       if(!input.value.trim() && state.toban) setToban(null);
     });
   }
