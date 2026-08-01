@@ -117,6 +117,7 @@ body{background:var(--bg); color:var(--ink);
   border-radius:8px; padding:8px 12px; display:inline-block;}
 .bt-points b{font-size:14.5px;}
 .bt-hint{font-size:11.5px; color:var(--muted); margin-top:8px;}
+.bt-run-hint{font-size:11.5px; color:var(--muted); margin:8px 2px 0; text-align:center; min-height:1em;}
 
 .bt-run{width:100%; margin-top:14px; padding:13px; border-radius:10px; border:none; background:var(--accent);
   color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent;}
@@ -311,6 +312,10 @@ body{background:var(--bg); color:var(--ink);
   </div>
 
   <button class="bt-run" id="runBtn" type="button" disabled>検証する</button>
+  <!-- 押せないときに、何が足りないのかをここに出す。買い目ステップの中の
+       ヒント(#targetHint)は選手モードだと買い目ごと隠れてしまい、
+       「なぜ押せないのか」がどこにも出ていなかった。 -->
+  <p class="bt-run-hint" id="runHint"></p>
   <div class="bt-loading" id="loadingMsg" style="display:none;"></div>
 
   <div class="bt-result" id="resultArea" style="display:none;">
@@ -1039,6 +1044,16 @@ body{background:var(--bg); color:var(--ink);
       ? (!!state.period && !!state.bet)
       : (!!state.venue && !!state.period && !!state.bet && buildCombos().length > 0);
     document.getElementById("runBtn").disabled = !ok;
+
+    // 押せないときは理由を出す。黙って押せないボタンを置かない。
+    // 買い目の中身が足りない場合は買い目ステップ側のヒント(#targetHint)が
+    // 出しているので、ここでは二重に言わない。
+    var hint = document.getElementById("runHint");
+    if(!hint) return;
+    if(ok) hint.textContent = "";
+    else if(!state.period) hint.textContent = "期間を選んでください。";
+    else if(!state.bet) hint.textContent = "券種（何を買うか）を選んでください。";
+    else hint.textContent = "";
   }
 
   function hideResult(){ document.getElementById("resultArea").style.display = "none"; }
