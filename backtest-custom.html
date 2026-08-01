@@ -482,6 +482,13 @@ body{background:var(--bg); color:var(--ink);
 <script>
 (function(){
   "use strict";
+  // 文字列をHTMLに差し込む前に必ず通す。記号を「文字として表示される形」に置き換えるので、
+  // 万一 <script> のような文字列が混ざっていても、そのまま文字として出るだけで実行されない。
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
   var DATA_DIR = "backtest-data/";
   var BOATS = [1,2,3,4,5,6];
   var BADGE = {
@@ -1155,7 +1162,7 @@ body{background:var(--bg); color:var(--ink);
     if(!dl || !playerNames) return;
     var html = "";
     Object.keys(playerNames).forEach(function(t){
-      html += '<option value="' + playerNames[t] + "（" + t + "）" + '"></option>';
+      html += '<option value="' + esc(playerNames[t] + "（" + t + "）") + '"></option>';
     });
     dl.innerHTML = html;
   }
@@ -1602,7 +1609,7 @@ body{background:var(--bg); color:var(--ink);
     var ul = document.getElementById("alertCondList");
     var labels = TeiyomiAlerts.condLabels(cond);
     ul.innerHTML = labels.length
-      ? labels.map(function(t){ return "<li>" + t.replace(/[&<>]/g, "") + "</li>"; }).join("")
+      ? labels.map(function(t){ return "<li>" + esc(t) + "</li>"; }).join("")
       : '<li>この選手が走るすべてのレース</li>';
     var un = unusableLabels();
     var unEl = document.getElementById("alertUnusable");

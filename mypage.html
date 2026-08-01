@@ -184,6 +184,15 @@ body{background:var(--bg); color:var(--ink);
 "use strict";
 const PLAYER_PAGES = new Set((window.PLAYER_PAGES || []).map(String));
 
+// 文字列をHTMLに差し込む前に必ず通す。記号を「文字として表示される形」に置き換えるので、
+// 万一 <script> のような文字列が混ざっていても、そのまま文字として出るだけで実行されない。
+// 属性値(href="…" など)の中に入れることもあるため、引用符も対象にしている。
+// ※以前は該当記号を「削除」する版を使っていたが、それだと名前に & が入っている人の
+//   表示が変わってしまううえ、引用符が素通りするため置き換え版に統一した。
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 // ===== ログイン(トップから移設。文言・挙動そのまま) =====
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
 let authSentEmail = "";     // 送信先。6桁コードの検証に同じアドレスが要るため覚えておく
@@ -197,7 +206,7 @@ function renderAuthBox(){
 
     if(!user.isAnonymous){
       box.innerHTML = `<div class="authbox"><div class="authbox-row">
-        <span>✅ ログイン中：<span class="authbox-email">${user.email||""}</span></span>
+        <span>✅ ログイン中：<span class="authbox-email">${esc(user.email)}</span></span>
         <button type="button" class="authbox-btn" id="authLogoutBtn">ログアウト</button>
       </div></div>`;
       document.getElementById("authLogoutBtn").addEventListener("click", function(){
@@ -308,10 +317,10 @@ function renderFavoriteToday(){
       const f = found[t];
       const racesTxt = Object.keys(f.venues).map(vn=>{
         const nos = f.venues[vn].slice().sort((a,b)=>a-b);
-        return `${vn} ${nos.map(n=>`${n}R`).join("・")}`;
+        return `${esc(vn)} ${nos.map(n=>`${n}R`).join("・")}`;
       }).join("、");
       const nameHtml = PLAYER_PAGES.has(t)
-        ? `<a href="players/${t}.html" target="_blank" rel="noopener">${f.name}</a>` : f.name;
+        ? `<a href="players/${t}.html" target="_blank" rel="noopener">${esc(f.name)}</a>` : esc(f.name);
       return `<div class="favtoday-row"><span class="favtoday-name">${nameHtml}</span><span class="favtoday-races nums">${racesTxt}</span></div>`;
     }).join("");
     box.innerHTML = `<div class="favtoday"><div class="favtoday-head">⭐ お気に入り選手が本日出走します</div>${rows}</div>`;
@@ -497,11 +506,11 @@ function renderAlertsBox(){
     }
     inner.innerHTML = rows.map(r=>{
       const summary = TeiyomiAlerts.condSummary(r.cond);
-      const name = (r.label || r.toban).replace(/[&<>]/g, "");
-      return `<div class="al-row" data-id="${r.id}">
+      const name = r.label || r.toban;
+      return `<div class="al-row" data-id="${esc(r.id)}">
         <div class="al-main">
-          <p class="al-name">${name}</p>
-          <p class="al-cond">${summary.replace(/[&<>]/g, "")}</p>
+          <p class="al-name">${esc(name)}</p>
+          <p class="al-cond">${esc(summary)}</p>
         </div>
         <div class="al-act">
           <button type="button" class="authbox-btn al-toggle">${r.enabled ? "オン" : "オフ"}</button>
@@ -552,8 +561,7 @@ function renderNotesBox(){
         <p class="authbox-notice" style="margin-top:8px;"><a href="backtest-custom.html">条件を指定して検証する</a></p>`;
       return;
     }
-    const esc = s => String(s == null ? "" : s).replace(/[&<>]/g, "");
-    inner.innerHTML = rows.map(r=>`<div class="nt-row" data-id="${r.id}">
+    inner.innerHTML = rows.map(r=>`<div class="nt-row" data-id="${esc(r.id)}">
         <p class="nt-date">${TeiyomiNotes.ymd(r.created_at)}</p>
         <p class="nt-label">${esc(r.label)}</p>
         <p class="nt-result">${esc(TeiyomiNotes.resultLine(r.result, r.created_at))}</p>
