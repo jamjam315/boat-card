@@ -1330,6 +1330,19 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  /**
+   * サーバー側(RLS)が「契約者でないので保存させない」と弾いたかどうか。
+   * PostgREST は行レベルの許可に反したとき 403 と 42501 を返す。
+   * 契約が切れた直後など、画面上はボタンが出ているのに保存だけ通らない場面で、
+   * 「失敗しました」ではなく理由の分かる案内を出すために使う。
+   */
+  function isPremiumRequired(err){
+    if(!err) return false;
+    if(err.status === 403) return true;
+    var t = String(err.message || "");
+    return /42501|row-level security|row level security/i.test(t);
+  }
+
   // ---------- 検証ノート ----------
   var lastResult = null;    // 直近の実行結果(記録するときのスナップショット)
   var openedNote = null;    // ノートから開いたとき、その中身(「記録時」の併記に使う)
@@ -1464,6 +1477,9 @@ body{background:var(--bg); color:var(--ink);
         msg.textContent = "検証ノートは50件までです。マイページで整理できます。";
       }else if(text === "not-logged-in"){
         msg.textContent = "ログインすると記録できます。";
+      }else if(isPremiumRequired(err)){
+        // サーバー側(RLS)が契約を確認して弾いた場合。契約が切れた直後などに起きる。
+        msg.textContent = "プレミアムにご登録いただくと記録できます。";
       }else{
         msg.textContent = "記録できませんでした。時間をおいて再度お試しください。";
       }
@@ -1622,6 +1638,9 @@ body{background:var(--bg); color:var(--ink);
         msg.textContent = "条件アラートは10件までです。マイページで整理できます。";
       }else if(text === "not-logged-in"){
         msg.textContent = "ログインすると保存できます。";
+      }else if(isPremiumRequired(err)){
+        // サーバー側(RLS)が契約を確認して弾いた場合。契約が切れた直後などに起きる。
+        msg.textContent = "プレミアムにご登録いただくと保存できます。";
       }else{
         msg.textContent = "保存できませんでした。時間をおいて再度お試しください。";
       }
