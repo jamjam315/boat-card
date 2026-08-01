@@ -42,7 +42,25 @@
   // 生き残る、という艇読み全体の設計思想をここでも守る)。ログインは任意で、
   // ログインしなくても匿名のままお気に入り機能は通常通り使える。
   var SUPA_CONFIG_URL = "/supabase-config.json";
-  var SUPA_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+  // 【バージョンを固定し、中身の指紋(SRI)まで指定している理由】
+  // 以前は "@2"(2系の最新を勝手に取ってくる指定)で読んでいた。この1本は艇読みの
+  // ログイン処理そのものを担うので、jsDelivrやnpm側が乗っ取られると、
+  // 差し替えられたコードが全ページで動き、全利用者のログイントークンを盗める。
+  // 艇読み側のコードがどれだけ堅くても、そこで無効化されてしまう。
+  //
+  // そこで(1)版を固定し(2)integrityで中身の指紋を照合する。指紋が合わなければ
+  // ブラウザは実行しない。読み込めなければ supaReady が false のままになり、
+  // これまで通りlocalStorageだけで動く(お気に入りは使える)。
+  //
+  // 【更新のしかた】版を上げるときは、新しいURLの中身から指紋を取り直すこと:
+  //   curl -s <新URL> | openssl dgst -sha384 -binary | openssl base64 -A
+  // URLは「@2 が実際に返しているファイル」と同じものを指している
+  //   (jsDelivrの既定エントリ = /dist/umd/supabase.min.js)。
+  //   固定前後で中身が同一であることをsha256で確認済み(2026-08-01)。
+  var SUPA_SDK_VERSION = "2.111.0";
+  var SUPA_SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@" +
+    SUPA_SDK_VERSION + "/dist/umd/supabase.min.js";
+  var SUPA_SDK_SRI = "sha384-fPWur1rx/DE6YtXP/x0MD6dd90RgnVsz5yX/DIg7CcVAnTBZsENWuIcpvVTM39ti";
   var SUPA_TABLE = "favorite_players";
   var supaClient = null;
   var supaConfig = null;    // supabase-config.jsonの中身(url/anonKey)。Edge Function呼び出し側で使う。
@@ -55,6 +73,10 @@
       if (window.supabase && window.supabase.createClient) { resolve(); return; }
       var s = document.createElement("script");
       s.src = SUPA_SDK_URL;
+      // 指紋が合わなければブラウザが実行を拒否する。crossOrigin は integrity を
+      // 別ドメインのファイルに効かせるために必須(付けないと検証されない)。
+      s.integrity = SUPA_SDK_SRI;
+      s.crossOrigin = "anonymous";
       s.onload = function () { resolve(); };
       s.onerror = function () { reject(new Error("supabase sdk load failed")); };
       document.head.appendChild(s);
