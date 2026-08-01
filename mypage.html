@@ -109,6 +109,17 @@ body{background:var(--bg); color:var(--ink);
 .al-cond{margin:2px 0 0; font-size:11.5px; color:var(--muted); line-height:1.6; overflow-wrap:anywhere;}
 .al-act{flex:0 0 auto; display:flex; gap:10px;}
 
+/* ---- 検証ノート ---- */
+.nt-row{padding:12px 0; border-top:1px dashed var(--line2);}
+.nt-row:first-of-type{border-top:none; padding-top:2px;}
+.nt-date{margin:0; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums lining-nums;}
+.nt-label{margin:2px 0 0; font-size:13px; font-weight:600; color:var(--ink); overflow-wrap:anywhere;}
+.nt-result{margin:4px 0 0; font-size:12px; color:var(--ink2); line-height:1.6;
+  font-variant-numeric:tabular-nums lining-nums; overflow-wrap:anywhere;}
+.nt-memo{margin:4px 0 0; font-size:12px; color:var(--muted); line-height:1.7; overflow-wrap:anywhere;}
+.nt-act{margin:6px 0 0; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+.nt-open{font-size:12.5px; color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 </style>
@@ -139,6 +150,9 @@ body{background:var(--bg); color:var(--ink);
   <p class="sec-label">🔔 条件アラート</p>
   <div id="alertsBox"></div>
 
+  <p class="sec-label">📝 検証ノート</p>
+  <div id="notesBox"></div>
+
   <p class="sec-label">ご契約</p>
   <div id="planBox"></div>
 
@@ -150,6 +164,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
 <script src="alerts.js"></script>
+<script src="notes.js"></script>
 <script>
 (function(){
 "use strict";
@@ -503,17 +518,66 @@ function renderAlertsBox(){
     if(inner) inner.textContent = "条件アラートを読み込めませんでした。";
   });
 }
+// ===== 検証ノート(5bで記録した検証の見返し) =====
+function renderNotesBox(){
+  const box = document.getElementById("notesBox");
+  if(!box) return;
+  if(alertsPremium !== true){
+    box.innerHTML = alertsPremium === false
+      ? `<div class="authbox">検証ノートはプレミアムの機能です。<a href="premium/index.html">プレミアムを見る</a></div>`
+      : "";
+    return;
+  }
+  if(!window.TeiyomiNotes){ box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="authbox" id="notesInner">読み込み中…</div>`;
+  TeiyomiNotes.list().then(rows=>{
+    const inner = document.getElementById("notesInner");
+    if(!inner) return;
+    if(!rows || rows.length === 0){
+      inner.innerHTML = `バックテストの結果を記録すると、ここに並びます。
+        <p class="authbox-notice" style="margin-top:8px;"><a href="backtest-custom.html">条件を指定して検証する</a></p>`;
+      return;
+    }
+    const esc = s => String(s == null ? "" : s).replace(/[&<>]/g, "");
+    inner.innerHTML = rows.map(r=>`<div class="nt-row" data-id="${r.id}">
+        <p class="nt-date">${TeiyomiNotes.ymd(r.created_at)}</p>
+        <p class="nt-label">${esc(r.label)}</p>
+        <p class="nt-result">${esc(TeiyomiNotes.resultLine(r.result, r.created_at))}</p>
+        ${r.memo ? `<p class="nt-memo">📝 ${esc(r.memo)}</p>` : ""}
+        <p class="nt-act">
+          <a class="nt-open" href="backtest-custom.html?note=${encodeURIComponent(r.id)}">開く（今の数字で試す）→</a>
+          <button type="button" class="authbox-btn nt-del">削除</button>
+        </p>
+      </div>`).join("") +
+      `<p class="authbox-notice">記録できるのは${TeiyomiNotes.MAX}件までです。開くと、その条件で今のデータを使って計算し直します。</p>`;
+
+    inner.querySelectorAll(".nt-row").forEach(row=>{
+      const id = row.getAttribute("data-id");
+      row.querySelector(".nt-del").addEventListener("click", function(){
+        if(!window.confirm("この検証ノートを削除しますか？")) return;
+        this.disabled = true;
+        TeiyomiNotes.remove(id).then(()=>{ renderNotesBox(); })
+          .catch(()=>{ this.disabled = false; });
+      });
+    });
+  }).catch(()=>{
+    const inner = document.getElementById("notesInner");
+    if(inner) inner.textContent = "検証ノートを読み込めませんでした。";
+  });
+}
+
 if(window.TeiyomiMembership){
   TeiyomiMembership.onChange(state=>{
     alertsPremium = state ? !!state.active : false;
     renderAlertsBox();
+    renderNotesBox();
   });
 }
 
 window.addEventListener("teiyomi-auth-changed", ()=>{
   authFormOpen = false;
   renderAuthBox(); renderNotifyBox(); renderFavoriteToday(); renderFavList();
-  renderAlertsBox();
+  renderAlertsBox(); renderNotesBox();
 });
 if(window.TeiyomiMembership) TeiyomiMembership.onChange(renderPlan);
 })();

@@ -82,6 +82,16 @@ body{background:var(--bg); color:var(--ink);
 .bt-alert-cancel{flex:0 0 auto; padding:11px 16px; border-radius:9px; border:1px solid var(--line2);
   background:transparent; color:var(--ink2); font-size:13px; font-family:inherit; cursor:pointer;}
 .bt-alert-msg{margin:10px 0 0; font-size:12.5px; color:var(--ink2); min-height:1em;}
+/* 検証ノート */
+.bt-note-lbl{display:block; margin:2px 0 4px; font-size:12px; color:var(--muted);}
+.bt-note-input{width:100%; font-size:16px; padding:9px 10px; border:1px solid var(--line2);
+  border-radius:8px; background:var(--surface); color:var(--ink); font-family:inherit;
+  line-height:1.6; margin-bottom:12px; resize:vertical;}
+.bt-note-then{margin:12px 0 0; padding:10px 12px; border-radius:9px;
+  background:var(--accent-soft); color:var(--ink); font-size:12.5px; line-height:1.7;
+  font-variant-numeric:tabular-nums lining-nums;}
+.bt-note-memo{margin:6px 0 0; padding:0 2px; font-size:12.5px; color:var(--ink2);
+  line-height:1.7; overflow-wrap:anywhere;}
 
 .bt-row{display:flex; gap:8px; flex-wrap:wrap;}
 .bt-pill{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
@@ -314,6 +324,28 @@ body{background:var(--bg); color:var(--ink);
     <p class="bt-warn" id="resultWarn" style="display:none;"></p>
     <p class="bt-result-note" id="resultNote"></p>
 
+    <!-- 記録時の数字。ノートから開いたときだけ出る(この機能の核なので結果のすぐ上に置く)。 -->
+    <p class="bt-note-then" id="noteThen" style="display:none;"></p>
+    <p class="bt-note-memo" id="noteMemo" style="display:none;"></p>
+
+    <!-- 検証ノートに残す。通常モード・選手モードどちらでも出す。 -->
+    <div id="noteArea" style="display:none; margin-top:14px;">
+      <button type="button" class="bt-alert-btn" id="noteOpenBtn">📝 この検証を記録する</button>
+      <div class="bt-alert-box" id="noteBox" style="display:none;">
+        <p class="bt-alert-ttl">この検証を記録します</p>
+        <p class="bt-alert-player" id="noteLabel"></p>
+        <p class="bt-alert-lead" id="noteSnapshot"></p>
+        <label class="bt-note-lbl" for="noteMemoInput">メモ（任意）</label>
+        <textarea class="bt-note-input" id="noteMemoInput" rows="2"
+                  placeholder="例: 下関のインは堅い？ 母数が少ないので来月また見る"></textarea>
+        <div class="bt-alert-actions">
+          <button type="button" class="bt-alert-save" id="noteSaveBtn">記録する</button>
+          <button type="button" class="bt-alert-cancel" id="noteCancelBtn">やめる</button>
+        </div>
+        <p class="bt-alert-msg" id="noteMsg"></p>
+      </div>
+    </div>
+
     <!-- 選手モードのときだけ出る。押すと保存の確認を開く。 -->
     <div id="alertArea" style="display:none; margin-top:14px;">
       <button type="button" class="bt-alert-btn" id="alertOpenBtn">🔔 この絞り込みで通知する</button>
@@ -339,6 +371,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
 <script src="alerts.js"></script>
+<script src="notes.js"></script>
 <script>
 // ---------- プレミアムの壁 ----------
 // 【重要・将来サーバー側防御へ移すときの目印】
@@ -1028,12 +1061,16 @@ body{background:var(--bg); color:var(--ink);
   }
 
   // ---------- 選手モードの読み込みと表示切り替え ----------
+  var playerNamesPromise = null;
   function loadPlayerNames(){
-    if(playerNames) return Promise.resolve(playerNames);
-    return fetch("players/bt/_index.json")
+    // 何度呼ばれても取得は1回。ノートからの復元も、この読み込みを待ってから
+    // 選手を入れる(先に入れると名前が分からず入力欄が空のままになる)。
+    if(playerNamesPromise) return playerNamesPromise;
+    playerNamesPromise = fetch("players/bt/_index.json")
       .then(function(r){ return r.ok ? r.json() : {}; })
       .then(function(d){ playerNames = d; fillPlayerList(); return d; })
       .catch(function(){ playerNames = {}; return playerNames; });
+    return playerNamesPromise;
   }
   function fillPlayerList(){
     var dl = document.getElementById("playerList");
@@ -1123,9 +1160,12 @@ body{background:var(--bg); color:var(--ink);
   function setToban(toban){
     state.toban = toban || null;
     var input = document.getElementById("playerInput");
-    if(toban && playerNames && playerNames[toban]){
-      input.value = playerNames[toban] + "（" + toban + "）";
-    }else if(!toban){
+    if(toban){
+      // 名前が分からなくても登番だけは入れる(入力欄が空だと「選手が外れた」と誤解される)。
+      input.value = (playerNames && playerNames[toban])
+        ? playerNames[toban] + "（" + toban + "）"
+        : toban;
+    }else{
       input.value = "";
     }
     applyPlayerMode();
@@ -1184,6 +1224,168 @@ body{background:var(--bg); color:var(--ink);
           });
         });
     });
+  }
+
+  // ---------- 検証ノート ----------
+  var lastResult = null;    // 直近の実行結果(記録するときのスナップショット)
+  var openedNote = null;    // ノートから開いたとき、その中身(「記録時」の併記に使う)
+
+  /**
+   * 「いつ時点の検証か」を残すための、データ全体の最終日。
+   * 選手モードでも、その選手の最終出走日ではなくデータ全体の最終日を使う。
+   * 知りたいのは「どこまでのデータで計算したか」で、選手が最近走っていない
+   * だけの日付を出すと、あとで見返したときに誤解を招くため。
+   */
+  function currentDataTo(){
+    return (meta && meta.latest) || null;
+  }
+
+  /** 画面の状態を、あとでそっくり戻せる形にまとめる。 */
+  function buildNoteCond(){
+    return {
+      toban: state.toban || null,
+      venue: state.venue,
+      period: state.period,
+      bet: state.bet,
+      mode: state.mode,
+      singleBoats: (state.singleBoats || []).slice(),
+      axisBoat: state.axisBoat,
+      axisPos: state.axisPos,
+      oppoBoats: (state.oppoBoats || []).slice(),
+      boxBoats: (state.boxBoats || []).slice(),
+      filter: JSON.parse(JSON.stringify(state.filter))
+    };
+  }
+
+  function markPillByIndex(rowId, index){
+    var row = document.getElementById(rowId);
+    if(!row) return;
+    Array.prototype.forEach.call(row.children, function(c, i){
+      c.setAttribute("aria-selected", i === index ? "true" : "false");
+    });
+  }
+
+  /** ノートの条件で画面を元に戻す。戻したあとに自動で実行する。 */
+  function applyNoteCond(c){
+    if(!c) return;
+    setToban(c.toban || null);
+
+    state.venue = c.venue || "zenkoku";
+    var sel = document.getElementById("selVenue");
+    if(sel) sel.value = state.venue;
+
+    if(c.filter){
+      Object.keys(c.filter).forEach(function(k){ state.filter[k] = c.filter[k]; });
+    }
+    renderFilters();
+    document.getElementById("monthGrid").style.display = state.filter.month === "custom" ? "" : "none";
+    document.getElementById("rnoGrid").style.display = state.filter.rno === "custom" ? "" : "none";
+
+    if(c.period){
+      state.period = c.period;
+      markPillByIndex("periodRow", PERIODS.map(function(p){ return p.key; }).indexOf(c.period));
+    }
+    if(c.bet){
+      state.bet = c.bet;
+      var betRow = document.getElementById("betRow");
+      Array.prototype.forEach.call(betRow.children, function(b){
+        b.setAttribute("aria-selected", b.getAttribute("data-bet") === c.bet ? "true" : "false");
+      });
+    }
+    state.mode = c.mode || "axis";
+    state.singleBoats = (c.singleBoats || []).slice();
+    state.axisBoat = (c.axisBoat === undefined) ? null : c.axisBoat;
+    state.axisPos = c.axisPos || 1;
+    state.oppoBoats = (c.oppoBoats || []).slice();
+    state.boxBoats = (c.boxBoats || []).slice();
+    renderTarget();
+    syncSessionRow();
+    syncRunEnabled();
+    runBacktest();
+  }
+
+  /** 「記録時：…」の併記。良し悪しは書かない(数字が動いていれば見た人が気づく)。 */
+  function renderNoteThen(){
+    var thenEl = document.getElementById("noteThen");
+    var memoEl = document.getElementById("noteMemo");
+    if(!openedNote){ thenEl.style.display = "none"; memoEl.style.display = "none"; return; }
+    thenEl.style.display = "";
+    thenEl.textContent = TeiyomiNotes.resultLine(openedNote.result, openedNote.created_at);
+    if(openedNote.memo){
+      memoEl.style.display = "";
+      memoEl.textContent = "📝 " + openedNote.memo;
+    }else{
+      memoEl.style.display = "none";
+    }
+  }
+
+  function renderNoteBox(){
+    if(!lastResult) return;
+    document.getElementById("noteLabel").textContent = lastResult.head || "";
+    document.getElementById("noteSnapshot").textContent =
+      "この数字を残します：回収率 " + TeiyomiNotes.pct(lastResult.returnRate) +
+      "・的中率 " + TeiyomiNotes.pct(lastResult.hitRate) +
+      "・" + lastResult.races.toLocaleString("ja-JP") + "レース" +
+      (lastResult.dataTo ? "（データ〜" + TeiyomiNotes.ymd(lastResult.dataTo) + "時点）" : "");
+    document.getElementById("noteMsg").textContent = "";
+    var btn = document.getElementById("noteSaveBtn");
+    btn.disabled = false; btn.textContent = "記録する";
+  }
+
+  function saveNote(){
+    var btn = document.getElementById("noteSaveBtn");
+    var msg = document.getElementById("noteMsg");
+    if(!lastResult) return;
+    btn.disabled = true; btn.textContent = "記録中…"; msg.textContent = "";
+    TeiyomiNotes.create({
+      mode: state.toban ? "player" : "normal",
+      cond: buildNoteCond(),
+      result: {
+        races: lastResult.races, hitRate: lastResult.hitRate, returnRate: lastResult.returnRate,
+        stake: lastResult.stake, payout: lastResult.payout,
+        runAt: new Date().toISOString().slice(0, 10),
+        dataTo: lastResult.dataTo || null,
+        head: lastResult.head, cond: lastResult.cond || ""
+      },
+      memo: (document.getElementById("noteMemoInput").value || "").trim() || null,
+      label: lastResult.head || ""
+    }).then(function(){
+      msg.textContent = "記録しました。マイページの「検証ノート」で見返せます。";
+      btn.textContent = "記録しました";
+    }).catch(function(err){
+      var text = String((err && err.message) || "");
+      if(/50件|check_violation/.test(text)){
+        msg.textContent = "検証ノートは50件までです。マイページで整理できます。";
+      }else if(text === "not-logged-in"){
+        msg.textContent = "ログインすると記録できます。";
+      }else{
+        msg.textContent = "記録できませんでした。時間をおいて再度お試しください。";
+      }
+      btn.disabled = false; btn.textContent = "記録する";
+    });
+  }
+
+  function initNoteUi(){
+    document.getElementById("noteOpenBtn").addEventListener("click", function(){
+      renderNoteBox();
+      document.getElementById("noteBox").style.display = "";
+    });
+    document.getElementById("noteCancelBtn").addEventListener("click", function(){
+      document.getElementById("noteBox").style.display = "none";
+    });
+    document.getElementById("noteSaveBtn").addEventListener("click", saveNote);
+
+    // ?note={id} で来たら、その条件に戻して自動で実行する。
+    var id = new URLSearchParams(window.location.search).get("note");
+    if(!id || !window.TeiyomiNotes) return;
+    // 選手名の一覧を先に待つ(先に復元すると入力欄に名前が入らない)。
+    loadPlayerNames().then(function(){
+      return TeiyomiNotes.get(id);
+    }).then(function(note){
+      if(!note) return;
+      openedNote = note;
+      applyNoteCond(note.cond);
+    }).catch(function(){ /* 取れなければ普通の画面のまま */ });
   }
 
   // ---------- 条件アラートの保存 ----------
@@ -1421,6 +1623,19 @@ body{background:var(--bg); color:var(--ink);
       alertArea.style.display = state.toban ? "" : "none";
       document.getElementById("alertBox").style.display = "none";
     }
+
+    // 検証ノートは通常モード・選手モードどちらでも残せる。
+    lastResult = {
+      races: r.raceCount, hitRate: hitRate, returnRate: retRate,
+      stake: r.totalStake, payout: r.totalPayout,
+      head: r.head || "", cond: r.cond || "", dataTo: currentDataTo()
+    };
+    var noteArea = document.getElementById("noteArea");
+    if(noteArea){
+      noteArea.style.display = "";
+      document.getElementById("noteBox").style.display = "none";
+    }
+    renderNoteThen();
   }
 
   // ---------- 初期化 ----------
@@ -1435,6 +1650,7 @@ body{background:var(--bg); color:var(--ink);
     renderFilters();
     initPlayerStep();   // 選手の入力欄(?toban= があれば初期選択も)
     initAlertUi();      // 「この絞り込みで通知する」
+    initNoteUi();       // 「この検証を記録する」(?note= があれば復元して自動実行)
     document.getElementById("runBtn").addEventListener("click", runBacktest);
   }).catch(function(){
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",
