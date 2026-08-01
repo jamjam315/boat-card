@@ -377,7 +377,10 @@ body{background:var(--bg); color:var(--ink);
         <p class="bt-alert-player" id="noteLabel"></p>
         <p class="bt-alert-lead" id="noteSnapshot"></p>
         <label class="bt-note-lbl" for="noteMemoInput">メモ（任意）</label>
-        <textarea class="bt-note-input" id="noteMemoInput" rows="2"
+        <!-- maxlength はDB側の上限(2000文字)と同じ。ここで止めておけば、
+             長すぎるメモが保存時に弾かれて「記録できませんでした」とだけ
+             出る、という分かりにくい失敗にならない。 -->
+        <textarea class="bt-note-input" id="noteMemoInput" rows="2" maxlength="2000"
                   placeholder="例: 下関のインは堅い？ 母数が少ないので来月また見る"></textarea>
         <div class="bt-alert-actions">
           <button type="button" class="bt-alert-save" id="noteSaveBtn">記録する</button>
@@ -1448,7 +1451,9 @@ body{background:var(--bg); color:var(--ink);
         dataTo: lastResult.dataTo || null,
         head: lastResult.head, cond: lastResult.cond || ""
       },
-      memo: (document.getElementById("noteMemoInput").value || "").trim() || null,
+      // maxlength は人が打つ・貼り付ける操作しか止めない(値を直接入れると素通りする)。
+      // DB側の上限(2000文字)を超えたものを送らないよう、送る前にも切り詰める。
+      memo: (document.getElementById("noteMemoInput").value || "").trim().slice(0, 2000) || null,
       label: lastResult.head || ""
     }).then(function(){
       msg.textContent = "記録しました。マイページの「検証ノート」で見返せます。";
