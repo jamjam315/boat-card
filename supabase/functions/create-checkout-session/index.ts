@@ -4,6 +4,7 @@
 // Authorizationヘッダーに付けてこのFunctionをfetchし、返ってきたurlへ
 // リダイレクトするだけでよい。
 import { withSupabase } from 'npm:@supabase/server@^1'
+import { createClient } from 'npm:@supabase/supabase-js@^2'
 import Stripe from 'npm:stripe@^22'
 
 // 早期割引の締切(価格はprice_1Tx6aLFQRHrvqUlHax6dWnD6=¥300)。
@@ -18,6 +19,18 @@ const CANCEL_URL = 'https://teiyomi.com/premium/'
 
 // 秘密鍵はSupabase管理画面の環境変数に登録する(工程4)。コード・リポジトリには書かない。
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string)
+
+// 有料機能を使える状態(membership.jsのACTIVE_STATUSESと同じ定義)。
+// この状態の人に新しい支払い手続きを始めさせない = 二重契約・二重請求を防ぐ。
+const ACTIVE_STATUSES = ['active', 'trialing']
+
+// membershipsの読み取りは、service roleの管理者クライアントで
+// 「user_idが本人の行」だけを明示的に引く(create-portal-sessionと同じ方針)。
+const supabaseAdmin = createClient(
+  Deno.env.get('SUPABASE_URL') as string,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string,
+  { auth: { persistSession: false, autoRefreshToken: false } },
+)
 
 /** 現在時刻がEARLY_BIRD_UNTIL(JSTの日付・終日まで)以前かどうかで価格を決める。 */
 function resolvePriceId(now: Date): string {
@@ -47,7 +60,32 @@ export default {
         return Response.json({ error: 'email_required' }, { status: 403 })
       }
 
+      // 既に契約中の人に、新しい支払い手続きを始めさせない。
+      // 画面側でも「ご契約中」を出して隠しているが、画面の出し分けは
+      // 見た目の話でしかなく、直接このFunctionを叩けば素通りしてしまう。
+      // 二重請求は取り返しがつかないので、サーバー側でも必ず確かめる。
+      const { data: rows, error: lookupError } = await supabaseAdmin
+        .from('memberships')
+        .select('status,stripe_customer_id')
+        .eq('user_id', userClaims.id)
+        .limit(1)
+
+      if (lookupError) {
+        // 確かめられないまま進めると二重契約になりうるため、ここは止める側に倒す。
+        console.error('[create-checkout-session] memberships select failed:', lookupError.message)
+        return Response.json({ error: 'membership_lookup_failed' }, { status: 500 })
+      }
+
+      const membership = rows?.[0]
+      if (membership && ACTIVE_STATUSES.includes(membership.status)) {
+        return Response.json({ error: 'already_subscribed' }, { status: 409 })
+      }
+
       const priceId = resolvePriceId(new Date())
+
+      // 解約後に再契約する人は、Stripe側の顧客を作り直さず前と同じものを使う
+      // (支払い履歴が1人に紐づいたままになり、管理画面で追いやすい)。
+      const customerId = membership?.stripe_customer_id || null
 
       try {
         const session = await stripe.checkout.sessions.create({
@@ -55,7 +93,8 @@ export default {
           line_items: [{ price: priceId, quantity: 1 }],
           client_reference_id: userClaims.id,
           metadata: { user_id: userClaims.id },
-          customer_email: userClaims.email,
+          // customerとcustomer_emailは同時に渡せない。既存の顧客がいればそちらを優先する。
+          ...(customerId ? { customer: customerId } : { customer_email: userClaims.email }),
           success_url: SUCCESS_URL,
           cancel_url: CANCEL_URL,
         })
