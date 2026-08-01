@@ -202,7 +202,7 @@ body{background:var(--bg); color:var(--ink);
   <div class="bt-step" id="stepVenue">
     <p class="bt-step-title"><span class="n">1</span>会場</p>
     <select class="bt-select" id="selVenue"><option value="zenkoku">全国</option></select>
-    <p class="bt-pill-note" id="venueLockNote" style="display:none;">選手を指定している間は全国のみです（選手のデータは会場をまたいで1本にまとめてあるため）。会場でしぼりたい場合は選手の指定を外してください。</p>
+    <p class="bt-pill-note" id="venueLockNote" style="display:none;">会場を選ぶと、その会場で走ったレースだけを対象にします（全国のままなら全会場が対象）。</p>
   </div>
 
   <div class="bt-step" id="stepPeriod">
@@ -796,14 +796,24 @@ body{background:var(--bg); color:var(--ink);
     var entry  = f.entry;
     var session = state.venue === "zenkoku" ? f.session : "all";
 
+    // 選手モードは「その選手が出たレース」を会場をまたいで1本のファイルで読むので、
+    // 会場をmのビットで絞る必要がある。通常モードは会場別のファイルを読んでいるため
+    // ここで絞る必要はない(絞ると二重になるだけ)。
+    var venueCode = null;
+    if(state.toban && state.venue !== "zenkoku"){
+      var v = (meta.venues || []).filter(function(x){ return x.romaji === state.venue; })[0];
+      venueCode = v ? v.code : null;
+    }
+
     if(!months && !races && !wCodes && wind.min === null && !kCodes &&
        !kindCodes && !distCodes && fixedWant === null &&
-       entry === "all" && session === "all") return null;
+       entry === "all" && session === "all" && venueCode === null) return null;
 
     var night = session === "all" ? null : nightCodes();
 
     return function(rec){
       var m = rec.m | 0;
+      if(venueCode !== null && ((m >> 16) & 0x1F) !== venueCode) return false;
       if(months && months.indexOf(Number(rec.d.slice(5,7))) === -1) return false;
       if(races && races.indexOf(m & 0xF) === -1) return false;
       if(wCodes && wCodes.indexOf((m >> 4) & 0x7) === -1) return false;
@@ -1074,9 +1084,9 @@ body{background:var(--bg); color:var(--ink);
       picked.style.display = "";
       picked.textContent = "検証する選手：" + (nm ? nm + "（" + state.toban + "）" : state.toban) +
         " ／ この選手の舟券を毎レース買い続けた場合を集計します。";
-      // 選手のデータは会場をまたいで1本なので、会場は全国に固定する。
-      state.venue = "zenkoku";
-      sel.value = "zenkoku"; sel.disabled = true;
+      // 選手のデータは会場をまたいで1本にまとめてあるので、会場を選んでも
+      // 読むファイルは変わらない(mのビットで絞るだけ)。会場は選べる。
+      sel.disabled = false;
       lock.style.display = "";
       // 買う艇は「その選手が乗っている艇」で自動的に決まるため、買い目の指定は要らない。
       target.style.display = "none";
@@ -1168,7 +1178,7 @@ body{background:var(--bg); color:var(--ink);
           showResult({
             raceCount: n, hitCount: hit, totalPayout: ret,
             totalStake: n * stake, points: stake / 100,
-            head: nm + "・" + period.label + "・" + bet.label,
+            head: nm + "・" + venueLabel() + "・" + period.label + "・" + bet.label,
             cond: filterLabel(),
             playerNote: bet.key === "f"
           });
@@ -1181,6 +1191,11 @@ body{background:var(--bg); color:var(--ink);
   // _shared/morning-message.ts の AlertCond に合わせる(独自に項目を足さない)。
   function buildAlertCond(){
     var f = state.filter, cond = {};
+    // 会場を選んでいれば入れる。全国のままなら入れない(=会場では絞らない)。
+    if(state.venue !== "zenkoku"){
+      var v = (meta.venues || []).filter(function(x){ return x.romaji === state.venue; })[0];
+      if(v && v.name) cond.venues = [v.name];
+    }
     var months = f.month === "custom" ? (f.months.length ? f.months.slice() : null)
                                       : optByKey(MONTH_OPTS, f.month).months;
     if(months && months.length) cond.months = months.slice().sort(function(a,b){ return a-b; });
