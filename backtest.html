@@ -59,6 +59,10 @@ body{background:var(--bg); color:var(--ink);
 .bt-custom-link{display:inline-block; margin-top:10px; font-size:12.5px; color:var(--accent);
   text-decoration:none; border-bottom:1px solid var(--line2);}
 .bt-custom-link:hover{border-bottom-color:var(--accent);}
+/* 契約者にだけ出す近道。既定は hidden で、契約が確認できたときだけ出す。 */
+.bt-premium-link{display:block; margin:12px 0 0; padding:12px 14px; border-radius:10px;
+  background:var(--accent); color:#fff; font-size:13.5px; font-weight:700;
+  text-align:center; text-decoration:none;}
 
 .bt-tabs{display:flex; gap:8px; margin-top:12px; overflow-x:auto; padding-bottom:2px;}
 .bt-tab{flex:0 0 auto; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
@@ -99,6 +103,12 @@ body{background:var(--bg); color:var(--ink);
   </header>
   <a class="back" href="index.html">← トップに戻る</a>
 
+  <!-- 契約者だけに出る、プレミアム版への近道。自動で飛ばさないのは、
+       契約者でもこの固定メニューに用があることがあるため(驚かせない)。 -->
+  <a class="bt-premium-link" id="btPremiumLink" href="backtest-custom.html" hidden>
+    プレミアム版（条件を自分で指定して検証）→
+  </a>
+
   <section class="bt-intro">
     <p>これは過去1年（<span id="btPeriod" class="nums">集計中</span>）の実際のレース結果を、機械的に集計した"事実"です。予想ではなく、この買い方を推奨するものでもありません。</p>
     <p>24会場の一覧比較ではなく、会場を1つずつ選んで確認する形式です。</p>
@@ -131,6 +141,19 @@ body{background:var(--bg); color:var(--ink);
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a> ／ <a href="tokushoho.html">特定商取引法に基づく表記</a></p>
 </div>
 <script src="backtest.js" onerror="window.BACKTEST=null"></script>
+<!-- 契約者にプレミアム版への近道を出すためだけに読む。判定は既存のものをそのまま使う。 -->
+<script src="favorites.js"></script>
+<script src="membership.js"></script>
+<script>
+(function(){
+  "use strict";
+  if(!window.TeiyomiMembership) return;
+  TeiyomiMembership.onChange(function(state){
+    var el = document.getElementById("btPremiumLink");
+    if(el) el.hidden = !(state && state.active);
+  });
+})();
+</script>
 <script>
 (function(){
   var DATA = window.BACKTEST;

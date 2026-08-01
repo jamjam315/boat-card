@@ -119,6 +119,13 @@ body{background:var(--bg); color:var(--ink);
 .bt-points b{font-size:14.5px;}
 .bt-hint{font-size:11.5px; color:var(--muted); margin-top:8px;}
 .bt-run-hint{font-size:11.5px; color:var(--muted); margin:8px 2px 0; text-align:center; min-height:1em;}
+/* お試しで動かした人への案内(結果の下) */
+.bt-trial-pitch{margin-top:14px; padding:14px 16px; border-radius:10px;
+  border:1px solid var(--accent); background:var(--surface);}
+.bt-trial-ttl{margin:0 0 8px; font-size:13.5px; font-weight:700;}
+.bt-trial-list{margin:0 0 12px; padding-left:1.2em; font-size:12.5px; color:var(--ink2); line-height:1.8;}
+.bt-trial-cta{display:block; padding:11px; border-radius:9px; background:var(--accent);
+  color:#fff; font-size:13.5px; font-weight:700; text-align:center; text-decoration:none;}
 
 .bt-run{width:100%; margin-top:14px; padding:13px; border-radius:10px; border:none; background:var(--accent);
   color:#fff; font-size:14.5px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent;}
@@ -213,6 +220,7 @@ body{background:var(--bg); color:var(--ink);
     <p class="bt-pill-note">選手を指定すると「その選手の舟券を買い続けた場合」を検証します。指定しなければ、これまで通り艇番で検証します。</p>
     <input class="bt-select" id="playerInput" list="playerList" placeholder="選手名 または 登番（例: 4218）" autocomplete="off">
     <datalist id="playerList"></datalist>
+    <p class="bt-pill-note" id="playerTrial" style="display:none;">お試し：吉川喜継選手（4218）で体験できます。</p>
     <p class="bt-pill-note" id="playerPicked" style="display:none;"></p>
   </div>
 
@@ -339,6 +347,17 @@ body{background:var(--bg); color:var(--ink);
     <p class="bt-note-then" id="noteThen" style="display:none;"></p>
     <p class="bt-note-memo" id="noteMemo" style="display:none;"></p>
 
+    <!-- お試しで動かした人に、プレミアムで何が増えるかを結果のすぐ下で伝える。 -->
+    <div class="bt-trial-pitch" id="trialPitch" style="display:none;">
+      <p class="bt-trial-ttl">プレミアムなら</p>
+      <ul class="bt-trial-list">
+        <li><b>全2,114選手</b>を検証できます（艇番での検証も）</li>
+        <li><b>条件アラート 🔔</b>：この条件に当てはまる出走があった朝に通知します</li>
+        <li><b>検証ノート 📝</b>：この結果を記録して、あとで同じ条件を計算し直せます</li>
+      </ul>
+      <a class="bt-trial-cta" href="premium/index.html">プレミアムを見る</a>
+    </div>
+
     <!-- 検証ノートに残す。通常モード・選手モードどちらでも出す。 -->
     <div id="noteArea" style="display:none; margin-top:14px;">
       <button type="button" class="bt-alert-btn" id="noteOpenBtn">📝 この検証を記録する</button>
@@ -401,11 +420,16 @@ body{background:var(--bg); color:var(--ink);
   var lead = document.getElementById("gateLead");
   var DEFAULT_LEAD = lead.textContent;
   var UNKNOWN_LEAD = "ご契約の状態を確認できませんでした。通信状況をご確認のうえ、ページを再読み込みしてお試しください。";
+  var TRIAL_LEAD = "このページは、下の「お試し」でそのまま動かせます。吉川喜継選手（4218）だけを対象に、会場・期間・券種・しぼり込みを自由に変えて確かめられます。プレミアムにご登録いただくと、全2,114選手と艇番での検証、条件アラート🔔・検証ノート📝が使えます。";
 
+  // which: "app"(契約者=全機能) / "gate"(状態が分からない等) / "trial"(未契約=お試し)
+  // お試しでは、案内(gate)を上に出したまま、下の本体も触れるようにする。
+  // 説明を読むより実際に動かしたほうが早い、という判断。触れる範囲は
+  // 本体側で絞る(吉川喜継選手のみ・🔔📝なし)。
   function show(which, leadText){
     checking.hidden = true;
-    app.hidden = which !== "app";
-    gate.hidden = which !== "gate";
+    app.hidden = (which !== "app" && which !== "trial");
+    gate.hidden = (which !== "gate" && which !== "trial");
     lead.textContent = leadText || DEFAULT_LEAD;
   }
 
@@ -417,8 +441,14 @@ body{background:var(--bg); color:var(--ink);
   // status が active / trialing のときだけ機能UIを出す。
   // 行なし(未契約)・canceled・past_due 等はすべて案内表示にする。
   TeiyomiMembership.onChange(function(state){
+    var premium = !!(state && state.active);
+    // 本体側(下のスクリプト)にも契約状態を伝える。お試しの範囲を決めるのに使う。
+    window.TEIYOMI_PREMIUM = premium;
+    try{
+      window.dispatchEvent(new CustomEvent("teiyomi-premium-resolved", { detail:{ premium: premium } }));
+    }catch(e){}
     if(!state){ show("gate", UNKNOWN_LEAD); return; }   // 未接続・通信失敗
-    show(state.active ? "app" : "gate");
+    show(premium ? "app" : "trial", premium ? null : TRIAL_LEAD);
   });
 
   // favorites.jsが読み込めない等で認証状態がいつまでも確定しない場合の保険。
@@ -557,6 +587,11 @@ body{background:var(--bg); color:var(--ink);
     {key:"f",  col:5, label:"複勝",           stakeKey:"fuku",      hit:function(c){ return c !== null && c <= 2; }},
     {key:"2t", col:6, label:"2連単1着ながし", stakeKey:"nagashi2t", hit:function(c){ return c === 1; }}
   ];
+  // お試し(未契約)で触れる範囲。説明を読むより動かしたほうが早いので、
+  // 本物のデータで1人だけ試せるようにしている。
+  var TRIAL_TOBAN = "4218";
+  var trialMode = false;       // 契約状態が決まるまでは false(=何も制限しない)
+
   var playerNames = null;      // {登番: 名前}
   var playerCache = {};        // "{登番}/{年}" → rows
   var playerIndexCache = {};   // 登番 → index.json
@@ -1179,6 +1214,13 @@ body{background:var(--bg); color:var(--ink);
   }
 
   function setToban(toban){
+    // お試しは1人だけ。他の選手を入れた場合は、壁と同じトーンで案内して戻す。
+    if(trialMode && toban && toban !== TRIAL_TOBAN){
+      var msg = document.getElementById("playerTrial");
+      msg.style.display = "";
+      msg.textContent = "お試しは吉川喜継選手のみです。プレミアムで全選手を検証できます。";
+      toban = TRIAL_TOBAN;
+    }
     state.toban = toban || null;
     var input = document.getElementById("playerInput");
     if(toban){
@@ -1192,8 +1234,26 @@ body{background:var(--bg); color:var(--ink);
     applyPlayerMode();
   }
 
+  /** 契約状態が決まったら、お試しの範囲を画面に反映する。 */
+  function applyTrial(on){
+    trialMode = !!on;
+    var note = document.getElementById("playerTrial");
+    if(!trialMode){ note.style.display = "none"; return; }
+    note.style.display = "";
+    note.textContent = "お試し：吉川喜継選手（4218）で体験できます。";
+    // お試しは選手モードだけ(艇番での検証はプレミアム)。
+    loadPlayerNames().then(function(){
+      if(state.toban !== TRIAL_TOBAN) setToban(TRIAL_TOBAN);
+    });
+  }
+
   function initPlayerStep(){
     var input = document.getElementById("playerInput");
+    // 契約状態は上のスクリプトが決めてから知らせてくる。
+    if(window.TEIYOMI_PREMIUM === false) applyTrial(true);
+    window.addEventListener("teiyomi-premium-resolved", function(ev){
+      applyTrial(!(ev.detail && ev.detail.premium));
+    });
     loadPlayerNames().then(function(){
       // ?toban=4218 で来たとき(キャリアカードの「この選手で検証する」)は初期選択する。
       var q = new URLSearchParams(window.location.search).get("toban");
@@ -1674,12 +1734,15 @@ body{background:var(--bg); color:var(--ink);
     }
     document.getElementById("resultNote").textContent = note;
 
-    // 保存ボタンは選手モードのときだけ。押す前の状態に戻しておく。
+    // 保存ボタンは選手モードのときだけ。お試し(未契約)には出さない。
     var alertArea = document.getElementById("alertArea");
     if(alertArea){
-      alertArea.style.display = state.toban ? "" : "none";
+      alertArea.style.display = (state.toban && !trialMode) ? "" : "none";
       document.getElementById("alertBox").style.display = "none";
     }
+    // お試しで動かした人には、代わりにプレミアムで何が増えるかを出す。
+    var pitch = document.getElementById("trialPitch");
+    if(pitch) pitch.style.display = trialMode ? "" : "none";
 
     // 検証ノートは通常モード・選手モードどちらでも残せる。
     lastResult = {
@@ -1689,7 +1752,7 @@ body{background:var(--bg); color:var(--ink);
     };
     var noteArea = document.getElementById("noteArea");
     if(noteArea){
-      noteArea.style.display = "";
+      noteArea.style.display = trialMode ? "none" : "";
       document.getElementById("noteBox").style.display = "none";
     }
     renderNoteThen();

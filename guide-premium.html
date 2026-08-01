@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>プレミアムの使い方｜艇読み</title>
+<meta name="description" content="艇読みプレミアムの使い方。勝ち方分析の見方、選手バックテスト、条件アラート、検証ノート、朝の通知について、実際の画面に沿って説明します。">
+<!-- 公開前のため検索には載せない。公開当日に解除する。 -->
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+
+.backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+.back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.intro p{margin:0; font-size:15px; font-weight:600; color:var(--ink); line-height:1.75;}
+.intro p + p{margin-top:8px; font-size:13.5px; font-weight:400; color:var(--ink2);}
+
+.step{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.step-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.step-num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff;
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.step-ttl{font-size:15.5px; font-weight:700;}
+.step-body{font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.step-body b{color:var(--ink);}
+.step-body h3{font-size:13.5px; color:var(--ink); margin:16px 0 4px;}
+.step-body ul{margin:6px 0 0; padding-left:1.3em;}
+.step-body li{margin-top:4px;}
+
+.demo{background:var(--bg); border-radius:10px; padding:12px 14px; margin-top:12px;}
+.demo-cap{font-size:11.5px; color:var(--muted); margin-bottom:8px;}
+.demo-line{font-size:12.5px; color:var(--ink); font-variant-numeric:tabular-nums lining-nums;
+  line-height:1.9; overflow-wrap:anywhere;}
+.demo-line b{font-weight:700;}
+
+.tbl{width:100%; border-collapse:collapse; margin-top:10px; font-size:12.5px;}
+.tbl th, .tbl td{border-bottom:1px solid var(--line2); padding:7px 6px; text-align:left; vertical-align:top;}
+.tbl th{color:var(--muted); font-weight:600; font-size:11.5px;}
+.tbl td.ok{color:var(--ink);}
+.tbl td.ng{color:var(--muted);}
+
+.linktip{margin-top:12px; padding:9px 12px; background:var(--accent-soft); border-radius:9px;
+  font-size:12.5px; color:var(--ink);}
+.linktip a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+.closing{margin-top:16px; padding:16px 18px; background:var(--surface);
+  border:1px solid var(--line); border-radius:var(--radius); font-size:13px; color:var(--ink2); line-height:1.8;}
+.closing a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>プレミアムの使い方</p></div>
+  </header>
+  <nav class="backnav">
+    <a class="back" href="index.html">← トップに戻る</a>
+    <a class="back" href="mypage.html">⭐ マイページ</a>
+    <a class="back" href="premium/index.html">プレミアムについて</a>
+  </nav>
+
+  <section class="intro">
+    <p>プレミアムでできることを、実際の画面に沿って説明します。</p>
+    <p>出てくるのはすべて過去の実データを機械的に集計した"事実"です。予想でも推奨でもありません。母数（何レースぶんか）は必ず画面に添えてあります。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><span class="step-ttl">勝ち方分析の見方（選手ページ）</span></div>
+    <div class="step-body">
+      選手ページをいちばん下まで開くと「キャリア」があります。無料では直近3年の成績と現在の級別まで。プレミアムでは、その下に<b>勝ち方の内訳</b>が並びます。
+
+      <h3>勝ち方（1着したときの決まり手）</h3>
+      これは無料でも見られます。その選手が1着になったとき、どういう勝ち方だったかの内訳です。横に全国の構成比を添えてあるので、その選手の偏りが分かります。
+      <div class="demo">
+        <div class="demo-cap">吉川喜継選手の例（1着670本の内訳）</div>
+        <div class="demo-line">逃げ <b>61.2%</b>　410本／全国51.8%<br>
+        差し 12.2%　82本／全国13.4%<br>
+        まくり 9.6%　64本／全国15.1%</div>
+      </div>
+      全国より逃げの比率が高い＝インから押し切る形で勝つことが多い、と読めます。
+
+      <h3>コース別の1着率</h3>
+      進入コース1〜6それぞれの1着率と母数、そのコースでの主な決まり手です。「平均」は同じ期間の全国のコース別1着率なので、<b>その選手がコースの平均と比べてどうか</b>が分かります。
+      <div class="demo">
+        <div class="demo-line">1コース <b>70.4%</b>　619走／平均54.5%　主に 逃げ（410本）<br>
+        6コース 2.4%　164走／平均1.9%　主に 差し（2本）</div>
+      </div>
+
+      <h3>会場別・条件別・大舞台</h3>
+      <ul>
+        <li><b>会場別</b>：走ったことがある会場だけを、出走数の多い順に並べています。並び順に良し悪しの意味はありません</li>
+        <li><b>条件別</b>：雨／強風（8m以上）／波高（15cm以上）。比べる相手は<b>その選手自身の通算1着率</b>です。全国平均を使わないのは、全選手を合計するとどの条件でも必ず16.7%（＝6艇に1人）になり、基準にならないからです</li>
+        <li><b>大舞台</b>：優勝戦・準優勝戦の出走数と1着率・2連対率。比べる相手はやはり本人の通算です</li>
+      </ul>
+
+      <h3>進入の癖</h3>
+      枠なり／内に入った／外からの進入を分けて出します。「前づけ」の一語でまとめると、<b>自分から内を取りに行った走りと、押し出されて外になった走りが混ざってしまう</b>ためです。意味が正反対なので分けています。
+      <div class="demo">
+        <div class="demo-cap">同じ「前づけ率26.7%」でも中身が違う例</div>
+        <div class="demo-line">ある選手：内に入った <b>9走</b>／外からの進入 <b>134走</b><br>
+        → 自分から動いているのではなく、外に出されていることが多い</div>
+      </div>
+      この下に、年別のフライング・出遅れの回数も事実として添えてあります。
+
+      <h3>出走数の数え方</h3>
+      出走数は<b>完走しなかったレースも含みます</b>（失格・転覆・フライングも1走）。分母から抜くと成績が実際より良く見えてしまうためです。
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">選手バックテストの使い方</span></div>
+    <div class="step-body">
+      「この選手の舟券を毎レース買い続けていたら、いくらになっていたか」を確かめる機能です。
+
+      <h3>入り方</h3>
+      選手ページのキャリアにある「この選手で検証する →」から入るのがいちばん早いです。バックテストのページで<b>0 選手</b>の欄に名前か登番を入れても選べます（全2,114選手）。
+      <div class="linktip">選手を指定しなければ、これまで通り艇番（1号艇の単勝など）での検証になります。</div>
+
+      <h3>会場を選ぶ</h3>
+      選手を指定した状態で会場を選ぶと、<b>その会場で走ったレースだけ</b>が対象になります。全国のままなら全会場です。同じ選手でも会場でかなり違います。
+      <div class="demo">
+        <div class="demo-cap">吉川喜継選手・単勝・過去10年</div>
+        <div class="demo-line">全国　　2,899レース　回収率 64.0%<br>
+        下関　　　 89レース　回収率 <b>100.6%</b><br>
+        びわこ　　535レース　回収率 65.2%</div>
+      </div>
+      下関の100.6%は89レースしかないので、画面にも「サンプルが少ないため参考値」と出ます。<b>母数が小さい数字は動きやすい</b>ことを忘れないでください。
+
+      <h3>券種</h3>
+      選手モードで選べるのは単勝・複勝・2連単（1着ながし）の3つです。2連単は「その選手を1着に固定して、残り5艇へ流す」買い方で計算しています（5点＝500円）。
+
+      <h3>数字の読み方</h3>
+      <ul>
+        <li><b>的中率</b>は着順で判定しています。払戻が0円でも、2着に入っていれば複勝の的中として数えます（5艇以下のレースは複勝が1着ぶんしか発売されないため、こういうことが起きます）</li>
+        <li><b>非完走も出走に含みます</b>。失格・転覆・フライングは確実な外れなので、分母に入れないと回収率が甘く出ます</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">条件アラート 🔔 の使い方</span></div>
+    <div class="step-body">
+      検証した条件を保存しておくと、<b>その条件に当てはまる出走が今日あった朝</b>に、通知でお知らせします。
+
+      <h3>保存のしかた</h3>
+      選手を指定して検証した結果の下に「🔔 この絞り込みで通知する」が出ます。押すと確認の画面が開き、<b>通知の判定に使う条件</b>が並びます。そのまま「保存する」で登録されます。
+      <div class="demo">
+        <div class="demo-cap">確認画面の例</div>
+        <div class="demo-line">この条件で通知します<br>
+        吉川喜継（4218）<br>
+        ・会場：下関<br>
+        ・種別：予選<br>
+        <span style="color:var(--muted)">通知に使えない条件：決まり手：逃げ（レースが終わるまで分からないため）</span><br>
+        毎朝、今日の出走表に一致があればお知らせします。</div>
+      </div>
+
+      <h3>通知に効く条件・効かない条件</h3>
+      朝の時点で分かる条件だけが判定に使えます。レースが終わるまで分からない条件は、保存はされますが判定には使いません（確認画面に必ず表示します）。
+      <table class="tbl">
+        <tr><th>条件</th><th>通知の判定</th><th>理由</th></tr>
+        <tr><td>選手</td><td class="ok">使える</td><td>出走表に載っている</td></tr>
+        <tr><td>会場</td><td class="ok">使える</td><td>同上</td></tr>
+        <tr><td>レース番号</td><td class="ok">使える</td><td>同上</td></tr>
+        <tr><td>月</td><td class="ok">使える</td><td>日付から分かる</td></tr>
+        <tr><td>種別（優勝戦など）</td><td class="ok">使える</td><td>番組表に載っている</td></tr>
+        <tr><td>距離</td><td class="ok">使える</td><td>同上</td></tr>
+        <tr><td>進入固定</td><td class="ok">使える</td><td>同上</td></tr>
+        <tr><td>開催区分（ナイター／デイ）</td><td class="ok">使える</td><td>会場で決まる</td></tr>
+        <tr><td>天候</td><td class="ng">使えない</td><td>直前まで変わるため</td></tr>
+        <tr><td>風速</td><td class="ng">使えない</td><td>同上</td></tr>
+        <tr><td>波高</td><td class="ng">使えない</td><td>同上</td></tr>
+        <tr><td>決まり手</td><td class="ng">使えない</td><td>走らないと決まらない</td></tr>
+        <tr><td>進入（枠なり・進入変化）</td><td class="ng">使えない</td><td>実際の進入は走ってみないと分からない</td></tr>
+      </table>
+      使えない条件を含んだまま保存しても構いません。その条件は<b>無視されて、残りの条件だけで判定</b>されます。
+
+      <h3>届き方</h3>
+      朝の通知に1行足す形で届きます。お気に入り選手の出走がある日は、その下に並びます。
+      <div class="demo">
+        <div class="demo-line">本日の出走（1名）<br>
+        青木蓮（徳山3R 09:38）4枠で1着率31%（平均10%）<br>
+        <b>🔔 保存した条件に2件一致（住之江5R 11:20／大村9R 14:05）</b></div>
+      </div>
+      一致が多い日は、締切の早い順に2件まで名前を出し、残りは「ほか◯件」にまとめます。一致が0件の日は、この行ごと出しません。
+
+      <h3>管理</h3>
+      マイページの「🔔 条件アラート」で一覧・オン/オフ・削除ができます。<b>オフにすると通知だけ止まり、条件は残ります</b>。保存できるのは10件までです。
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">検証ノート 📝 の使い方</span></div>
+    <div class="step-body">
+      調べた結果を、そのときの数字ごと残しておく機能です。
+
+      <h3>なぜ結果まで残すのか</h3>
+      艇読みのデータは毎晩増えます。同じ条件でも1か月後には数字が変わります。条件だけ残しても<b>「あのとき何%だったか」が分からなくなる</b>ので、実行したときの数字と「どこまでのデータで計算したか」を一緒に残します。
+
+      <h3>記録のしかた</h3>
+      検証した結果の下にある「📝 この検証を記録する」を押します。メモは任意で、空でも保存できます。あとで自分が読み返すためのものなので、「母数が少ないので来月また見る」くらいの走り書きで十分です。
+
+      <h3>振り返り</h3>
+      マイページの「📝 検証ノート」に並びます。「開く（今の数字で試す）→」を押すと、<b>その条件のまま今のデータで計算し直し</b>、記録したときの数字を上に並べて表示します。
+      <div class="demo">
+        <div class="demo-cap">開いたときの表示</div>
+        <div class="demo-line">対象レース数 27レース　回収率 146.7%　…（今の数字）<br>
+        <b>記録時（2026/08/01・データ〜07/31時点）：回収率 146.7%・的中率 29.6%・27レース</b><br>
+        📝 下関のインは堅い？ 母数が少ないので来月また見る</div>
+      </div>
+      数字が動いていれば、並べて見れば分かります。こちらから「良くなった」「悪くなった」とは書きません。<b>どう読むかは見た人が決めることだから</b>です。
+
+      <h3>管理</h3>
+      記録できるのは50件までです。マイページから削除できます。
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">朝の通知について</span></div>
+    <div class="step-body">
+      お気に入り選手が今日出走する日の朝に、1通だけ届きます。通知はマイページの「通知」からオンにできます。
+
+      <h3>無料とプレミアムの違い</h3>
+      <ul>
+        <li><b>無料</b>：名前が出るのは3名まで（残りは人数だけ）</li>
+        <li><b>プレミアム</b>：<b>全員</b>の名前が入り、選手ごとに「見どころ」が最大1つ付きます。条件アラートの行もここに入ります</li>
+      </ul>
+
+      <h3>見どころの中身</h3>
+      次の3つを、当てはまる順に1つだけ添えます。どれにも当てはまらない選手には<b>何も付けません</b>（無理に褒めないためです）。
+      <ul>
+        <li><b>得意水面</b>：当地勝率が全国勝率を0.70以上上回っている（当地20走以上）</li>
+        <li><b>好機関</b>：モーター2連率42%以上</li>
+        <li><b>枠の強さ</b>：その枠での1着率が、枠ごとの上位15%に入っている</li>
+      </ul>
+      枠の強さには「4枠で1着率17%（平均10%）」のように<b>枠の平均</b>を添えています。1枠と6枠では水準がまったく違う（全体で1枠55%・6枠3%）ので、数字だけでは強いのか弱いのか分からないためです。
+
+      <h3>届く時刻</h3>
+      毎朝、出走表ができ次第お送りします。通知をタップするとマイページが開きます。
+      <div class="linktip">メールのリンクでログインするとうまく反映されないことがあります（アプリ内のブラウザと、ホーム画面から開いた艇読みが別々に扱われるため）。その場合はメールに書いてある<b>6桁のコード</b>を艇読みの画面に入力してください。</div>
+    </div>
+  </section>
+
+  <section class="closing">
+    艇読みは予想印を出しません。出すのは過去の実データを機械的に集計した事実だけです。<br>
+    ここで見た数字がこれからも同じように出るとは限りません。母数の小さい数字ほど動きます。<br><br>
+    <a href="guide.html">📖 レースの読み方ガイド（無料）</a> ／ <a href="premium/index.html">プレミアムについて</a>
+  </section>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a> ／ <a href="tokushoho.html">特定商取引法に基づく表記</a></p>
+</div>
+</body>
+</html>
