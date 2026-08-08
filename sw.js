@@ -11,10 +11,14 @@
 // network-first にしてからにすること。
 //
 // 【通知の中身】
-// 送信側(Edge Function send-morning-push)から
-//   {"title": "...", "body": "...", "url": "https://teiyomi.com/mypage.html"}
+// 送信側(Edge Function send-morning-push など)から
+//   {"title": "...", "body": "...", "url": "https://teiyomi.com/mypage.html",
+//    "tag": "teiyomi-morning"}
 // のJSONが届く。中身の組み立ては全部サーバー側でやっているので、
 // ここは受け取って表示するだけに徹する。
+// tag は通知の「置き換え単位」。同じtagの通知は積み上がらず新しいほうで
+// 置き換わるため、朝の便と「データ更新の遅れ」のように性質の違う通知は
+// 別のtagで送る。省略された場合は従来どおり朝の便として扱う。
 
 // 新しい sw.js を置いたら、古いものを待たずに差し替える。
 // キャッシュを持たないので、途中で入れ替わっても表示に影響しない。
@@ -33,13 +37,15 @@ self.addEventListener('push', function (event) {
   // 決まりになっている。出さないまま抜けると、ブラウザが代わりに
   // 「このサイトはバックグラウンドで更新されました」という既定の通知を出す。
   // そうならないよう、中身が読めなかった場合でも最低限の通知を出す。
-  var payload = { title: '艇読み', body: '', url: '/' };
+  var payload = { title: '艇読み', body: '', url: '/', tag: 'teiyomi-morning' };
   if (event.data) {
     try {
       var d = event.data.json();
       payload.title = d.title || payload.title;
       payload.body = d.body || '';
       payload.url = d.url || '/';
+      // 送信側が種類を指定してきたらそれを使う。指定が無ければ従来どおり朝の便。
+      if (d.tag) payload.tag = d.tag;
     } catch (e) {
       payload.body = event.data.text();
     }
@@ -52,7 +58,9 @@ self.addEventListener('push', function (event) {
       lang: 'ja',
       // 同じtagにしておくと、朝の便が二重に届いても通知が積み上がらず
       // 新しいほうで置き換わる(利用者から見て静か)。
-      tag: 'teiyomi-morning',
+      // 種類が違う通知(データ更新の遅れ等)は別のtagで送り、朝の便を
+      // 消してしまわないようにする。
+      tag: payload.tag,
       renotify: false,
       data: { url: payload.url }
     })
