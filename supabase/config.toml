@@ -437,6 +437,14 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-morning-push/index.ts"
 
+[functions.send-delay-notice]
+enabled = true
+# send-morning-push と同じく Supabase Cron から叩かれる。CronはSupabaseのJWTを
+# 持たないためプラットフォーム側のJWT検証を無効化し、代わりに関数内で
+# x-cron-secret ヘッダーを CRON_SECRET と突き合わせる(鍵は朝の便と共用)。
+verify_jwt = false
+entrypoint = "./functions/send-delay-notice/index.ts"
+
 [functions.send-test-push]
 enabled = true
 # 呼び出した本人の購読にだけテスト通知を送る。auth: 'user'(JWT必須)で実装して
