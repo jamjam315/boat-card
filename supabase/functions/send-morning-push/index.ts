@@ -1,16 +1,18 @@
 // 毎朝、お気に入り選手が本日出走する人にだけ通知を1通送る。
 //
-// 【起動方法】Supabase Cron(pg_cron + pg_net)から、1日3回叩かれる。
-//   22:45 UTC = 07:45 JST … 本便(daily.ymlが07:30にdata.jsを作った直後の想定)
-//   23:45 UTC = 08:45 JST … 再挑戦便
-//   00:45 UTC = 09:45 JST … 再挑戦便(2026-07-29に追加)
-// 2回目以降で二重に届かないよう、送信できた人を push_send_log に記録し、
+// 【起動方法】2系統から叩かれる。どちらから来たかは x-trigger ヘッダーで
+// 区別し、記録に残す(既定は 'cron'、daily.ymlからは 'ci')。
+//   ・本便 … daily.yml が data.js をpushし、GitHub Pagesへの反映を見届けてから叩く
+//   ・保険 … Supabase Cron(pg_cron + pg_net)から1日3回
+//       22:45 UTC = 07:45 JST / 23:45 UTC = 08:45 JST / 00:45 UTC = 09:45 JST
+// 二重に届かないよう、送信できた人を push_send_log に記録し、
 // 同じ日に既に記録がある人は飛ばす。
 //
-// 【なぜ再挑戦便が要るのか】
+// 【なぜCI側から叩くのが本便なのか】
 // data.jsを作るGitHub Actionsのスケジュールは遅延・欠落する(実測で1時間遅れる日がある)。
-// 07:45の時点で前日のdata.jsしか無い日が常態化しており、実質は08:45便が本番として
-// 効いている。ここを直す本筋は「データ公開後にCI側から叩く」形にすること。
+// 決め打ちの時刻では「まだ前日のdata.jsしか無い」ことが常態化していたため、
+// データを公開した側が公開反映を確認してから叩く形にした。cron3便は、
+// GitHub Actions自体が動かない日のための保険として残している。
 //
 // 【起動保護】この関数はJWTを持たないCronから叩くため、config.tomlで
 // verify_jwt = false にしている。代わりに x-cron-secret ヘッダーが
@@ -63,19 +65,23 @@ export default {
 
     const today = todayJst()
 
+    // どこから叩かれた便なのかを記録に残す。cron便(既定)と、data.jsを公開した
+    // 直後にdaily.ymlから叩かれるCI便('ci')を、あとから見分けられるようにする。
+    const trigger = req.headers.get('x-trigger') ?? 'cron'
+
     // ---- 日付ガード ----
     let todayData
     try {
       todayData = await loadToday()
     } catch (err) {
       console.error('[send-morning-push] data.js を読めませんでした:', err)
-      return Response.json({ sent: 0, skipped: 'data_unavailable' }, { status: 500 })
+      return Response.json({ sent: 0, skipped: 'data_unavailable', trigger }, { status: 500 })
     }
     if (todayData.date !== today) {
       console.warn(
         `[send-morning-push] data.jsの日付(${todayData.date})が今日(${today})ではないため送信しません。`,
       )
-      return Response.json({ sent: 0, skipped: 'stale_data', dataDate: todayData.date })
+      return Response.json({ sent: 0, skipped: 'stale_data', dataDate: todayData.date, trigger })
     }
 
     // 枠の見どころ用。読めなくても通知自体は出す(その材料を使わないだけ)。
@@ -203,7 +209,7 @@ export default {
     }
 
     const summary = {
-      date: today, users: userIds.length, sentUsers, sentPush,
+      date: today, trigger, users: userIds.length, sentUsers, sentPush,
       removedSubscriptions: removed, skippedNoRace, skippedAlreadySent: skippedDone,
       framesLoaded: !!frames,
       alerts: (alertRes.data ?? []).length, alertUsers, nightVenuesLoaded: !!nightVenues,

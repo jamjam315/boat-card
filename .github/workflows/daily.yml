@@ -4,7 +4,12 @@ on:
   schedule:
     - cron: '30 22 * * *'   # 07:30 JST（UTC 22:30）
     - cron: '30 23 * * *'   # 08:30 JST（取れてなかった時の再挑戦）
-  workflow_dispatch: {}      # 「Run workflow」で手動でも実行できる
+  workflow_dispatch:         # 「Run workflow」で手動でも実行できる
+    inputs:
+      force_push_notice:
+        description: '朝の通知を、JSTの時間帯に関係なく送る（復旧作業で昼以降に回す時だけON）'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -76,6 +81,88 @@ jobs:
           git add -A race/
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
+
+      # data.jsをpushした直後に置いているのは、ここからGitHub Pagesの反映が
+      # 始まるため(いちばん早く通知できる)。結果データの警報(最後のステップ)
+      # より前に置くことで、警報が鳴った日でも通知は送られる。
+      #
+      # 【なぜCI側から叩くのか】
+      # 朝の通知はSupabase Cron(07:45/08:45/09:45 JST)からも叩いているが、
+      # data.jsを作るGitHub Actionsは遅延・欠落するため、決め打ちの時刻では
+      # 「まだ前日のdata.jsしか無い」ことが常態化していた。データを公開した
+      # 側が公開反映を見届けてから叩くのが本筋。cron3便は保険として残す
+      # (二重送信は送信側の push_send_log が防ぐ)。
+      #
+      # 【CDNの取り扱い】
+      # GitHub PagesのCDNはクエリでのキャッシュ回避もno-cacheも効かない
+      # (実測済み。_shared/morning-message.ts のコメント参照)。ランナーが
+      # 新しいコピーを見ても、Edge Functionの接続先がまだ古い可能性が残るため、
+      # stale_dataが返ったら間を置いて数回やり直す。それでも駄目な場合は
+      # 警告を出すだけにして、cron便に任せる(通知の遅れでCIを赤くしない)。
+      - name: データ公開の反映を待って、朝の通知を叩く
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          FORCE: ${{ inputs.force_push_notice }}
+        run: |
+          set -u
+          FUNC_URL="https://vynbhssakpxiikmseoja.supabase.co/functions/v1/send-morning-push"
+          DATA_URL="https://teiyomi.com/data.js"
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::warning::CRON_SECRET が未設定のため、朝の通知は叩きません（Supabase Cronの3便に任せます）"
+            exit 0
+          fi
+
+          today=$(TZ=Asia/Tokyo date +%Y-%m-%d)
+          hour=$(TZ=Asia/Tokyo date +%H)
+          # 手動実行や大幅な遅延で昼過ぎに走った回で「朝の通知」が飛ぶのを防ぐ。
+          # 復旧作業で意図的に回す時は force_push_notice で上書きできる。
+          if [ "${FORCE}" != "true" ] && { [ "$hour" -lt 7 ] || [ "$hour" -gt 11 ]; }; then
+            echo "現在 ${hour}時(JST)のため、朝の通知は送りません（07〜11時台のみ）"
+            exit 0
+          fi
+
+          echo "data.js が ${today} になるまで待ちます（15秒おき・最大10分）"
+          published=no
+          for i in $(seq 1 40); do
+            curl -sS --max-time 20 -o /tmp/published_data.js "$DATA_URL" || true
+            gen=$(grep -o -m1 '"generated_at":"[0-9-]\{10\}' /tmp/published_data.js 2>/dev/null | cut -c17-)
+            if [ "$gen" = "$today" ]; then
+              echo "公開を確認しました（${i}回目・generated_at=${gen}）"
+              published=yes
+              break
+            fi
+            echo "  まだ ${gen:-取得できず} … ${i}/40"
+            sleep 15
+          done
+          if [ "$published" != "yes" ]; then
+            echo "::warning::10分待ってもdata.jsが今日のものになりませんでした。Supabase Cronの3便に任せます"
+            exit 0
+          fi
+
+          # 反映を確認できても、Edge Functionの接続先がまだ古いコピーを返すことがある。
+          for i in 1 2 3 4 5; do
+            body=$(curl -sS --max-time 60 -X POST "$FUNC_URL" \
+                    -H "x-cron-secret: ${CRON_SECRET}" \
+                    -H "x-trigger: ci" \
+                    -H "Content-Type: application/json" -d '{}')
+            echo "応答(${i}/5): ${body}"
+            case "$body" in
+              *stale_data*)
+                echo "  送信側からはまだ古いデータに見えています。30秒待ってやり直します"
+                sleep 30
+                ;;
+              *sentUsers*)
+                echo "朝の通知を送りました"
+                exit 0
+                ;;
+              *)
+                echo "::warning::想定外の応答でした。Supabase Cronの3便に任せます"
+                exit 0
+                ;;
+            esac
+          done
+          echo "::warning::送信側から見て新しいデータにならなかったため送れませんでした。Supabase Cronの3便に任せます"
 
       # dataブランチへは別コミットで積む。結果収集(results.yml)と同時に走って
       # pushが弾かれた場合に備え、rebaseして数回やり直す(触るディレクトリが
