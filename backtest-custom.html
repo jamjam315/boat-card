@@ -112,6 +112,22 @@ body{background:var(--bg); color:var(--ink);
 .bt-pill[disabled]{opacity:.4; cursor:not-allowed; pointer-events:none;}
 .bt-pill-note{font-size:10.5px; color:var(--muted); margin-top:6px;}
 
+/* カスタム期間。選ぶまでは控えめに置いておき、選んだら枠の色で
+   「今はこちらが効いている」ことが分かるようにする(上のボタンとの二択)。 */
+.bt-custom{margin-top:10px; padding:9px 11px; border:1px solid var(--line2);
+  border-radius:10px; background:var(--surface);}
+.bt-custom[data-active="true"]{border-color:var(--accent); background:var(--accent-soft);}
+.bt-custom-ttl{font-size:11.5px; color:var(--muted); margin:0 0 7px;}
+.bt-custom[data-active="true"] .bt-custom-ttl{color:var(--accent); font-weight:600;}
+.bt-custom-row{display:flex; align-items:center; gap:4px; flex-wrap:nowrap;}
+/* .bt-select は width:100% なので、横並びに置くこの4つだけ幅の指定を上書きする。 */
+.bt-custom-row .bt-select{padding:6px 2px; font-size:12.5px; width:auto; min-width:0; text-align:center;}
+.bt-sel-y{flex:1 1 0; max-width:80px;}
+.bt-sel-m{flex:1 1 0; max-width:62px;}
+.bt-custom-sep{flex:0 0 auto; font-size:12.5px; color:var(--ink2);}
+.bt-custom-clear{flex:0 0 auto; padding:6px 9px; font-size:11.5px; margin-left:2px;}
+.bt-custom-clear[disabled]{opacity:.4; pointer-events:none;}
+
 .bt-boats{display:flex; gap:8px; flex-wrap:wrap;}
 .bt-boat-btn{width:38px; height:38px; border-radius:50%; border:1.5px solid var(--line2); background:var(--surface);
   font-size:14px; font-weight:700; cursor:pointer; -webkit-tap-highlight-color:transparent; color:var(--ink);}
@@ -252,6 +268,17 @@ body{background:var(--bg); color:var(--ink);
   <div class="bt-step" id="stepPeriod">
     <p class="bt-step-title"><span class="n">2</span>期間</p>
     <div class="bt-row" id="periodRow" role="tablist" aria-label="期間"></div>
+    <div class="bt-custom" id="periodCustom">
+      <p class="bt-custom-ttl">または、期間を自分で決める</p>
+      <div class="bt-custom-row">
+        <select class="bt-select bt-sel-y" id="cpFromY" aria-label="開始の年"></select>
+        <select class="bt-select bt-sel-m" id="cpFromM" aria-label="開始の月"></select>
+        <span class="bt-custom-sep" aria-hidden="true">〜</span>
+        <select class="bt-select bt-sel-y" id="cpToY" aria-label="終了の年"></select>
+        <select class="bt-select bt-sel-m" id="cpToM" aria-label="終了の月"></select>
+        <button type="button" class="bt-pill bt-custom-clear" id="cpClear">解除</button>
+      </div>
+    </div>
     <p class="bt-pill-note" id="periodNote"></p>
   </div>
 
@@ -583,6 +610,7 @@ body{background:var(--bg); color:var(--ink);
     venue: "zenkoku",
     toban: null,        // 選手モードの登番(null=通常モード)
     period: null,
+    custom: null,       // カスタム期間 {from:"YYYY-MM", to:"YYYY-MM"}。指定中はperiodをnullにする
     bet: null,
     mode: "axis",       // axis | box
     singleBoats: [],
@@ -707,9 +735,49 @@ body{background:var(--bg); color:var(--ink);
   // 指定期間の窓に重なる年(=年ファイルを読む必要がある年)を、実在する年(meta.years)の
   // 範囲内で返す。窓の始点が年の途中でも、その年のファイルは丸ごと読んでから
   // 日付でフィルタする(年より細かい分割はしない。詳しくはbuild_backtest_custom.pyのコメント)。
-  function neededYears(p){
-    var cutoffYear = Number(periodCutoff(p).slice(0,4));
-    return (meta.years || []).filter(function(y){ return Number(y) >= cutoffYear; });
+  function neededYears(win){
+    var fromYear = Number(win.from.slice(0,4));
+    var toYear = Number(win.to.slice(0,4));
+    return (meta.years || []).filter(function(y){
+      return Number(y) >= fromYear && Number(y) <= toYear;
+    });
+  }
+
+  // ---------- 期間の窓 ----------
+  // 「過去N年」ボタンとカスタム期間の違いを、ここから先へ持ち込まない。
+  // どちらも {from, to, label} という1つの窓に均してから集計に渡す。
+  // ボタン側の to を9999年にしているのは、従来の「下限だけで絞る」計算と
+  // 1件も違わないようにするため(上限判定が常に真になる)。
+  function periodByKey(key){
+    for(var i=0;i<PERIODS.length;i++){ if(PERIODS[i].key === key) return PERIODS[i]; }
+    return null;
+  }
+  /** "YYYY-MM" の月末日を "YYYY-MM-DD" で返す。 */
+  function monthEnd(ym){
+    var y = Number(ym.slice(0,4)), m = Number(ym.slice(5,7));
+    var d = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return ym + "-" + (d < 10 ? "0" : "") + d;
+  }
+  /** "2016-07" を "2016年7月" にする(画面と結果見出しの表記)。 */
+  function ymLabel(ym){
+    return Number(ym.slice(0,4)) + "年" + Number(ym.slice(5,7)) + "月";
+  }
+  function activeWindow(){
+    if(state.custom){
+      // 選べる年月はデータ実在範囲内しか出していないが、範囲の端の月は
+      // 途中から/途中までしかデータが無い。集計の窓を実在範囲に丸めておく。
+      var from = state.custom.from + "-01";
+      var to = monthEnd(state.custom.to);
+      if(from < meta.earliest) from = meta.earliest;
+      if(to > meta.latest) to = meta.latest;
+      return {
+        from: from, to: to,
+        label: ymLabel(state.custom.from) + "〜" + ymLabel(state.custom.to)
+      };
+    }
+    var p = periodByKey(state.period);
+    if(!p) return null;
+    return { from: periodCutoff(p), to: "9999-12-31", label: p.label };
   }
 
   // ---------- UI描画 ----------
@@ -737,6 +805,9 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  // カスタム期間を解除したときに戻す先(最後に押していた期間ボタン)。
+  var lastPeriodKey = null;
+
   function renderPeriods(){
     var row = document.getElementById("periodRow");
     row.innerHTML = "";
@@ -751,8 +822,11 @@ body{background:var(--bg); color:var(--ink);
       if(!en) btn.disabled = true;
       btn.addEventListener("click", function(){
         state.period = p.key;
+        lastPeriodKey = p.key;
+        state.custom = null;      // ボタンとカスタム期間は二択
         Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
         btn.setAttribute("aria-selected", "true");
+        syncCustomUI();
         hideResult(); syncRunEnabled();
       });
       row.appendChild(btn);
@@ -764,6 +838,118 @@ body{background:var(--bg); color:var(--ink);
     var note = document.getElementById("periodNote");
     note.textContent = "データの実在範囲: " + meta.earliest + "〜" + meta.latest +
       "（この範囲を超える期間は選べません。データが増えると自動的に選べるようになります）";
+    renderCustomPeriod();
+  }
+
+  // ---------- カスタム期間 ----------
+  // 選択肢はデータが実在する年月だけを作る(範囲外は最初から出さない)。
+  // 端の年は途中の月から始まる/終わるため、年を変えるたびに月の一覧を作り直す。
+  var CP = {};   // 4つのselect要素をまとめて持っておく
+  /** データ実在範囲の "YYYY-MM" を古い順に並べて返す。 */
+  function ymRange(){
+    var out = [], last = meta.latest.slice(0,7);
+    var y = Number(meta.earliest.slice(0,4)), m = Number(meta.earliest.slice(5,7));
+    for(var guard = 0; guard < 2400; guard++){
+      var ym = y + "-" + (m < 10 ? "0" : "") + m;
+      out.push(ym);
+      if(ym === last) break;
+      m++; if(m > 12){ m = 1; y++; }
+    }
+    return out;
+  }
+  function fillOptions(sel, values, labelOf, keep){
+    sel.innerHTML = "";
+    values.forEach(function(v){
+      var o = document.createElement("option");
+      o.value = v; o.textContent = labelOf(v);
+      sel.appendChild(o);
+    });
+    if(keep != null && values.indexOf(keep) !== -1) sel.value = keep;
+  }
+  /** その年に実在する月だけを月セレクトに入れる。今の選択が残せるなら残す。 */
+  function fillMonths(ySel, mSel){
+    var months = ymRange()
+      .filter(function(ym){ return ym.slice(0,4) === ySel.value; })
+      .map(function(ym){ return ym.slice(5,7); });
+    fillOptions(mSel, months, function(m){ return Number(m) + "月"; }, mSel.value);
+  }
+  function cpValue(ySel, mSel){ return ySel.value + "-" + mSel.value; }
+
+  function renderCustomPeriod(){
+    CP.fy = document.getElementById("cpFromY"); CP.fm = document.getElementById("cpFromM");
+    CP.ty = document.getElementById("cpToY");   CP.tm = document.getElementById("cpToM");
+    CP.clear = document.getElementById("cpClear");
+    if(!CP.fy) return;
+
+    var all = ymRange();
+    var years = [];
+    all.forEach(function(ym){
+      var y = ym.slice(0,4);
+      if(years.indexOf(y) === -1) years.push(y);
+    });
+    var yLabel = function(y){ return y + "年"; };
+    // 初期値は「いちばん古い月 〜 いちばん新しい月」。選んで初めて効くので、
+    // ここに何が入っていても、解除中は集計に影響しない。
+    fillOptions(CP.fy, years, yLabel, all[0].slice(0,4));
+    fillOptions(CP.ty, years, yLabel, all[all.length-1].slice(0,4));
+    fillMonths(CP.fy, CP.fm); CP.fm.value = all[0].slice(5,7);
+    fillMonths(CP.ty, CP.tm); CP.tm.value = all[all.length-1].slice(5,7);
+
+    [["fy","fm","from"],["ty","tm","to"]].forEach(function(pair){
+      CP[pair[0]].addEventListener("change", function(){
+        fillMonths(CP[pair[0]], CP[pair[1]]);   // 年が変われば選べる月も変わる
+        applyCustom(pair[2]);
+      });
+      CP[pair[1]].addEventListener("change", function(){ applyCustom(pair[2]); });
+    });
+    CP.clear.addEventListener("click", clearCustom);
+    syncCustomUI();
+  }
+
+  /** "YYYY-MM" をセレクト2つに反映する。 */
+  function setYM(ySel, mSel, ym){
+    ySel.value = ym.slice(0,4);
+    fillMonths(ySel, mSel);
+    mSel.value = ym.slice(5,7);
+  }
+  /**
+   * 4つのセレクトの値を期間として採用する。
+   * 開始>終了になったら、エラーを出さずに「今いじっていないほうの端」を寄せる。
+   * 単純に入れ替えると、今選んだばかりの値が反対側へ飛んでしまい、
+   * 年→月と2回に分けて選ぶ間に意図しない期間になるため。
+   * side は "from" | "to"(利用者がいま動かしたほう)。
+   */
+  function applyCustom(side){
+    var from = cpValue(CP.fy, CP.fm), to = cpValue(CP.ty, CP.tm);
+    if(from > to){
+      if(side === "to"){ from = to; setYM(CP.fy, CP.fm, from); }
+      else             { to = from; setYM(CP.ty, CP.tm, to); }
+    }
+    state.custom = { from: from, to: to };
+    state.period = null;
+    markPillByIndex("periodRow", -1);   // 上のボタンの選択は外す
+    syncCustomUI();
+    hideResult(); syncRunEnabled();
+  }
+
+  function clearCustom(){
+    if(!state.custom) return;
+    state.custom = null;
+    // ボタン側へ戻す。最後に押していたボタンが無ければ、選べる中でいちばん短い期間。
+    var back = lastPeriodKey || (PERIODS.filter(periodEnabled)[0] || {}).key || null;
+    state.period = back;
+    markPillByIndex("periodRow", PERIODS.map(function(p){ return p.key; }).indexOf(back));
+    syncCustomUI();
+    hideResult(); syncRunEnabled();
+  }
+
+  /** カスタム期間が効いているかどうかを見た目に反映する。 */
+  function syncCustomUI(){
+    var box = document.getElementById("periodCustom");
+    if(!box) return;
+    var on = !!state.custom;
+    box.setAttribute("data-active", on ? "true" : "false");
+    if(CP.clear) CP.clear.disabled = !on;
   }
 
   function renderBetTypes(){
@@ -1110,9 +1296,10 @@ body{background:var(--bg); color:var(--ink);
   function syncRunEnabled(){
     // 選手モードは買う艇が「その選手が乗っている艇」で自動的に決まるので、
     // 買い目の選択(combos)は要件から外す。
+    var hasPeriod = !!state.period || !!state.custom;   // ボタンかカスタム期間のどちらか
     var ok = state.toban
-      ? (!!state.period && !!state.bet)
-      : (!!state.venue && !!state.period && !!state.bet && buildCombos().length > 0);
+      ? (hasPeriod && !!state.bet)
+      : (!!state.venue && hasPeriod && !!state.bet && buildCombos().length > 0);
     document.getElementById("runBtn").disabled = !ok;
 
     // 押せないときは理由を出す。黙って押せないボタンを置かない。
@@ -1121,7 +1308,7 @@ body{background:var(--bg); color:var(--ink);
     var hint = document.getElementById("runHint");
     if(!hint) return;
     if(ok) hint.textContent = "";
-    else if(!state.period) hint.textContent = "期間を選んでください。";
+    else if(!hasPeriod) hint.textContent = "期間を選んでください。";
     else if(!state.bet) hint.textContent = "券種（何を買うか）を選んでください。";
     else hint.textContent = "";
   }
@@ -1139,8 +1326,8 @@ body{background:var(--bg); color:var(--ink);
   }
   // 会場×期間に必要な年ファイルだけ並行取得してつなげる(読み込み量が期間の長さに
   // ほぼ比例する。年をまたいでも、既に読み込み済みの年はfileCacheで再取得しない)。
-  function loadVenuePeriod(romaji, period){
-    var years = neededYears(period);
+  function loadVenuePeriod(romaji, win){
+    var years = neededYears(win);
     return Promise.all(years.map(function(y){ return loadYearFile(romaji, y); }))
       .then(function(arrays){ return arrays.reduce(function(acc,a){ return acc.concat(a); }, []); });
   }
@@ -1306,16 +1493,17 @@ body{background:var(--bg); color:var(--ink);
   }
 
   /** 選手モードの集計。読むのはその選手・その期間の年ファイルだけ。 */
-  function runPlayerBacktest(period, loading){
+  function runPlayerBacktest(win, loading){
     var bet = playerBetDef(state.bet);
     return loadPlayerIndex(state.toban).then(function(idx){
-      var cutoffYear = Number(periodCutoff(period).slice(0, 4));
-      var years = Object.keys(idx.years || {}).filter(function(y){ return Number(y) >= cutoffYear; });
+      var fromYear = Number(win.from.slice(0, 4)), toYear = Number(win.to.slice(0, 4));
+      var years = Object.keys(idx.years || {}).filter(function(y){
+        return Number(y) >= fromYear && Number(y) <= toYear;
+      });
       loading.textContent = years.length > 1 ? "データを読み込み中…(" + years.length + "年分)" : "集計中…";
       return Promise.all(years.map(function(y){ return loadPlayerYear(state.toban, y); }))
         .then(function(lists){
           loading.textContent = "集計中…";
-          var cutoff = periodCutoff(period);
           var pass = buildFilter();
           var stake = (idx.stake && idx.stake[bet.stakeKey]) || 100;
           var n = 0, hit = 0, ret = 0;
@@ -1323,7 +1511,7 @@ body{background:var(--bg); color:var(--ink);
             var rows = lists[i];
             for(var j=0;j<rows.length;j++){
               var r = rows[j];
-              if(r[0] < cutoff) continue;
+              if(r[0] < win.from || r[0] > win.to) continue;
               if(pass && !pass({ d: r[0], m: r[1] })) continue;
               n++;
               ret += r[bet.col];
@@ -1337,7 +1525,7 @@ body{background:var(--bg); color:var(--ink);
           showResult({
             raceCount: n, hitCount: hit, totalPayout: ret,
             totalStake: n * stake, points: stake / 100,
-            head: nm + "・" + venueLabel() + "・" + period.label + "・" + bet.label,
+            head: nm + "・" + venueLabel() + "・" + win.label + "・" + bet.label,
             cond: filterLabel(),
             playerNote: bet.key === "f"
           });
@@ -1378,6 +1566,7 @@ body{background:var(--bg); color:var(--ink);
       toban: state.toban || null,
       venue: state.venue,
       period: state.period,
+      custom: state.custom ? { from: state.custom.from, to: state.custom.to } : null,
       bet: state.bet,
       mode: state.mode,
       singleBoats: (state.singleBoats || []).slice(),
@@ -1413,9 +1602,22 @@ body{background:var(--bg); color:var(--ink);
     document.getElementById("monthGrid").style.display = state.filter.month === "custom" ? "" : "none";
     document.getElementById("rnoGrid").style.display = state.filter.rno === "custom" ? "" : "none";
 
-    if(c.period){
+    if(c.custom && c.custom.from && c.custom.to){
+      // カスタム期間のノート。セレクトの表示も合わせてから採用する。
+      state.custom = { from: c.custom.from, to: c.custom.to };
+      state.period = null;
+      if(CP.fy){
+        CP.fy.value = c.custom.from.slice(0,4); fillMonths(CP.fy, CP.fm); CP.fm.value = c.custom.from.slice(5,7);
+        CP.ty.value = c.custom.to.slice(0,4);   fillMonths(CP.ty, CP.tm); CP.tm.value = c.custom.to.slice(5,7);
+      }
+      markPillByIndex("periodRow", -1);
+      syncCustomUI();
+    }else if(c.period){
       state.period = c.period;
+      state.custom = null;
+      lastPeriodKey = c.period;
       markPillByIndex("periodRow", PERIODS.map(function(p){ return p.key; }).indexOf(c.period));
+      syncCustomUI();
     }
     if(c.bet){
       state.bet = c.bet;
@@ -1641,7 +1843,7 @@ body{background:var(--bg); color:var(--ink);
         toban: state.toban,
         cond: cond,
         // 画面で指定した内容そのまま。「通知に使えない条件」を後から見せるために残す。
-        raw_cond: { filter: state.filter, bet: state.bet, period: state.period, venue: state.venue },
+        raw_cond: { filter: state.filter, bet: state.bet, period: state.period, custom: state.custom, venue: state.venue },
         label: alertLabelFor(name, cond)
       }).then(function(){
         msg.textContent = "保存しました。マイページで確認・削除できます。";
@@ -1676,9 +1878,9 @@ body{background:var(--bg); color:var(--ink);
 
   function runBacktest(){
     var loading = document.getElementById("loadingMsg");
-    var period = null;
-    for(var i=0;i<PERIODS.length;i++){ if(PERIODS[i].key === state.period) period = PERIODS[i]; }
-    var years = neededYears(period);
+    var win = activeWindow();
+    if(!win) return;
+    var years = neededYears(win);
     loading.style.display = "";
     // 複数年ぶんダウンロードする場合(過去3年など)は時間がかかりうるため、固まって
     // 見えないよう「読み込み中」であることを先に伝える。艇読みの静かなトーンに合わせ、
@@ -1688,7 +1890,7 @@ body{background:var(--bg); color:var(--ink);
 
     // 選手モードは読むファイルも集計の仕方も別(その選手の年ファイルだけを読む)。
     if(state.toban){
-      runPlayerBacktest(period, loading).then(function(){
+      runPlayerBacktest(win, loading).then(function(){
         loading.style.display = "none";
         syncRunEnabled();
       }).catch(function(){
@@ -1698,14 +1900,13 @@ body{background:var(--bg); color:var(--ink);
       return;
     }
 
-    loadVenuePeriod(state.venue, period).then(function(records){
+    loadVenuePeriod(state.venue, win).then(function(records){
       loading.textContent = "集計中…";
-      var cutoff = periodCutoff(period);
       // しぼり込みが何も指定されていなければ pass は null になり、日付の窓だけで
       // 絞る従来どおりの計算になる(=しぼり込み追加前と1件も違わない)。
       var pass = buildFilter();
       var scoped = records.filter(function(r){
-        if(r.d < cutoff) return false;
+        if(r.d < win.from || r.d > win.to) return false;
         return pass ? pass(r) : true;
       });
 
@@ -1731,7 +1932,7 @@ body{background:var(--bg); color:var(--ink);
       showResult({
         raceCount: raceCount, hitCount: hitCount, totalPayout: totalPayout,
         totalStake: totalStake, points: points,
-        head: venueLabel() + "・" + period.label + "・" + bet.label,
+        head: venueLabel() + "・" + win.label + "・" + bet.label,
         cond: filterLabel()
       });
       loading.style.display = "none";
