@@ -303,6 +303,85 @@ class Tally:
         return d
 
 
+# ============================== 昇級ボーダーウォッチ ==============================
+# 現行の級別審査期間(5〜10月/11〜4月)の勝率を、公式定義で日次に積み上げて
+# kyusoku.json に書き出す(2026-08-11、タスク⑧-1)。
+#
+# 【公式定義の再現(タスク⑦調査で実証済みのモデル)】
+# - 勝率 = 着順点合計 ÷ 出走回数(小数3位を四捨五入)
+# - 着順点はG3・一般競走の表(優勝戦とそれ以外で別表)。6隻立て固定
+#   (欠場艇が結果に行として現れないため、結果の行数で隻立てを判定すると悪化する)
+# - 選手責任外の欠場・失格(状=S0/L0/00)は出走回数に数えない(規程どおり)
+# - 2連対率・3連対率は小数1位切り捨て(公式表記と同じ。97.6%一致を実証)
+#
+# 【対象はB級のみ】A級はSG/G1/G2の着順点(全出走が+1〜+2点)が再現できない
+# (グレードがデータに無い)ため対象外。B級の完全一致は約95%で「参考値」として出す。
+# 事故率(0.70以下)は不良航法等の2点が結果データに現れないため判定不能。要件から除外する。
+
+KYUSOKU_PATH = "kyusoku.json"
+KYUSOKU_TOP_N = 200
+# G3・一般競走の着順点(6隻立て)。優勝戦以外(=基礎)と優勝戦。
+KYU_PTS = {1: 10, 2: 8, 3: 6, 4: 4, 5: 2, 6: 1}
+KYU_PTS_FINAL = {1: 11, 2: 9, 3: 7, 4: 6, 5: 4, 6: 3}
+# 選手責任外の欠場・失格(出走回数に数えない)。状コードの対応はタスク⑦で実証
+# (この除外で出走回数の一致が64%→95%になった)。
+KYU_NO_FAULT = ("S0", "L0", "00")
+# 昇級要件(事故率は判定不能のため含めない)。率は%。
+KYU_REQ = {
+    "B1": {"starts": 70, "top2": 30.0, "top3": 40.0},   # B1→A2圏
+    "B2": {"starts": 50, "top2": 10.0, "top3": 20.0},   # B2→B1圏
+}
+
+
+def kyusoku_window(today_iso):
+    """今日(JST)が属する審査期間 (開始日, 終了日, 期ラベル, 適用ラベル)。"""
+    y, m = int(today_iso[:4]), int(today_iso[5:7])
+    if 5 <= m <= 10:
+        return (f"{y}-05-01", f"{y}-10-31",
+                f"{y}年前期審査（5/1〜10/31）", f"{y + 1}年1月〜6月に適用")
+    start_y = y if m >= 11 else y - 1
+    return (f"{start_y}-11-01", f"{start_y + 1}-04-30",
+            f"{start_y}年後期審査（11/1〜4/30）", f"{start_y + 1}年7月〜12月に適用")
+
+
+def kyusoku_round2(x):
+    """小数3位を四捨五入(規程どおり)。Pythonのroundは偶数丸めなので使わない。"""
+    return int(x * 100 + 0.5) / 100
+
+
+def kyusoku_trunc1(pct):
+    """%の小数1位切り捨て(公式の連対率表記と同じ)。"""
+    return int(pct * 10) / 10
+
+
+class KyusokuTally:
+    """審査期間内の1人ぶん: 出走(責任外を除く)・着順点・2連対・3連対。"""
+
+    __slots__ = ("starts", "pts", "top2", "top3")
+
+    def __init__(self):
+        self.starts = self.pts = self.top2 = self.top3 = 0
+
+    def add(self, r, b):
+        if (b.get("状") or "") in KYU_NO_FAULT:
+            return
+        self.starts += 1
+        tbl = KYU_PTS_FINAL if r.get("種別") == "優勝戦" else KYU_PTS
+        self.pts += tbl.get(b["着"], 0)
+        chaku = b["着"]
+        if chaku is not None and chaku <= 2:
+            self.top2 += 1
+        if chaku is not None and chaku <= 3:
+            self.top3 += 1
+
+    def doc(self):
+        s = self.starts
+        rate = kyusoku_round2(self.pts / s) if s else None
+        p2 = kyusoku_trunc1(self.top2 / s * 100) if s else None
+        p3 = kyusoku_trunc1(self.top3 / s * 100) if s else None
+        return {"starts": s, "rate": rate, "top2_rate": p2, "top3_rate": p3}
+
+
 # ============================== 二つ名(称号) ==============================
 # 条件別成績から称号を自動付与する(2026-08-10、仕様はJAM決定)。
 # - 定員制: 各称号、順位づけ指標の上位10名のみ。1位だけ「・頂」付き。
@@ -529,6 +608,11 @@ def main():
     national = Tally()                      # 全国の基準値(同じ定義・同じ期間)
     races = 0
     date_min = date_max = None
+    # 昇級ボーダーウォッチ: 現行の審査期間(JST基準)ぶんだけ別のタリーに積む。
+    jst_today = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y-%m-%d")
+    kyu_from, kyu_to, kyu_label, kyu_apply = kyusoku_window(jst_today)
+    kyu = collections.defaultdict(KyusokuTally)
+    kyu_last = None   # 期間内で実際にデータがある最終日
     for r in results_store.iter_records():
         year = r["date"][:4]
         races += 1
@@ -536,9 +620,14 @@ def main():
             date_min = r["date"]
         if date_max is None or r["date"] > date_max:
             date_max = r["date"]
+        in_kyu = kyu_from <= r["date"] <= kyu_to
+        if in_kyu and (kyu_last is None or r["date"] > kyu_last):
+            kyu_last = r["date"]
         for b in r["結果"]:
             ways[b["登番"]].add(r, b)
             national.add(r, b)
+            if in_kyu:
+                kyu[b["登番"]].add(r, b)
             row = tally[b["登番"]][year]
             # 出走数は「完走しなくても1走」。失格・転覆・フライングも出走に数える
             # (2026-07-30までは、そういうレースがresultsに存在しなかった)。
@@ -691,11 +780,83 @@ def main():
     with open(NATIONAL_PATH, "w", encoding="utf-8") as f:
         json.dump(nat, f, ensure_ascii=False, separators=(",", ":"))
 
+    # ---- 昇級ボーダーウォッチ(kyusoku.json) ----
+    import math
+    total_players = len(periods[-1]["by_toban"]) if periods else 0
+    a1_seats = math.ceil(total_players * 0.2)
+    a2_seats = math.ceil(total_players * 0.2)
+
+    def kyu_row(toban, t):
+        d = t.doc()
+        cls = latest_class.get(toban)
+        req = KYU_REQ.get(cls, KYU_REQ["B1"])
+        ok_starts = d["starts"] >= req["starts"]
+        ok_top2 = d["top2_rate"] is not None and d["top2_rate"] >= req["top2"]
+        ok_top3 = d["top3_rate"] is not None and d["top3_rate"] >= req["top3"]
+        return {
+            "toban": toban, "name": names.get(toban), "class": cls,
+            "rate": d["rate"], "starts": d["starts"],
+            "top2_rate": d["top2_rate"], "top3_rate": d["top3_rate"],
+            "ok_starts": ok_starts, "ok_top2": ok_top2, "ok_top3": ok_top3,
+            "ok": ok_starts and ok_top2 and ok_top3,
+        }
+
+    def kyu_list(cls):
+        rows = [kyu_row(t, k) for t, k in kyu.items()
+                if latest_class.get(t) == cls and k.starts > 0]
+        rows.sort(key=lambda x: (-(x["rate"] or 0), -x["starts"]))
+        for i, r in enumerate(rows[:KYUSOKU_TOP_N]):
+            r["rank"] = i + 1
+        return rows[:KYUSOKU_TOP_N]
+
+    # 全級を通した勝率順で(a1+a2)番目に入る勝率 = A級圏ボーダーの推定。
+    # A級選手の勝率はSG/G1の加点ぶんが乗らず過小に出るため、実際のボーダーは
+    # これよりやや高い(=甘めの推定)。B1の要件(70走・2連対30%・3連対40%)を満たす者だけで数える。
+    all_rates = []
+    for t, k in kyu.items():
+        d = k.doc()
+        if d["starts"] >= KYU_REQ["B1"]["starts"] and d["top2_rate"] is not None            and d["top2_rate"] >= KYU_REQ["B1"]["top2"] and d["top3_rate"] >= KYU_REQ["B1"]["top3"]:
+            all_rates.append(d["rate"])
+    all_rates.sort(reverse=True)
+    seat = a1_seats + a2_seats
+    # 期の序盤は「70走以上」を満たす選手が定員より少なく、境界はまだ決まらない。
+    # その間は None にして、埋まり具合(qualified_count)を添える。
+    border_rate = all_rates[seat - 1] if len(all_rates) >= seat else None
+
+    kyusoku_doc = {
+        "generated_at": generated_at,
+        "period": {"from": kyu_from, "to": kyu_to, "label": kyu_label, "applies": kyu_apply},
+        "data_to": kyu_last,
+        "note": "勝率はG3・一般競走の着順点表から自前で再現した参考値です。"
+                "B級の完全一致は約95%（SG・G1等の加点は再現できないためA級は対象外）。"
+                "公式の発表と食い違う場合は公式が正です。",
+        "jiko_note": "事故率（0.70以下）は判定材料がデータに無いため、要件の表示から除外しています。",
+        "border": {
+            "total_players": total_players,
+            "a1_seats": a1_seats, "a2_seats": a2_seats,
+            "a_seats_total": a1_seats + a2_seats,
+            "border_rate_estimate": border_rate,
+            "qualified_count": len(all_rates),
+            "note": "定員はA1・A2とも登録選手総数の20%（最新期の人数"
+                    f"{total_players}人で近似）。border_rate_estimateは全選手を自前勝率で"
+                    "並べたときにA級圏(上位40%)へ入る最低勝率の推定。A級選手の勝率が"
+                    "過小に出るぶん、実際のボーダーはこれよりやや高い。"
+                    "期の序盤は出走70回以上の選手が定員より少ないため、境界が"
+                    "決まるまではnull(qualified_countが埋まり具合)。",
+        },
+        "b1": kyu_list("B1"),
+        "b2": kyu_list("B2"),
+    }
+    with open(KYUSOKU_PATH, "w", encoding="utf-8") as f:
+        json.dump(kyusoku_doc, f, ensure_ascii=False, separators=(",", ":"))
+
     print(f"[done] {OUT_DIR}/ 生成: {written:,}選手 / 合計 {total_bytes:,} bytes "
           f"/ 平均 {total_bytes // written if written else 0:,} bytes/人 "
           f"/ 級別 {len(periods)}期分({periods[0]['from']}〜{periods[-1]['to']})")
     print(f"       全国の基準値: {NATIONAL_PATH} ({os.path.getsize(NATIONAL_PATH):,} bytes) "
           f"/ {races:,}レース {national.starts:,}出走 ({date_min}〜{date_max})")
+    print(f"       昇級ウォッチ: {KYUSOKU_PATH} ({os.path.getsize(KYUSOKU_PATH):,} bytes) "
+          f"/ {kyu_label} データ〜{kyu_last} / B1 {len(kyusoku_doc['b1'])}人 B2 {len(kyusoku_doc['b2'])}人")
     n_holders = len(player_titles)
     n_guard = sum(1 for g in guardians_out if g["holder"])
     print(f"       二つ名: {TITLES_PATH} ({os.path.getsize(TITLES_PATH):,} bytes) "
