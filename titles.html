@@ -48,6 +48,14 @@ body{background:var(--bg); color:var(--ink);
 .lead{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:14px; padding:13px 16px; font-size:12.5px; color:var(--ink2); line-height:1.75;}
 .lead b{color:var(--ink);}
+.lead-hint{display:block; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line2);}
+.lead a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+/* 「検証」リンク。1着率(二つ名)から回収率(バックテスト)へつなぐ小さな入口。
+   行に収まる最小サイズにし、375pxでも名前欄を圧迫しすぎないようにする。 */
+.vlink{flex:0 0 auto; font-size:10.5px; color:var(--accent); text-decoration:none;
+  border:1px solid var(--accent); border-radius:999px; padding:2px 8px; white-space:nowrap;}
+.vlink:hover{background:var(--accent-soft);}
 
 .tcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:14px; padding:15px 17px;}
@@ -98,6 +106,9 @@ body{background:var(--bg); color:var(--ink);
     各称号を名乗れるのは全国上位10名だけ（守護神は各場1人）。1位には「頂」が付きます。
     これは過去の実データの集計であり、<b>予想でも推奨でもありません。</b>
     成績は毎日の結果で入れ替わります。
+    <span class="lead-hint">なお、二つ名は<b>1着率の傾向</b>です。よく勝つことと、舟券として儲かること（回収率）は別です。
+    その選手を買い続けたら実際どうだったかは、各選手の「検証」から
+    <a href="backtest-custom.html">バックテスト</a>で自分の目で確かめられます。</span>
   </div>
 
   <div id="hall"><p class="loading">読み込み中…</p></div>
@@ -147,6 +158,11 @@ function nameHtml(h){
     ? '<a href="players/' + esc(String(h.toban)) + '.html">' + nm + "</a>"
     : nm;
 }
+// 5bへの導線。5b側が ?toban= を読んで、その選手を初期選択した状態で開く。
+function verifyHtml(h){
+  return '<a class="vlink" href="backtest-custom.html?toban=' +
+    encodeURIComponent(String(h.toban)) + '">検証 ›</a>';
+}
 function metricStr(title, m){
   return title === "音速の申し子" ? "ST " + m.toFixed(3) : "+" + (m*100).toFixed(1) + "pt";
 }
@@ -160,12 +176,14 @@ function card(sec){
   if(top){
     html += '<div class="crown"><span>👑</span><span class="who">' + nameHtml(top) + "</span>" +
       '<span class="kls">' + esc(top["class"] || "—") + "</span>" +
-      '<span class="val nums">' + esc(metricStr(name, top.metric)) + "・" + n(top.n) + "走</span></div>";
+      '<span class="val nums">' + esc(metricStr(name, top.metric)) + "・" + n(top.n) + "走</span>" +
+      verifyHtml(top) + "</div>";
   }
   html += '<ol class="tlist">' + rest.map(function(h){
     return "<li><span class='rk nums'>" + h.rank + "位</span><span class='nm'>" + nameHtml(h) + "</span>" +
       "<span class='kls'>" + esc(h["class"] || "—") + "</span>" +
-      "<span class='val nums'>" + esc(metricStr(name, h.metric)) + "・" + n(h.n) + "走</span></li>";
+      "<span class='val nums'>" + esc(metricStr(name, h.metric)) + "・" + n(h.n) + "走</span>" +
+      verifyHtml(h) + "</li>";
   }).join("") + "</ol></section>";
   return html;
 }
@@ -175,7 +193,8 @@ function guardians(list){
     var h = g.holder;
     var body = h
       ? "<td class='gn'>" + nameHtml(h) + " <span class='kls'>" + esc(h["class"] || "—") + "</span></td>" +
-        "<td class='gval nums'>+" + (h.metric*100).toFixed(1) + "pt・当地" + n(h.n) + "走</td>"
+        "<td class='gval nums'>+" + (h.metric*100).toFixed(1) + "pt・当地" + n(h.n) + "走 " +
+        verifyHtml(h) + "</td>"
       : "<td class='gn empty' colspan='2'>空位（基準を満たす選手がいません）</td>";
     return "<tr><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
   }).join("");

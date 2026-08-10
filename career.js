@@ -118,7 +118,10 @@
       "border-top:1px dashed var(--line2); line-height:1.6;}" +
       ".tt-pop .tt-close{display:block; width:100%; margin-top:12px; padding:9px;" +
       "border-radius:9px; border:1px solid var(--line2); background:none; color:var(--ink2);" +
-      "font:inherit; font-size:12.5px; cursor:pointer;}";
+      "font:inherit; font-size:12.5px; cursor:pointer;}" +
+      ".tt-pop .tt-verify{display:block; margin-top:12px; padding:10px; border-radius:9px;" +
+      "border:1px solid var(--accent); color:var(--accent); font-size:12.5px; font-weight:700;" +
+      "text-align:center; text-decoration:none;}";
     document.head.appendChild(s);
   }
 
@@ -421,7 +424,12 @@
       "<h3>" + (t.is_top ? "👑 " : "") + esc(t.title) + "</h3>" +
       '<p class="tt-rank">' + esc(g.rank) + "</p>" +
       "<p>" + esc(g.text) + "</p>" +
-      '<p class="tt-fine">' + esc(TT_DISCLAIMER) + "</p>" +
+      // 二つ名は1着率の傾向で、舟券の妙味(回収率)とは別物。答えではなく
+      // 仮説の入口として、5bでの検証へつなぐ(5b側が ?toban= を読んで初期選択する)。
+      '<a class="tt-verify" href="/backtest-custom.html?toban=' + encodeURIComponent(toban) +
+      '">この選手をバックテストで検証する →</a>' +
+      '<p class="tt-fine">' + esc(TT_DISCLAIMER) +
+      "よく勝つことと、舟券として儲かること（回収率）は別です。</p>" +
       '<button type="button" class="tt-close">閉じる</button></div>';
     function close() { ov.remove(); }
     ov.addEventListener("click", function (ev) { if (ev.target === ov) close(); });
