@@ -121,7 +121,11 @@
       "font:inherit; font-size:12.5px; cursor:pointer;}" +
       ".tt-pop .tt-verify{display:block; margin-top:12px; padding:10px; border-radius:9px;" +
       "border:1px solid var(--accent); color:var(--accent); font-size:12.5px; font-weight:700;" +
-      "text-align:center; text-decoration:none;}";
+      "text-align:center; text-decoration:none;}" +
+      ".tt-pop .tt-bell{display:block; width:100%; margin-top:8px; padding:10px;" +
+      "border-radius:9px; border:1px solid var(--line2); background:none; color:var(--ink2);" +
+      "font:inherit; font-size:12.5px; font-weight:700; text-align:center; cursor:pointer;}" +
+      ".tt-pop .tt-bell[disabled]{opacity:.6; cursor:default;}";
     document.head.appendChild(s);
   }
 
@@ -416,6 +420,22 @@
     return { text: text, rank: rank };
   }
 
+  // alerts.js(🔔の共通フロー)は選手ページには最初から入っていない。1,644ページの
+  // 再生成を避けるため、必要になった時にここから読み込む(読むのは1回だけ)。
+  var alertsLibPromise = null;
+  function ensureAlertsLib() {
+    if (window.TeiyomiAlerts && TeiyomiAlerts.bellFlow) return Promise.resolve();
+    if (alertsLibPromise) return alertsLibPromise;
+    alertsLibPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = "/alerts.js";
+      s.onload = function () { resolve(); };
+      s.onerror = function () { alertsLibPromise = null; reject(new Error("load-failed")); };
+      document.head.appendChild(s);
+    });
+    return alertsLibPromise;
+  }
+
   function openTitlePop(t) {
     var g = titleGrounds(t);
     var ov = document.createElement("div");
@@ -428,12 +448,29 @@
       // 仮説の入口として、5bでの検証へつなぐ(5b側が ?toban= を読んで初期選択する)。
       '<a class="tt-verify" href="/backtest-custom.html?toban=' + encodeURIComponent(toban) +
       '">この選手をバックテストで検証する →</a>' +
+      '<button type="button" class="tt-bell">🔔 この条件の通知を登録する</button>' +
       '<p class="tt-fine">' + esc(TT_DISCLAIMER) +
       "よく勝つことと、舟券として儲かること（回収率）は別です。</p>" +
       '<button type="button" class="tt-close">閉じる</button></div>';
     function close() { ov.remove(); }
     ov.addEventListener("click", function (ev) { if (ev.target === ov) close(); });
     ov.querySelector(".tt-close").addEventListener("click", close);
+    ov.querySelector(".tt-bell").addEventListener("click", function () {
+      var btn = this;
+      btn.disabled = true;
+      ensureAlertsLib().then(function () {
+        close();   // 🔔のモーダルに切り替える(重ねると375pxで窮屈なため)
+        TeiyomiAlerts.bellFlow({
+          toban: toban,
+          playerName: (loaded && loaded.name) || toban,
+          title: t.title,
+          venue: t.venue || null
+        });
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = "🔔 読み込めませんでした。再度お試しください";
+      });
+    });
     document.body.appendChild(ov);
   }
 

@@ -54,8 +54,11 @@ body{background:var(--bg); color:var(--ink);
 /* 「検証」リンク。1着率(二つ名)から回収率(バックテスト)へつなぐ小さな入口。
    行に収まる最小サイズにし、375pxでも名前欄を圧迫しすぎないようにする。 */
 .vlink{flex:0 0 auto; font-size:10.5px; color:var(--accent); text-decoration:none;
-  border:1px solid var(--accent); border-radius:999px; padding:2px 8px; white-space:nowrap;}
+  border:1px solid var(--accent); border-radius:999px; padding:2px 6px; white-space:nowrap;}
 .vlink:hover{background:var(--accent-soft);}
+/* 🔔は検証と同じピル型のボタン(押した時に会員かどうかで分岐する)。 */
+button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); cursor:pointer;
+  padding:2px 6px; -webkit-tap-highlight-color:transparent;}
 
 .tcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:14px; padding:15px 17px;}
@@ -67,15 +70,15 @@ body{background:var(--bg); color:var(--ink);
 .crown .who a{color:inherit; text-decoration:underline; text-decoration-color:var(--line2);}
 .crown .val{font-size:12px; color:var(--gold-ink); font-weight:600; margin-left:auto; white-space:nowrap;}
 .tlist{margin:8px 0 0; padding:0; list-style:none;}
-.tlist li{display:flex; align-items:baseline; gap:8px; padding:4.5px 2px; font-size:12.5px;
+.tlist li{display:flex; align-items:baseline; gap:6px; padding:4.5px 2px; font-size:12.5px;
   border-top:1px dashed var(--line);}
 .tlist li:first-child{border-top:none;}
-.tlist .rk{flex:0 0 2.4em; color:var(--muted); font-size:11.5px;}
+.tlist .rk{flex:0 0 2.2em; color:var(--muted); font-size:11.5px;}
 .tlist .nm{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .tlist .nm a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);}
 .tlist .kls{flex:0 0 auto; font-size:10.5px; color:var(--muted); border:1px solid var(--line2);
   border-radius:5px; padding:0 5px;}
-.tlist .val{flex:0 0 auto; font-size:11.5px; color:var(--ink2); white-space:nowrap;}
+.tlist .val{flex:0 0 auto; font-size:11px; color:var(--ink2); white-space:nowrap;}
 
 .gtable{width:100%; border-collapse:collapse; margin-top:8px; font-size:12.5px;}
 .gtable td{padding:6px 4px; border-top:1px dashed var(--line); vertical-align:baseline;}
@@ -120,6 +123,12 @@ body{background:var(--bg); color:var(--ink);
 </div>
 
 <script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
+<!-- 🔔(通知登録)用の認証スタック。読み込み順は favorites → membership → alerts
+     (membershipはfavoritesが作るSupabaseクライアントを借りるため)。
+     殿堂の描画はこのスタックを待たない(押した時に初めて使う)。 -->
+<script src="favorites.js"></script>
+<script src="membership.js"></script>
+<script src="alerts.js"></script>
 <script>
 (function(){
 "use strict";
@@ -163,6 +172,15 @@ function verifyHtml(h){
   return '<a class="vlink" href="backtest-custom.html?toban=' +
     encodeURIComponent(String(h.toban)) + '">検証 ›</a>';
 }
+// 🔔(通知登録)。押した時に alerts.js の bellFlow が状態(会員かどうか)を見て分岐する。
+// data-*で渡すのは、名簿のHTMLを文字列で組み立てているため(クリック時に読み出す)。
+function bellHtml(h, title, venue){
+  return '<button type="button" class="vlink bell-btn" data-toban="' + esc(String(h.toban)) + '"' +
+    ' data-name="' + esc(h.name || h.toban) + '"' +
+    ' data-title="' + esc(title) + '"' +
+    (venue ? ' data-venue="' + esc(venue) + '"' : "") +
+    ' aria-label="この条件の通知を登録">🔔</button>';
+}
 function metricStr(title, m){
   return title === "音速の申し子" ? "ST " + m.toFixed(3) : "+" + (m*100).toFixed(1) + "pt";
 }
@@ -177,13 +195,13 @@ function card(sec){
     html += '<div class="crown"><span>👑</span><span class="who">' + nameHtml(top) + "</span>" +
       '<span class="kls">' + esc(top["class"] || "—") + "</span>" +
       '<span class="val nums">' + esc(metricStr(name, top.metric)) + "・" + n(top.n) + "走</span>" +
-      verifyHtml(top) + "</div>";
+      verifyHtml(top) + bellHtml(top, name) + "</div>";
   }
   html += '<ol class="tlist">' + rest.map(function(h){
     return "<li><span class='rk nums'>" + h.rank + "位</span><span class='nm'>" + nameHtml(h) + "</span>" +
       "<span class='kls'>" + esc(h["class"] || "—") + "</span>" +
       "<span class='val nums'>" + esc(metricStr(name, h.metric)) + "・" + n(h.n) + "走</span>" +
-      verifyHtml(h) + "</li>";
+      verifyHtml(h) + bellHtml(h, name) + "</li>";
   }).join("") + "</ol></section>";
   return html;
 }
@@ -194,7 +212,7 @@ function guardians(list){
     var body = h
       ? "<td class='gn'>" + nameHtml(h) + " <span class='kls'>" + esc(h["class"] || "—") + "</span></td>" +
         "<td class='gval nums'>+" + (h.metric*100).toFixed(1) + "pt・当地" + n(h.n) + "走 " +
-        verifyHtml(h) + "</td>"
+        verifyHtml(h) + bellHtml(h, g.venue + "の守護神", g.venue) + "</td>"
       : "<td class='gn empty' colspan='2'>空位（基準を満たす選手がいません）</td>";
     return "<tr><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
   }).join("");
@@ -221,6 +239,22 @@ fetch("players/career/titles.json", {cache:"no-store"})
     document.getElementById("hall").innerHTML =
       '<p class="loading">読み込みに失敗しました。時間をおいて再度お試しください。</p>';
   });
+
+// 🔔は行ごとに大量にあるので、1つの委譲リスナーで受ける。
+document.getElementById("hall").addEventListener("click", function(ev){
+  var btn = ev.target.closest ? ev.target.closest(".bell-btn") : null;
+  if(!btn) return;
+  if(!window.TeiyomiAlerts || !TeiyomiAlerts.bellFlow){
+    alert("読み込みが終わっていません。少し待ってからもう一度お試しください。");
+    return;
+  }
+  TeiyomiAlerts.bellFlow({
+    toban: btn.getAttribute("data-toban"),
+    playerName: btn.getAttribute("data-name"),
+    title: btn.getAttribute("data-title"),
+    venue: btn.getAttribute("data-venue") || null
+  });
+});
 })();
 </script>
 </body>
