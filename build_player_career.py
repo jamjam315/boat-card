@@ -73,6 +73,26 @@ STRONG_WIND = 8      # m
 HIGH_WAVE = 15       # cm
 FINAL_KINDS = ["優勝戦", "準優勝戦"]
 
+# 二つ名(条件別の称号)用に2026-08-10追加した条件軸。既存3軸と同じ入れ物・同じ定義。
+#   night/day   … ナイター場かどうか(会場の静的属性。レース単位の発走時刻はデータに無い)。
+#                 判定は条件アラートと同じ backtest-data/meta.json の venues[].night。
+#   final_all   … 優勝戦+準優勝戦 / non_final … それ以外(母数が大きい方の基準)
+#   winter/summer … 12〜2月 / 6〜8月(月はdateから)
+EXTRA_CONDS = ("night", "day", "final_all", "non_final", "winter", "summer")
+WINTER_MONTHS = ("12", "01", "02")
+SUMMER_MONTHS = ("06", "07", "08")
+META_PATH = os.path.join("backtest-data", "meta.json")
+
+
+def night_venues():
+    """ナイター場の会場名の集合。meta.jsonが無い環境(初回等)では空集合になり、
+    night/day軸だけ母数0で出る(他の集計は普通に動く)。"""
+    try:
+        meta = json.load(open(META_PATH, encoding="utf-8"))
+        return {v["name"] for v in meta.get("venues", []) if v.get("night")}
+    except Exception:
+        return set()
+
 
 def new_wlt():
     """出走・1着・2連対の入れ物。"""
@@ -92,12 +112,18 @@ def wlt_doc(row):
 class Tally:
     """1人ぶん(または全国ぶん)の「勝ち方」の集計。選手別と全国で同じものを使う。"""
 
+    # ナイター場の集合はクラスで1回だけ読む(選手数ぶんインスタンスを作るため)。
+    NIGHT = None
+
     def __init__(self):
+        if Tally.NIGHT is None:
+            Tally.NIGHT = night_venues()
         self.kimarite = collections.Counter()               # 1着したときの決まり手
         self.courses = {c: new_wlt() for c in range(1, 7)}  # 進入コース別
         self.courses_kimarite = {c: collections.Counter() for c in range(1, 7)}
         self.venues = collections.defaultdict(new_wlt)
-        self.conditions = {k: new_wlt() for k in ("rain", "strong_wind", "high_wave")}
+        self.conditions = {k: new_wlt()
+                           for k in ("rain", "strong_wind", "high_wave") + EXTRA_CONDS}
         self.finals = {k: new_wlt() for k in FINAL_KINDS}
         self.maezuke = new_wlt()
         # 枠と進入がずれた出走の内訳。「前づけ」の一語でまとめると、自分で内を取りに
@@ -108,9 +134,13 @@ class Tally:
         self.starts = 0
         self.wins = 0
         self.flying = collections.defaultdict(lambda: [0, 0])   # 年 -> [F, L]
+        # 平均ST用。Fは「早すぎた」、Lは「出られなかった」で普通のSTと意味が違うため、
+        # 平均には STt が空の値だけを入れる(F・Lの回数は flying が別に持っている)。
+        self.st_sum = 0.0
+        self.st_n = 0
         # 条件・大舞台の「コース別」内訳。全国の基準値でのみ書き出す(理由は doc_national)。
         self.cond_by_course = {k: {c: new_wlt() for c in range(1, 7)}
-                               for k in ("rain", "strong_wind", "high_wave")}
+                               for k in ("rain", "strong_wind", "high_wave") + EXTRA_CONDS}
         self.final_by_course = {k: {c: new_wlt() for c in range(1, 7)} for k in FINAL_KINDS}
 
     def add(self, r, b):
@@ -160,6 +190,21 @@ class Tally:
             bump(self.finals[kind])
             if course in self.final_by_course[kind]:
                 bump(self.final_by_course[kind][course])
+        # 優勝戦+準優勝戦をまとめた軸と、その補集合。合計は総出走と一致する。
+        bump_cond("final_all" if kind in FINAL_KINDS else "non_final")
+
+        bump_cond("night" if r["会場"] in Tally.NIGHT else "day")
+
+        month = r["date"][5:7]
+        if month in WINTER_MONTHS:
+            bump_cond("winter")
+        elif month in SUMMER_MONTHS:
+            bump_cond("summer")
+
+        st = b.get("ST")
+        if isinstance(st, (int, float)) and not (b.get("STt") or ""):
+            self.st_sum += st
+            self.st_n += 1
 
         # 枠番(艇)と進入コース(進)が違う出走。内に入ったのか外になったのかを分ける。
         frame = b.get("艇")
@@ -204,6 +249,32 @@ class Tally:
             ),
             "flying": [{"year": int(y), "F": v[0], "L": v[1]}
                        for y, v in sorted(self.flying.items())],
+            # 「勝ち型」。courses / courses_kimarite から合成できる値だが、
+            # 二つ名の判定・表示が毎回同じ合成をしなくて済むよう名前を付けて出す。
+            #   starts=その型が成立しうる母数(進入コースで絞る)、wins=その決まり手での1着数。
+            #   win_rate=wins/starts(「その進入で走ったうち、その決まり手で勝てた割合」)。
+            "styles": {
+                "outer_makuri": self._style_doc((4, 5, 6), "まくり"),
+                "sashi": self._style_doc((2, 3, 4), "差し"),
+                "nige": self._style_doc((1,), "逃げ"),
+                "makuri_sashi": self._style_doc(range(1, 7), "まくり差し"),
+                "nuki": self._style_doc(range(1, 7), "抜き"),
+            },
+            # 平均ST。F・L・計時なしを除いた平均(定義はコメント参照)。
+            "st": {
+                "n": self.st_n,
+                "mean": round(self.st_sum / self.st_n, 4) if self.st_n else None,
+                "F": sum(v[0] for v in self.flying.values()),
+                "L": sum(v[1] for v in self.flying.values()),
+            },
+        }
+
+    def _style_doc(self, courses, kimarite):
+        starts = sum(self.courses[c][0] for c in courses)
+        wins = sum(self.courses_kimarite[c].get(kimarite, 0) for c in courses)
+        return {
+            "starts": starts, "wins": wins,
+            "win_rate": round(wins / starts, 4) if starts else None,
         }
 
     def doc_national(self):
