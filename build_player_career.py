@@ -62,6 +62,7 @@ import data_paths
 OUT_DIR = os.path.join("players", "career")
 FAN_DIR = os.path.join(data_paths.DATA_ROOT, "fan")
 NATIONAL_PATH = os.path.join(OUT_DIR, "_national.json")
+TITLES_PATH = os.path.join(OUT_DIR, "titles.json")
 
 KIMARITE = ["逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"]
 
@@ -302,6 +303,176 @@ class Tally:
         return d
 
 
+# ============================== 二つ名(称号) ==============================
+# 条件別成績から称号を自動付与する(2026-08-10、仕様はJAM決定)。
+# - 定員制: 各称号、順位づけ指標の上位10名のみ。1位だけ「・頂」付き。
+# - 足切りを満たさない者は定員が空いていても付与しない。
+# - 1選手は最大3称号(下のstrengthが大きい順に3つ)。守護神だけ枠外で+1。
+# - 同値のタイブレークはN(該当出走数)が多い方。
+#
+# 【仕様の解釈(実装時に決めた点・報告済み)】
+# - 守護神には「・頂」を付けない(各場1人で、全員に付くと頂の意味が無いため)。
+# - 守護神は1人1場まで(「枠外で+1可」の単数解釈)。複数場で1位になった選手は
+#   upliftが最大の場を持ち、他の場は次点が繰り上がる。
+# - 3称号の上限で外れた枠には次点が繰り上がる(全員が3以内に収まるまで反復)。
+# - 称号横断の強さ(strength)は指標の向きを揃えるため:
+#   条件軸=uplift、勝ち型=対全国、音速=全国平均ST−本人平均ST(速いほど大)。
+
+TITLE_CAPACITY = 10       # 各称号の定員
+MAX_TITLES = 3            # 守護神を除く1人あたりの上限
+MIN_N = 50                # 共通の足切り母数
+NUKI_MIN_WINS = 30        # 最終章(抜き)だけの追加足切り
+GUARDIAN_MIN_UPLIFT = 0.05
+
+# 条件軸: (conditionsのキー, 称号名)。指標=uplift(条件下1着率−本人通算1着率)。
+COND_TITLES = [
+    ("high_wave", "荒海の覇者"),
+    ("strong_wind", "風神の右腕"),
+    ("rain", "雨を統べる者"),
+    ("night", "月下の覇王"),
+    ("final_all", "栄冠を狩る者"),
+    ("winter", "氷海の王"),
+    ("summer", "炎海の王"),
+]
+# 勝ち型軸: (stylesのキー, 称号名, 追加勝数条件)。指標=対全国(勝率−全国勝率)。
+STYLE_TITLES = [
+    ("outer_makuri", "カド一閃", 0),
+    ("sashi", "差しの匠", 0),
+    ("makuri_sashi", "隙間を縫う者", 0),
+    ("nige", "絶対王政", 0),
+    ("nuki", "最終章の支配者", NUKI_MIN_WINS),
+]
+ST_TITLE = "音速の申し子"
+
+
+def compute_titles(ways, national):
+    """全称号の保持者を決める。
+    返り値: (titles_doc, guardians_doc, player_titles)
+      titles_doc    … 称号ごとの保持者リスト(titles.json用)
+      guardians_doc … 会場ごとの守護神(空位はholder=None)
+      player_titles … 登番 -> 選手JSONに入れる称号リスト
+    """
+    def style(t, key):
+        courses = {"outer_makuri": (4, 5, 6), "sashi": (2, 3, 4), "nige": (1,),
+                   "makuri_sashi": range(1, 7), "nuki": range(1, 7)}[key]
+        kim = {"outer_makuri": "まくり", "sashi": "差し", "nige": "逃げ",
+               "makuri_sashi": "まくり差し", "nuki": "抜き"}[key]
+        starts = sum(t.courses[c][0] for c in courses)
+        wins = sum(t.courses_kimarite[c].get(kim, 0) for c in courses)
+        return starts, wins
+
+    nat_st_mean = national.st_sum / national.st_n if national.st_n else None
+    nat_f_rate = (sum(v[0] for v in national.flying.values()) / national.starts
+                  if national.starts else 0)
+
+    # ---- 各称号の候補(足切り通過者)を強い順に並べる ----
+    # candidates[称号名] = [{"toban","metric","n","strength"}...] (順位順)
+    candidates = {}
+
+    for key, name in COND_TITLES:
+        natrate = national.conditions[key][1] / national.conditions[key][0]
+        lst = []
+        for toban, t in ways.items():
+            s, w = t.conditions[key][0], t.conditions[key][1]
+            if s < MIN_N or not t.starts:
+                continue
+            rate = w / s
+            uplift = rate - t.wins / t.starts
+            if uplift <= 0 or rate <= natrate:
+                continue
+            lst.append({"toban": toban, "metric": uplift, "n": s, "strength": uplift})
+        lst.sort(key=lambda x: (-x["metric"], -x["n"]))
+        candidates[name] = lst
+
+    for key, name, min_wins in STYLE_TITLES:
+        ns, nw = style(national, key)
+        natrate = nw / ns if ns else 0
+        lst = []
+        for toban, t in ways.items():
+            s, w = style(t, key)
+            if s < MIN_N or w < min_wins:
+                continue
+            vs = w / s - natrate
+            if vs <= 0:
+                continue
+            lst.append({"toban": toban, "metric": vs, "n": s, "strength": vs})
+        lst.sort(key=lambda x: (-x["metric"], -x["n"]))
+        candidates[name] = lst
+
+    # 音速の申し子: 平均STの速い順。F率が全国平均を超える者は除外。
+    lst = []
+    for toban, t in ways.items():
+        if t.st_n < MIN_N or not t.starts:
+            continue
+        f_rate = sum(v[0] for v in t.flying.values()) / t.starts
+        if f_rate > nat_f_rate:
+            continue
+        mean = t.st_sum / t.st_n
+        lst.append({"toban": toban, "metric": mean, "n": t.st_n,
+                    "strength": (nat_st_mean - mean) if nat_st_mean else 0})
+    lst.sort(key=lambda x: (x["metric"], -x["n"]))   # STは小さいほど上位
+    candidates[ST_TITLE] = lst
+
+    # ---- 定員10で仮に採り、3称号の上限を超えた選手の弱い称号を外して繰り上げる。
+    # 外す一方(banは増える一方)なので必ず止まる。
+    banned = collections.defaultdict(set)   # toban -> 外された称号名
+    while True:
+        rosters = {}
+        held = collections.defaultdict(list)   # toban -> [(strength, 称号名)]
+        for name, lst in candidates.items():
+            roster = [c for c in lst if name not in banned[c["toban"]]][:TITLE_CAPACITY]
+            rosters[name] = roster
+            for c in roster:
+                held[c["toban"]].append((c["strength"], name))
+        over = False
+        for toban, titles in held.items():
+            if len(titles) <= MAX_TITLES:
+                continue
+            over = True
+            titles.sort(key=lambda x: -x[0])
+            for _, name in titles[MAX_TITLES:]:
+                banned[toban].add(name)
+        if not over:
+            break
+
+    # ---- 守護神(会場別・各場1人・1人1場まで・枠外) ----
+    guardian_cands = {}   # 会場 -> [{"toban","metric","n"}...]
+    for venue in sorted(national.venues.keys()):
+        lst = []
+        for toban, t in ways.items():
+            row = t.venues.get(venue)
+            if not row or row[0] < MIN_N or not t.starts:
+                continue
+            uplift = row[1] / row[0] - t.wins / t.starts
+            if uplift < GUARDIAN_MIN_UPLIFT:
+                continue
+            lst.append({"toban": toban, "metric": uplift, "n": row[0]})
+        lst.sort(key=lambda x: (-x["metric"], -x["n"]))
+        guardian_cands[venue] = lst
+
+    guardian_ban = collections.defaultdict(set)   # toban -> 外された会場
+    while True:
+        holders = {}
+        by_toban = collections.defaultdict(list)
+        for venue, lst in guardian_cands.items():
+            top = next((c for c in lst if venue not in guardian_ban[c["toban"]]), None)
+            holders[venue] = top
+            if top:
+                by_toban[top["toban"]].append((top["metric"], venue))
+        over = False
+        for toban, vs in by_toban.items():
+            if len(vs) <= 1:
+                continue
+            over = True
+            vs.sort(key=lambda x: -x[0])
+            for _, venue in vs[1:]:
+                guardian_ban[toban].add(venue)
+        if not over:
+            break
+
+    return rosters, holders, candidates
+
+
 def class_periods():
     """fan/*.json から「適用開始日 → {登番: 級別}」の一覧を、古い順に作る。"""
     out = []
@@ -367,6 +538,63 @@ def main():
     generated_at = datetime.datetime.now().isoformat(timespec="seconds")
     written = total_bytes = 0
 
+    # ---- 二つ名(称号)の判定 ----
+    # 級別は最新の期のもの(名簿の表示用。判定には使わない)。
+    latest_class = {}
+    for p in periods:
+        for toban, rec in p["by_toban"].items():
+            latest_class[toban] = rec["級別"]
+
+    rosters, guardians, _ = compute_titles(ways, national)
+
+    def holder_doc(c, rank, title_base, top_allowed=True):
+        is_top = top_allowed and rank == 1
+        return {
+            "rank": rank,
+            "toban": c["toban"],
+            "name": names.get(c["toban"]),
+            "class": latest_class.get(c["toban"]),
+            "metric": round(c["metric"], 4),
+            "n": c["n"],
+            "is_top": is_top,
+            "title": title_base + ("・頂" if is_top else ""),
+        }
+
+    player_titles = collections.defaultdict(list)
+    titles_out = []
+    for name_base, roster in rosters.items():
+        holders = [holder_doc(c, i + 1, name_base) for i, c in enumerate(roster)]
+        titles_out.append({"name": name_base, "holders": holders})
+        for h in holders:
+            player_titles[h["toban"]].append(
+                {"title": h["title"], "rank": h["rank"], "metric": h["metric"],
+                 "n": h["n"], "is_top": h["is_top"]})
+    guardians_out = []
+    for venue, c in guardians.items():
+        if c is None:
+            guardians_out.append({"venue": venue, "holder": None})
+            continue
+        # 守護神は各場1人なので「・頂」は付けない(全員に付くと頂の意味が無い)。
+        h = holder_doc(c, 1, f"{venue}の守護神", top_allowed=False)
+        guardians_out.append({"venue": venue, "holder": h})
+        player_titles[c["toban"]].append(
+            {"title": h["title"], "rank": 1, "metric": h["metric"],
+             "n": h["n"], "is_top": False, "venue": venue})
+
+    titles_doc = {
+        "generated_at": generated_at,
+        "note": "条件別成績からの自動付与。各称号は指標の上位10名(守護神は各場1人)。"
+                "1位のみ「・頂」。1選手は最大3称号(守護神は枠外で+1)。"
+                "指標(metric): 条件系=条件下1着率−本人通算1着率 / "
+                "勝ち型=その進入での決まり手勝率−全国 / 音速=平均ST(小さいほど上位) / "
+                "守護神=当地1着率−本人通算1着率。",
+        "capacity": TITLE_CAPACITY, "max_titles": MAX_TITLES, "min_n": MIN_N,
+        "titles": titles_out,
+        "guardians": guardians_out,
+    }
+    with open(TITLES_PATH, "w", encoding="utf-8") as f:
+        json.dump(titles_doc, f, ensure_ascii=False, separators=(",", ":"))
+
     for toban, by_year in tally.items():
         years = []
         for year in sorted(by_year):
@@ -417,6 +645,8 @@ def main():
         }
         # 「勝ち方」の各セクションを足す(既存キーは触らない)。
         doc.update(ways[toban].doc())
+        # 二つ名(保持者だけ入る。持っていない選手は空リスト)。
+        doc["titles"] = player_titles.get(toban, [])
         path = os.path.join(OUT_DIR, f"{toban}.json")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
@@ -449,6 +679,10 @@ def main():
           f"/ 級別 {len(periods)}期分({periods[0]['from']}〜{periods[-1]['to']})")
     print(f"       全国の基準値: {NATIONAL_PATH} ({os.path.getsize(NATIONAL_PATH):,} bytes) "
           f"/ {races:,}レース {national.starts:,}出走 ({date_min}〜{date_max})")
+    n_holders = len(player_titles)
+    n_guard = sum(1 for g in guardians_out if g["holder"])
+    print(f"       二つ名: {TITLES_PATH} ({os.path.getsize(TITLES_PATH):,} bytes) "
+          f"/ 保持者 {n_holders}人 / 守護神 {n_guard}場(空位 {len(guardians_out)-n_guard}場)")
 
 
 if __name__ == "__main__":
