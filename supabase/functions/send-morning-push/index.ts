@@ -31,7 +31,7 @@
 import webPush from 'npm:web-push@^3'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import {
-  buildMessage, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
+  buildMessage, fetchAllRows, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
   type Alert, type Entry,
 } from '../_shared/morning-message.ts'
 
@@ -90,34 +90,47 @@ export default {
     const [frames, nightVenues] = await Promise.all([loadFrames(), loadNightVenues()])
 
     // ---- 送り先の組み立て ----
-    const { data: subs, error: subErr } = await supabaseAdmin
-      .from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth')
+    // 各リスト取得は fetchAllRows でページングする(PostgRESTの1000行上限を
+    // 超えても黙って切り捨てられないように)。ページの境目で行が重複・欠落
+    // しないよう、すべて明示的に並び順を付ける。
+    const { data: subs, error: subErr } = await fetchAllRows((from, to) =>
+      supabaseAdmin.from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth')
+        .order('id').range(from, to))
     if (subErr) {
-      console.error('[send-morning-push] 購読の取得に失敗:', subErr.message)
+      console.error('[send-morning-push] 購読の取得に失敗:', (subErr as Error).message)
       return Response.json({ error: 'subscriptions_failed' }, { status: 500 })
     }
     if (!subs || subs.length === 0) return Response.json({ sent: 0, users: 0 })
 
     const userIds = [...new Set(subs.map((s) => s.user_id))]
 
-    // 購読者ぶんだけまとめて引く(利用者が数千規模になったら分割が必要)。
     const [favRes, memRes, logRes, alertRes] = await Promise.all([
-      supabaseAdmin.from('favorite_players').select('user_id,toban,created_at')
-        .in('user_id', userIds).order('created_at', { ascending: true }),
-      supabaseAdmin.from('memberships').select('user_id,status').in('user_id', userIds),
-      supabaseAdmin.from('push_send_log').select('user_id').eq('send_date', today),
+      // お気に入りは「登録が古い順」が無料プランの3名選定の意味を持つので
+      // created_at 順を維持し、同時刻の並びの安定化に toban を副キーにする。
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('favorite_players').select('user_id,toban,created_at')
+          .in('user_id', userIds)
+          .order('created_at', { ascending: true }).order('toban').range(from, to)),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('memberships').select('user_id,status')
+          .in('user_id', userIds).order('user_id').range(from, to)),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('push_send_log').select('user_id')
+          .eq('send_date', today).order('user_id').range(from, to)),
       // 条件アラート。有効なものだけ。テーブルがまだ無い環境でも朝の便を
       // 止めないよう、ここのエラーは致命的に扱わない(下でnull扱いにする)。
-      supabaseAdmin.from('race_alerts').select('id,user_id,toban,cond,label')
-        .in('user_id', userIds).eq('enabled', true),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('race_alerts').select('id,user_id,toban,cond,label')
+          .in('user_id', userIds).eq('enabled', true).order('id').range(from, to)),
     ])
+    const errMsg = (e: unknown) => (e as Error | null)?.message
     if (favRes.error || memRes.error || logRes.error) {
       console.error('[send-morning-push] 取得に失敗:',
-        favRes.error?.message, memRes.error?.message, logRes.error?.message)
+        errMsg(favRes.error), errMsg(memRes.error), errMsg(logRes.error))
       return Response.json({ error: 'lookup_failed' }, { status: 500 })
     }
     if (alertRes.error) {
-      console.warn('[send-morning-push] 条件アラートを取得できませんでした:', alertRes.error.message)
+      console.warn('[send-morning-push] 条件アラートを取得できませんでした:', errMsg(alertRes.error))
     }
 
     const premium = new Set(

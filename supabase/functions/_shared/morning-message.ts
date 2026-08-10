@@ -92,6 +92,40 @@ export type Frames = {
   players: Record<string, Record<string, [number, number, number]>>
 }
 
+/**
+ * リスト取得を1000行の壁を越えて全件読む。
+ *
+ * 【なぜ要るのか(2026-08-10、条件アラート増枠時の調査で判明)】
+ * PostgRESTは1リクエストの行数に上限がある(Supabaseの既定は1000行)。
+ * .in('user_id', 全購読者) の一発取りは、購読者×件数が上限を超えると
+ * **超過分が黙って切り捨てられ**、そのぶんの通知が鳴らない。
+ * お気に入りは1人500件まで保存できるため、理論上は2人で到達しうる。
+ *
+ * 【使い方の決まり】
+ * makeQuery は range(from, to) を末尾に付けた「新しい」クエリを毎回作って返す
+ * (Supabaseのクエリビルダーは使い回せないため関数で受ける)。
+ * 呼び出し側は必ず order を付けること。並びが固定でないと、ページの境目で
+ * 行の重複・欠落が起きる(Postgresは順序指定なしの結果順を保証しない)。
+ *
+ * maxPages はループの安全弁(既定200ページ=20万行)。実データがここへ届く
+ * ことは当面ないが、届いた場合は打ち切って途中までを返す(全滅よりまし)。
+ */
+export async function fetchAllRows<T>(
+  makeQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  pageSize = 1000,
+  maxPages = 200,
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = []
+  for (let page = 0; page < maxPages; page++) {
+    const { data, error } = await makeQuery(page * pageSize, (page + 1) * pageSize - 1)
+    if (error) return { data: out, error }
+    if (!data || data.length === 0) break
+    out.push(...data)
+    if (data.length < pageSize) break   // 端数ページ=最後のページ
+  }
+  return { data: out, error: null }
+}
+
 /** 今日(JST)の YYYY-MM-DD。 */
 export function todayJst(): string {
   return new Intl.DateTimeFormat('sv-SE', {

@@ -31,7 +31,7 @@
 // send-morning-push と同じ仕組み・同じ鍵。
 import webPush from 'npm:web-push@^3'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
-import { loadToday, todayJst } from '../_shared/morning-message.ts'
+import { fetchAllRows, loadToday, todayJst } from '../_shared/morning-message.ts'
 
 const KIND = 'data_delay'
 
@@ -98,10 +98,13 @@ export default {
     }
 
     // ---- 送り先の組み立て ----
-    const { data: subs, error: subErr } = await supabaseAdmin
-      .from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth')
+    // 各リスト取得は fetchAllRows でページングする(朝の便と同じ理由。
+    // PostgRESTの1000行上限で黙って切り捨てられると、そのぶんの告知が漏れる)。
+    const { data: subs, error: subErr } = await fetchAllRows((from, to) =>
+      supabaseAdmin.from('push_subscriptions').select('id,user_id,endpoint,p256dh,auth')
+        .order('id').range(from, to))
     if (subErr) {
-      console.error('[send-delay-notice] 購読の取得に失敗:', subErr.message)
+      console.error('[send-delay-notice] 購読の取得に失敗:', (subErr as Error).message)
       return Response.json({ error: 'subscriptions_failed' }, { status: 500 })
     }
     if (!subs || subs.length === 0) return Response.json({ sent: 0, users: 0, dataDate })
@@ -109,18 +112,24 @@ export default {
     const userIds = [...new Set(subs.map((s) => s.user_id))]
 
     const [favRes, alertRes, logRes] = await Promise.all([
-      supabaseAdmin.from('favorite_players').select('user_id').in('user_id', userIds),
-      supabaseAdmin.from('race_alerts').select('user_id').in('user_id', userIds).eq('enabled', true),
-      supabaseAdmin.from('push_notice_log').select('user_id')
-        .eq('send_date', today).eq('kind', KIND),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('favorite_players').select('user_id')
+          .in('user_id', userIds).order('user_id').order('toban').range(from, to)),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('race_alerts').select('user_id')
+          .in('user_id', userIds).eq('enabled', true).order('id').range(from, to)),
+      fetchAllRows((from, to) =>
+        supabaseAdmin.from('push_notice_log').select('user_id')
+          .eq('send_date', today).eq('kind', KIND).order('user_id').range(from, to)),
     ])
+    const errMsg = (e: unknown) => (e as Error | null)?.message
     if (favRes.error || logRes.error) {
-      console.error('[send-delay-notice] 取得に失敗:', favRes.error?.message, logRes.error?.message)
+      console.error('[send-delay-notice] 取得に失敗:', errMsg(favRes.error), errMsg(logRes.error))
       return Response.json({ error: 'lookup_failed' }, { status: 500 })
     }
     // 条件アラートは無くても告知は出す(お気に入りだけで宛先は決まる)。
     if (alertRes.error) {
-      console.warn('[send-delay-notice] 条件アラートを取得できませんでした:', alertRes.error.message)
+      console.warn('[send-delay-notice] 条件アラートを取得できませんでした:', errMsg(alertRes.error))
     }
 
     // 「朝の通知が届くはずだった人」= お気に入りか条件アラートを持っている人。

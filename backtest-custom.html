@@ -1851,8 +1851,10 @@ body{background:var(--bg); color:var(--ink);
       });
     }).catch(function(err){
       var text = String((err && (err.message || "")) || "");
-      if(/10件|check_violation/.test(text) || (err && err.status === 400 && /race_alerts/.test(text))){
-        msg.textContent = "条件アラートは10件までです。マイページで整理できます。";
+      // 上限はDBトリガー(race_alerts_limit)が正。件数はここに直書きせず
+      // TeiyomiAlerts.MAX を参照する(増枠時にここが古いまま残らないように)。
+      if(/件までです|check_violation/.test(text) || (err && err.status === 400 && /race_alerts/.test(text))){
+        msg.textContent = "条件アラートは" + TeiyomiAlerts.MAX + "件までです。マイページで整理できます。";
       }else if(text === "not-logged-in"){
         msg.textContent = "ログインすると保存できます。";
       }else if(isPremiumRequired(err)){

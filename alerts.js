@@ -20,7 +20,7 @@
   "use strict";
 
   var TABLE = "race_alerts";
-  var MAX = 10;   // 1人あたりの上限。DB側のトリガーと同じ数(理由は通知の文面が破綻するため)
+  var MAX = 30;   // 1人あたりの上限。DB側のトリガー(race_alerts_limit)と同じ数に保つこと
 
   function cfg() {
     var c = window.TeiyomiAuth && TeiyomiAuth.getConfig();
@@ -96,13 +96,20 @@
   function create(rec) {
     var user = window.TeiyomiAuth && TeiyomiAuth.getUser();
     if (!user || !user.id) return Promise.reject(new Error("not-logged-in"));
-    return req("POST", "", [{
-      user_id: user.id,
-      toban: rec.toban,
-      cond: rec.cond || {},
-      raw_cond: rec.raw_cond || {},
-      label: rec.label || null
-    }], { Prefer: "return=representation" });
+    // 上限はまずこちらで数えて止める(DB側のトリガーは回避された場合の歯止め)。
+    // エラー文はDBトリガーと同じ「◯件までです」の形にして、表示側の判定を揃える。
+    return list().then(function (rows) {
+      if (rows && rows.length >= MAX) {
+        throw new Error("条件アラートは1人" + MAX + "件までです");
+      }
+      return req("POST", "", [{
+        user_id: user.id,
+        toban: rec.toban,
+        cond: rec.cond || {},
+        raw_cond: rec.raw_cond || {},
+        label: rec.label || null
+      }], { Prefer: "return=representation" });
+    });
   }
 
   function setEnabled(id, on) {
