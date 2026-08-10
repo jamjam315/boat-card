@@ -399,6 +399,23 @@ def compute_titles(ways, national):
         lst.sort(key=lambda x: (-x["metric"], -x["n"]))
         candidates[name] = lst
 
+    # 進入の革命家: uchi前づけ(自分から内のコースを取りにいった出走)での1着率の対全国。
+    # 押し出されて外になった走り(soto)は意味が正反対なので対象にしない。
+    # 全国基準は _national の maezuke.uchi と同じ値(maezuke_uchi の合計)。
+    nat_uchi = national.maezuke_uchi
+    uchi_natrate = nat_uchi[1] / nat_uchi[0] if nat_uchi[0] else 0
+    lst = []
+    for toban, t in ways.items():
+        s, w = t.maezuke_uchi[0], t.maezuke_uchi[1]
+        if s < MIN_N:
+            continue
+        vs = w / s - uchi_natrate
+        if vs <= 0:
+            continue
+        lst.append({"toban": toban, "metric": vs, "n": s, "strength": vs})
+    lst.sort(key=lambda x: (-x["metric"], -x["n"]))
+    candidates["進入の革命家"] = lst
+
     # 音速の申し子: 平均STの速い順。F率が全国平均を超える者は除外。
     lst = []
     for toban, t in ways.items():
