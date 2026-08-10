@@ -93,7 +93,32 @@
       ".cr-gate p.sub{margin-top:6px; font-size:11.5px; color:var(--muted);}" +
       ".cr-gate .cta{display:block; margin-top:12px; padding:11px; border-radius:9px;" +
       "background:var(--accent); color:#fff; font-size:13.5px; font-weight:700;" +
-      "text-align:center; text-decoration:none;}";
+      "text-align:center; text-decoration:none;}" +
+      // ---- 二つ名バッジ(ヒーロー欄・選手名の直下) ----
+      // 通常はシルバー系、「頂」だけ金枠+👑。緑基調のサイトから浮きすぎない
+      // よう、塗りはせず枠と文字色だけで質感を出す。375pxでは折り返して並ぶ。
+      ".tt-badges{display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:10px;}" +
+      ".tt-badge{font-size:11.5px; font-weight:700; line-height:1; padding:6px 11px;" +
+      "border-radius:999px; cursor:pointer; -webkit-tap-highlight-color:transparent;" +
+      "font-family:inherit; background:var(--surface); white-space:nowrap;" +
+      "border:1px solid #a8b4b9; color:#5d6b71;}" +
+      "@media (prefers-color-scheme: dark){.tt-badge{border-color:#5a686e; color:#aebcc0;}}" +
+      ".tt-badge.top{border-color:#c9922a; color:#a2731c; box-shadow:0 0 0 1px #c9922a inset;}" +
+      "@media (prefers-color-scheme: dark){.tt-badge.top{border-color:#e0b054; color:#e0b054;" +
+      "box-shadow:0 0 0 1px #e0b054 inset;}}" +
+      // 根拠の小モーダル。ページ遷移させず、その場で開いてタップで閉じる。
+      ".tt-overlay{position:fixed; inset:0; background:rgba(10,20,25,.45); z-index:60;" +
+      "display:flex; align-items:center; justify-content:center; padding:20px;}" +
+      ".tt-pop{background:var(--surface); border:1px solid var(--line2); border-radius:14px;" +
+      "max-width:340px; width:100%; padding:18px 18px 14px; text-align:left;}" +
+      ".tt-pop h3{margin:0; font-size:15px;}" +
+      ".tt-pop .tt-rank{font-size:11.5px; color:var(--muted); margin:3px 0 10px;}" +
+      ".tt-pop p{margin:0; font-size:12.5px; color:var(--ink2); line-height:1.7;}" +
+      ".tt-pop .tt-fine{font-size:11px; color:var(--muted); margin-top:10px; padding-top:10px;" +
+      "border-top:1px dashed var(--line2); line-height:1.6;}" +
+      ".tt-pop .tt-close{display:block; width:100%; margin-top:12px; padding:9px;" +
+      "border-radius:9px; border:1px solid var(--line2); background:none; color:var(--ink2);" +
+      "font:inherit; font-size:12.5px; cursor:pointer;}";
     document.head.appendChild(s);
   }
 
@@ -347,6 +372,84 @@
   // ---- 読み込みと描画 ----
   ensureStyle();
   var body = document.getElementById("careerBody");
+  // ---- 二つ名バッジ(無料表示。会員判定を待たずに出す) ----
+  // 付与基準の一行説明。titles.jsonの判定(build_player_career.py)と対で更新する。
+  var TITLE_DESC = {
+    "荒海の覇者": "高波15cm以上のレースで、1着率が通常時比{M}（{N}走）。",
+    "風神の右腕": "風速8m以上のレースで、1着率が通常時比{M}（{N}走）。",
+    "雨を統べる者": "雨のレースで、1着率が通常時比{M}（{N}走）。",
+    "月下の覇王": "ナイター開催で、1着率が通常時比{M}（{N}走）。",
+    "栄冠を狩る者": "優勝戦・準優勝戦で、1着率が通常時比{M}（{N}走）。",
+    "氷海の王": "冬（12〜2月）のレースで、1着率が通常時比{M}（{N}走）。",
+    "炎海の王": "夏（6〜8月）のレースで、1着率が通常時比{M}（{N}走）。",
+    "カド一閃": "4〜6コースからの「まくり」勝率が全国平均比{M}（進入{N}走）。",
+    "差しの匠": "2〜4コースからの「差し」勝率が全国平均比{M}（進入{N}走）。",
+    "隙間を縫う者": "「まくり差し」での勝率が全国平均比{M}（{N}走）。",
+    "絶対王政": "1コースからの「逃げ」成功率が全国平均比{M}（{N}走）。",
+    "最終章の支配者": "「抜き」での勝率が全国平均比{M}（{N}走）。",
+    "音速の申し子": "平均スタートタイミング{M}（{N}走）。F率が全国平均以下の選手だけが対象。"
+  };
+  var TT_DISCLAIMER = "これは過去データの機械的集計です。予想でも推奨でもありません。";
+
+  function baseTitle(t) { return String(t).replace(/・頂$/, ""); }
+
+  function titleGrounds(t) {
+    var base = baseTitle(t.title);
+    var isGuardian = !!t.venue || /の守護神$/.test(base);
+    var m = base === "音速の申し子" ? t.metric.toFixed(3)
+                                    : "+" + (t.metric * 100).toFixed(1) + "pt";
+    var text, rank;
+    if (isGuardian) {
+      var venue = t.venue || base.replace(/の守護神$/, "");
+      text = venue + "での1着率が、本人の通算比" + m + "（当地" + n(t.n) + "走）。";
+      rank = "この場でただ1人の称号";
+    } else {
+      text = (TITLE_DESC[base] || "").replace("{M}", m).replace("{N}", n(t.n));
+      text += base === "音速の申し子"
+        ? "全国最速級の上位10名だけが名乗れる称号。"
+        : "全国上位10名だけが名乗れる称号。";
+      rank = t.rank + "位／10人中" + (t.is_top ? "（1位＝頂）" : "");
+    }
+    return { text: text, rank: rank };
+  }
+
+  function openTitlePop(t) {
+    var g = titleGrounds(t);
+    var ov = document.createElement("div");
+    ov.className = "tt-overlay";
+    ov.innerHTML = '<div class="tt-pop" role="dialog" aria-modal="true">' +
+      "<h3>" + (t.is_top ? "👑 " : "") + esc(t.title) + "</h3>" +
+      '<p class="tt-rank">' + esc(g.rank) + "</p>" +
+      "<p>" + esc(g.text) + "</p>" +
+      '<p class="tt-fine">' + esc(TT_DISCLAIMER) + "</p>" +
+      '<button type="button" class="tt-close">閉じる</button></div>';
+    function close() { ov.remove(); }
+    ov.addEventListener("click", function (ev) { if (ev.target === ov) close(); });
+    ov.querySelector(".tt-close").addEventListener("click", close);
+    document.body.appendChild(ov);
+  }
+
+  function renderTitleBadges(doc) {
+    var titles = doc.titles || [];
+    if (!titles.length) return;
+    var hero = document.querySelector(".hero-body");
+    if (!hero || hero.querySelector(".tt-badges")) return;
+    var box = document.createElement("div");
+    box.className = "tt-badges";
+    titles.forEach(function (t) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tt-badge" + (t.is_top ? " top" : "");
+      b.textContent = (t.is_top ? "👑 " : "") + t.title;
+      b.addEventListener("click", function () { openTitlePop(t); });
+      box.appendChild(b);
+    });
+    // 選手名(pname)・基本情報(pmeta)の直下、キャッチコピーの上に置く。
+    var meta = hero.querySelector(".pmeta");
+    if (meta && meta.nextSibling) hero.insertBefore(box, meta.nextSibling);
+    else hero.appendChild(box);
+  }
+
   var loaded = null;
   var national = null;    // players/career/_national.json(全国の基準値)
   var painted = false;
@@ -397,6 +500,7 @@
     .then(function (res) {
       var doc = res[0];
       loaded = doc;
+      renderTitleBadges(doc);   // 二つ名は無料(会員判定と無関係に出す)
       paint(false);   // まず無料部分を出す(会員判定を待たせない)
       if (!window.TeiyomiMembership) return;
       TeiyomiMembership.onChange(function (state) {

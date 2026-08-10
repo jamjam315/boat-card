@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>二つ名殿堂｜条件別成績の称号一覧（艇読み）</title>
+<meta name="description" content="高波・強風・雨・ナイター・決まり手など、条件別成績から自動付与される「二つ名」の保持者一覧。各称号は全国上位10名のみ。過去10年の公式データの機械的集計で、予想でも推奨でもありません。">
+<link rel="canonical" href="https://teiyomi.com/titles.html">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --gold:#c9922a; --gold-ink:#a2731c;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a;
+    --gold:#e0b054; --gold-ink:#e0b054; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+.backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+.back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.lead{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:13px 16px; font-size:12.5px; color:var(--ink2); line-height:1.75;}
+.lead b{color:var(--ink);}
+
+.tcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:15px 17px;}
+.tcard h2{margin:0; font-size:16px; display:flex; align-items:baseline; gap:8px;}
+.tcard .cond{font-size:11.5px; color:var(--muted); margin:4px 0 10px; line-height:1.6;}
+.crown{background:var(--accent-soft); border:1px solid var(--gold); border-radius:10px;
+  padding:9px 13px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+.crown .who{font-size:14.5px; font-weight:700;}
+.crown .who a{color:inherit; text-decoration:underline; text-decoration-color:var(--line2);}
+.crown .val{font-size:12px; color:var(--gold-ink); font-weight:600; margin-left:auto; white-space:nowrap;}
+.tlist{margin:8px 0 0; padding:0; list-style:none;}
+.tlist li{display:flex; align-items:baseline; gap:8px; padding:4.5px 2px; font-size:12.5px;
+  border-top:1px dashed var(--line);}
+.tlist li:first-child{border-top:none;}
+.tlist .rk{flex:0 0 2.4em; color:var(--muted); font-size:11.5px;}
+.tlist .nm{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.tlist .nm a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);}
+.tlist .kls{flex:0 0 auto; font-size:10.5px; color:var(--muted); border:1px solid var(--line2);
+  border-radius:5px; padding:0 5px;}
+.tlist .val{flex:0 0 auto; font-size:11.5px; color:var(--ink2); white-space:nowrap;}
+
+.gtable{width:100%; border-collapse:collapse; margin-top:8px; font-size:12.5px;}
+.gtable td{padding:6px 4px; border-top:1px dashed var(--line); vertical-align:baseline;}
+.gtable tr:first-child td{border-top:none;}
+.gtable .gv{width:5.2em; color:var(--ink2); font-weight:600; white-space:nowrap;}
+.gtable .gn a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);}
+.gtable .gval{text-align:right; color:var(--ink2); font-size:11.5px; white-space:nowrap;}
+.gtable .empty{color:var(--muted); font-style:italic;}
+
+.loading{font-size:12.5px; color:var(--muted); margin-top:16px; text-align:center;}
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11.5px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <h1>🏆 二つ名殿堂</h1>
+    <p>条件別成績から生まれた称号と、その保持者たち</p>
+  </header>
+  <nav class="backnav">
+    <a class="back" href="/">← トップに戻る</a>
+    <a class="back" href="players/">🔍 選手一覧</a>
+  </nav>
+
+  <div class="lead">
+    <b>二つ名は、過去10年・55万レースの公式データの機械的集計から自動で付与されます。</b>
+    各称号を名乗れるのは全国上位10名だけ（守護神は各場1人）。1位には「頂」が付きます。
+    これは過去の実データの集計であり、<b>予想でも推奨でもありません。</b>
+    成績は毎日の結果で入れ替わります。
+  </div>
+
+  <div id="hall"><p class="loading">読み込み中…</p></div>
+
+  <footer class="foot">
+    <p>各称号の判定基準：母数50走以上（抜きは勝ち数30以上）で、条件下の成績が本人の通常時または全国平均を上回る選手のうち、指標の上位10名。守護神は当地1着率が本人比+5pt以上で各場最上位の1人。</p>
+    <p><a href="/">トップ</a> ・ <a href="players/">選手一覧</a> ・ <a href="guide.html">読み方ガイド</a></p>
+  </footer>
+</div>
+
+<script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
+<script>
+(function(){
+"use strict";
+var PAGES = new Set((window.PLAYER_PAGES || []).map(String));
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+function n(v){ return (v || 0).toLocaleString("ja-JP"); }
+
+// 各称号の付与条件の説明。判定(build_player_career.py)と対で更新する。
+var DESC = {
+  "荒海の覇者": "高波15cm以上のレースでの1着率が、本人の通常時をどれだけ上回るか",
+  "風神の右腕": "風速8m以上のレースでの1着率が、本人の通常時をどれだけ上回るか",
+  "雨を統べる者": "雨のレースでの1着率が、本人の通常時をどれだけ上回るか",
+  "月下の覇王": "ナイター開催での1着率が、本人の通常時をどれだけ上回るか",
+  "栄冠を狩る者": "優勝戦・準優勝戦での1着率が、本人の通常時をどれだけ上回るか",
+  "氷海の王": "冬（12〜2月）の1着率が、本人の通常時をどれだけ上回るか",
+  "炎海の王": "夏（6〜8月）の1着率が、本人の通常時をどれだけ上回るか",
+  "カド一閃": "4〜6コースからの「まくり」勝率が、全国平均をどれだけ上回るか",
+  "差しの匠": "2〜4コースからの「差し」勝率が、全国平均をどれだけ上回るか",
+  "隙間を縫う者": "「まくり差し」の勝率が、全国平均をどれだけ上回るか",
+  "絶対王政": "1コースからの「逃げ」成功率が、全国平均をどれだけ上回るか",
+  "最終章の支配者": "「抜き」の勝率が、全国平均をどれだけ上回るか（勝ち数30以上）",
+  "音速の申し子": "平均スタートタイミングの速さ（F率が全国平均以下の選手のみ）"
+};
+// カードの並び順(titles.jsonの順とは独立に、意味のまとまりで固定する)。
+var ORDER = ["絶対王政","カド一閃","差しの匠","隙間を縫う者","最終章の支配者","音速の申し子",
+             "荒海の覇者","風神の右腕","雨を統べる者","月下の覇王","栄冠を狩る者","氷海の王","炎海の王"];
+
+function nameHtml(h){
+  var nm = esc(h.name || h.toban);
+  return PAGES.has(String(h.toban))
+    ? '<a href="players/' + esc(String(h.toban)) + '.html">' + nm + "</a>"
+    : nm;
+}
+function metricStr(title, m){
+  return title === "音速の申し子" ? "ST " + m.toFixed(3) : "+" + (m*100).toFixed(1) + "pt";
+}
+
+function card(sec){
+  var name = sec.name;
+  var top = sec.holders[0];
+  var rest = sec.holders.slice(1);
+  var html = '<section class="tcard"><h2>' + esc(name) + "</h2>" +
+    '<p class="cond">' + esc(DESC[name] || "") + "</p>";
+  if(top){
+    html += '<div class="crown"><span>👑</span><span class="who">' + nameHtml(top) + "</span>" +
+      '<span class="kls">' + esc(top["class"] || "—") + "</span>" +
+      '<span class="val nums">' + esc(metricStr(name, top.metric)) + "・" + n(top.n) + "走</span></div>";
+  }
+  html += '<ol class="tlist">' + rest.map(function(h){
+    return "<li><span class='rk nums'>" + h.rank + "位</span><span class='nm'>" + nameHtml(h) + "</span>" +
+      "<span class='kls'>" + esc(h["class"] || "—") + "</span>" +
+      "<span class='val nums'>" + esc(metricStr(name, h.metric)) + "・" + n(h.n) + "走</span></li>";
+  }).join("") + "</ol></section>";
+  return html;
+}
+
+function guardians(list){
+  var rows = list.map(function(g){
+    var h = g.holder;
+    var body = h
+      ? "<td class='gn'>" + nameHtml(h) + " <span class='kls'>" + esc(h["class"] || "—") + "</span></td>" +
+        "<td class='gval nums'>+" + (h.metric*100).toFixed(1) + "pt・当地" + n(h.n) + "走</td>"
+      : "<td class='gn empty' colspan='2'>空位（基準を満たす選手がいません）</td>";
+    return "<tr><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
+  }).join("");
+  return '<section class="tcard"><h2>〇〇の守護神</h2>' +
+    '<p class="cond">その場での1着率が本人の通算を+5pt以上上回る選手のうち、最も差が大きい1人。各場1人だけの称号</p>' +
+    '<table class="gtable">' + rows + "</table></section>";
+}
+
+fetch("players/career/titles.json", {cache:"no-store"})
+  .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(function(doc){
+    var byName = {};
+    (doc.titles || []).forEach(function(sec){ byName[sec.name] = sec; });
+    var html = ORDER.filter(function(k){ return byName[k]; })
+      .map(function(k){ return card(byName[k]); }).join("");
+    // 並び順リストに無い称号が将来増えても、落とさず末尾に出す。
+    (doc.titles || []).forEach(function(sec){
+      if(ORDER.indexOf(sec.name) === -1) html += card(sec);
+    });
+    html += guardians(doc.guardians || []);
+    document.getElementById("hall").innerHTML = html;
+  })
+  .catch(function(){
+    document.getElementById("hall").innerHTML =
+      '<p class="loading">読み込みに失敗しました。時間をおいて再度お試しください。</p>';
+  });
+})();
+</script>
+</body>
+</html>
