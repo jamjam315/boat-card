@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>昇級ボーダーウォッチ｜B級選手の今期勝率順位（艇読み）</title>
+<meta name="description" content="ボートレースの級別審査期間の勝率をB級選手について毎日再計算した順位表。B1→A2・B2→B1の昇級圏を、出走回数・連対率の要件進捗つきで追えます。公式定義の再現による参考値です。">
+<link rel="canonical" href="https://teiyomi.com/kyusoku.html">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<style>
+:root{
+  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
+  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
+  --gold:#c9922a;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
+    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a;
+    --gold:#e0b054; }
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
+.backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+.back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.lead{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:13px 16px; font-size:12.5px; color:var(--ink2); line-height:1.75;}
+.lead b{color:var(--ink);}
+.lead .lrow{display:block;}
+.lead .lrow + .lrow{margin-top:6px; padding-top:6px; border-top:1px dashed var(--line2);}
+.lead .fine{font-size:11px; color:var(--muted);}
+
+.tabs{display:flex; gap:8px; margin-top:16px;}
+.tab{flex:1 1 0; border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font:inherit; font-size:13px; font-weight:600; padding:10px 6px; border-radius:10px;
+  cursor:pointer; -webkit-tap-highlight-color:transparent; text-align:center;}
+.tab[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff;}
+
+.board{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:12px; padding:6px 14px 12px;}
+.krow{border-top:1px dashed var(--line); padding:6px 2px;}
+.krow:first-child{border-top:none;}
+/* 全要件を満たす行は左に細い金の線(控えめな充足マーク)。 */
+.krow.ok{border-left:3px solid var(--gold); padding-left:7px; margin-left:-10px;}
+.kmain{display:flex; align-items:baseline; gap:7px;}
+.kmain .rk{flex:0 0 2.2em; color:var(--muted); font-size:11.5px;}
+.kmain .nm{flex:1 1 auto; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.kmain .nm a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);}
+.kmain .rate{flex:0 0 auto; font-size:13.5px; font-weight:700;}
+.kmain .st{flex:0 0 auto; font-size:11px; color:var(--ink2); white-space:nowrap;}
+.kmain .st.done{color:var(--accent);}
+.kmain .p23{flex:0 0 auto; font-size:10.5px; color:var(--muted); white-space:nowrap;}
+.vlink{flex:0 0 auto; font-size:10.5px; color:var(--accent); text-decoration:none;
+  border:1px solid var(--accent); border-radius:999px; padding:2px 6px; white-space:nowrap;}
+.vlink:hover{background:var(--accent-soft);}
+button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); cursor:pointer;
+  padding:2px 6px; -webkit-tap-highlight-color:transparent;}
+/* 二つ名の小バッジ(保持者のみ2行目に出す)。 */
+.kbadges{display:flex; flex-wrap:wrap; gap:4px; margin:3px 0 1px 2.6em;}
+.kbadge{font-size:10px; font-weight:700; line-height:1; padding:3px 8px; border-radius:999px;
+  border:1px solid #a8b4b9; color:#5d6b71; background:var(--surface); cursor:pointer;
+  font-family:inherit; -webkit-tap-highlight-color:transparent;}
+@media (prefers-color-scheme: dark){.kbadge{border-color:#5a686e; color:#aebcc0;}}
+.kbadge.top{border-color:var(--gold); color:var(--gold);}
+@media (max-width:420px){ .kmain .p23{display:none;} }
+
+.borderline{display:flex; align-items:center; gap:8px; color:var(--gold); font-size:11px;
+  font-weight:700; padding:4px 2px;}
+.borderline::before,.borderline::after{content:""; flex:1 1 auto; border-top:2px dashed var(--gold);}
+.border-wait{background:var(--accent-soft); border:1px solid var(--line2); border-radius:10px;
+  margin-top:12px; padding:10px 14px; font-size:12px; color:var(--ink2); line-height:1.7;}
+.border-wait b{color:var(--ink);}
+.border-wait .fine{font-size:10.5px; color:var(--muted);}
+
+.morebtn{display:block; width:100%; margin-top:10px; padding:11px; border-radius:10px;
+  border:1px solid var(--line2); background:var(--surface); color:var(--ink2);
+  font:inherit; font-size:12.5px; cursor:pointer;}
+.loading{font-size:12.5px; color:var(--muted); margin-top:16px; text-align:center;}
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11.5px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+/* 二つ名の根拠(簡易版モーダル)。 */
+.kt-overlay{position:fixed; inset:0; background:rgba(10,20,25,.45); z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:20px;}
+.kt-pop{background:var(--surface); border:1px solid var(--line2); border-radius:14px;
+  max-width:340px; width:100%; padding:18px 18px 14px; font-size:12.5px; color:var(--ink2); line-height:1.7;}
+.kt-pop h3{margin:0; font-size:15px; color:var(--ink);}
+.kt-pop .rankline{font-size:11.5px; color:var(--muted); margin:3px 0 10px;}
+.kt-pop p{margin:0;}
+.kt-pop a.golink{display:block; margin-top:12px; padding:10px; border-radius:9px;
+  border:1px solid var(--accent); color:var(--accent); font-size:12.5px; font-weight:700;
+  text-align:center; text-decoration:none;}
+.kt-pop .fine{font-size:11px; color:var(--muted); margin-top:10px; padding-top:10px;
+  border-top:1px dashed var(--line2);}
+.kt-pop button{display:block; width:100%; margin-top:12px; padding:9px; border-radius:9px;
+  border:1px solid var(--line2); background:none; color:var(--ink2); font:inherit;
+  font-size:12.5px; cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <h1>📈 昇級ボーダーウォッチ</h1>
+    <p>B級選手の「今期」を毎日追う順位表</p>
+  </header>
+  <nav class="backnav">
+    <a class="back" href="/">← トップに戻る</a>
+    <a class="back" href="titles.html">🏆 二つ名殿堂</a>
+    <a class="back" href="players/">🔍 選手一覧</a>
+  </nav>
+
+  <div class="lead" id="leadBox">
+    <span class="lrow" id="leadPeriod">読み込み中…</span>
+    <span class="lrow">勝率は公式定義（着順点の平均）を当サイトのデータで再計算した<b>参考値</b>です。
+      B級選手の約95%が公式値と一致しますが、確定値は公式発表をご確認ください。
+      <span class="fine">事故率の要件（0.70以下）は当サイトでは判定できないため表示していません。</span></span>
+    <span class="lrow nums" id="leadData"></span>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="対象の級">
+    <button type="button" class="tab" id="tabB1" role="tab" aria-selected="true">B1 → A2 昇級圏</button>
+    <button type="button" class="tab" id="tabB2" role="tab" aria-selected="false">B2 → B1 昇級圏</button>
+  </div>
+
+  <div id="board"><p class="loading">読み込み中…</p></div>
+
+  <footer class="foot">
+    <p>順位は今期勝率の高い順（同率は出走数の多い順）。要件（B1→A2: 出走70回・2連対率30%・3連対率40% ／ B2→B1: 出走50回・2連対率10%・3連対率20%）をすべて満たす選手の行には左に金の線を付けています。出走回数は審査期間の途中では未達で当然のため、進捗として表示しています。</p>
+    <p><a href="/">トップ</a> ・ <a href="titles.html">二つ名殿堂</a> ・ <a href="backtest-custom.html">バックテスト</a></p>
+  </footer>
+</div>
+
+<script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
+<!-- 🔔(通知登録)用の認証スタック。順序は favorites → membership → alerts。
+     順位表の描画はこのスタックを待たない(押した時に初めて使う)。 -->
+<script src="favorites.js"></script>
+<script src="membership.js"></script>
+<script src="alerts.js"></script>
+<script>
+(function(){
+"use strict";
+var PAGES = new Set((window.PLAYER_PAGES || []).map(String));
+var INITIAL_ROWS = 30;
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+  });
+}
+function n(v){ return (v || 0).toLocaleString("ja-JP"); }
+
+var doc = null;            // kyusoku.json
+var titlesByToban = {};    // 登番 -> [{title, rank, metric, n, is_top, venue}]
+var current = "b1";
+var expanded = { b1: false, b2: false };
+var REQ = { b1: {starts:70, label:"70走"}, b2: {starts:50, label:"50走"} };
+
+function nameHtml(r){
+  var nm = esc(r.name || r.toban);
+  return PAGES.has(String(r.toban))
+    ? '<a href="players/' + esc(String(r.toban)) + '.html">' + nm + "</a>"
+    : nm;
+}
+
+function startsHtml(r, req){
+  // 進捗として描く(期の途中で未達は自然な状態。○×で失格風に見せない)。
+  if(r.starts >= req.starts) return '<span class="st done nums">' + n(r.starts) + '走✅</span>';
+  return '<span class="st nums">' + n(r.starts) + "/" + req.starts + "走</span>";
+}
+
+function badgesHtml(r){
+  var ts = titlesByToban[String(r.toban)];
+  if(!ts || !ts.length) return "";
+  return '<div class="kbadges">' + ts.map(function(t, i){
+    return '<button type="button" class="kbadge' + (t.is_top ? " top" : "") +
+      '" data-toban="' + esc(String(r.toban)) + '" data-i="' + i + '">' +
+      (t.is_top ? "👑 " : "") + esc(t.title) + "</button>";
+  }).join("") + "</div>";
+}
+
+function rowHtml(r, req){
+  return '<div class="krow' + (r.ok ? " ok" : "") + '">' +
+    '<div class="kmain">' +
+      '<span class="rk nums">' + r.rank + '位</span>' +
+      '<span class="nm">' + nameHtml(r) + '</span>' +
+      '<span class="rate nums">' + (r.rate == null ? "—" : r.rate.toFixed(2)) + '</span>' +
+      startsHtml(r, req) +
+      '<span class="p23 nums">2連' + r.top2_rate + '％・3連' + r.top3_rate + '％</span>' +
+      '<a class="vlink" href="backtest-custom.html?toban=' + esc(String(r.toban)) + '">検証 ›</a>' +
+      '<button type="button" class="vlink bell-btn" data-toban="' + esc(String(r.toban)) +
+        '" data-name="' + esc(r.name || r.toban) + '" aria-label="出走通知を登録">🔔</button>' +
+    '</div>' + badgesHtml(r) + '</div>';
+}
+
+function render(){
+  if(!doc) return;
+  var rows = doc[current] || [];
+  var req = REQ[current];
+  var borderRate = doc.border && doc.border.border_rate_estimate;
+  var shown = expanded[current] ? rows : rows.slice(0, INITIAL_ROWS);
+  var html = '<div class="board">';
+  var borderDrawn = false;
+  shown.forEach(function(r, i){
+    // ボーダー勝率が決まっている場合、B1タブでは境界に横線を引く。
+    if(current === "b1" && borderRate != null && !borderDrawn &&
+       r.rate != null && r.rate < borderRate){
+      html += '<div class="borderline">昇級圏ボーダー（推定 ' + borderRate.toFixed(2) + '）</div>';
+      borderDrawn = true;
+    }
+    html += rowHtml(r, req);
+  });
+  html += "</div>";
+  if(!expanded[current] && rows.length > INITIAL_ROWS){
+    html += '<button type="button" class="morebtn" id="moreBtn">もっと見る（全' + rows.length + '名）</button>';
+  }
+  // ボーダー未確定の案内(B1タブのみ。これから確定していくことを前向きに)。
+  if(current === "b1" && borderRate == null && doc.border){
+    html += '<div class="border-wait"><b>昇級圏ボーダーはこれから確定していきます。</b> ' +
+      '出走70回以上の選手が定員（' + n(doc.border.a_seats_total) + '席）に達すると、ここに推定ボーダーが表示されます' +
+      '（現在 ' + n(doc.border.qualified_count) + '/' + n(doc.border.a_seats_total) + '人）。' +
+      '<div class="fine">定員はA1・A2とも登録選手総数の20%（' + n(doc.border.total_players) +
+      '人で近似）。A級選手の勝率はSG・G1等の加点ぶんが乗らないため、実際のボーダーはここでの推定よりやや高くなります。</div></div>';
+  }
+  document.getElementById("board").innerHTML = html;
+  var more = document.getElementById("moreBtn");
+  if(more) more.addEventListener("click", function(){ expanded[current] = true; render(); });
+}
+
+function selectTab(key){
+  current = key;
+  document.getElementById("tabB1").setAttribute("aria-selected", key === "b1" ? "true" : "false");
+  document.getElementById("tabB2").setAttribute("aria-selected", key === "b2" ? "true" : "false");
+  render();
+}
+document.getElementById("tabB1").addEventListener("click", function(){ selectTab("b1"); });
+document.getElementById("tabB2").addEventListener("click", function(){ selectTab("b2"); });
+
+// 二つ名の根拠(簡易版)。称号名・順位・指標だけを出し、詳細は選手ページへ。
+// 説明の一行文はtitles.html側と重複させず、ここでは出さない。
+function openBadgePop(toban, i){
+  var t = (titlesByToban[String(toban)] || [])[i];
+  if(!t) return;
+  var isG = /の守護神$/.test(t.title.replace(/・頂$/, ""));
+  var m = /^音速/.test(t.title) ? "平均ST " + t.metric.toFixed(3)
+                                : "+" + (t.metric*100).toFixed(1) + "pt";
+  var rank = isG ? "この場でただ1人の称号" : t.rank + "位／10人中" + (t.is_top ? "（1位＝頂）" : "");
+  var ov = document.createElement("div");
+  ov.className = "kt-overlay";
+  ov.innerHTML = '<div class="kt-pop" role="dialog" aria-modal="true">' +
+    "<h3>" + (t.is_top ? "👑 " : "") + esc(t.title) + "</h3>" +
+    '<p class="rankline">' + esc(rank) + "</p>" +
+    '<p class="nums">指標 ' + esc(m) + "・" + n(t.n) + "走</p>" +
+    (PAGES.has(String(toban))
+      ? '<a class="golink" href="players/' + esc(String(toban)) + '.html">選手ページで根拠を見る →</a>' : "") +
+    '<p class="fine">これは過去データの機械的集計です。予想でも推奨でもありません。</p>' +
+    "<button type='button' class='kt-close'>閉じる</button></div>";
+  function close(){ ov.remove(); }
+  ov.addEventListener("click", function(ev){ if(ev.target === ov) close(); });
+  ov.querySelector(".kt-close").addEventListener("click", close);
+  document.body.appendChild(ov);
+}
+
+// クリックは1つの委譲リスナーで受ける(🔔・バッジ・もっと見る以外は通常のリンク)。
+document.getElementById("board").addEventListener("click", function(ev){
+  var badge = ev.target.closest ? ev.target.closest(".kbadge") : null;
+  if(badge){ openBadgePop(badge.getAttribute("data-toban"), Number(badge.getAttribute("data-i"))); return; }
+  var bell = ev.target.closest ? ev.target.closest(".bell-btn") : null;
+  if(bell){
+    if(!window.TeiyomiAlerts || !TeiyomiAlerts.bellFlow){
+      alert("読み込みが終わっていません。少し待ってからもう一度お試しください。");
+      return;
+    }
+    TeiyomiAlerts.bellFlow({
+      toban: bell.getAttribute("data-toban"),
+      playerName: bell.getAttribute("data-name"),
+      title: "昇級ウォッチ"
+    });
+  }
+});
+
+Promise.all([
+  fetch("kyusoku.json", {cache:"no-store"}).then(function(r){
+    if(!r.ok) throw new Error("HTTP " + r.status); return r.json();
+  }),
+  // 二つ名バッジ用。取れなくても順位表は出す。
+  fetch("players/career/titles.json").then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; })
+]).then(function(res){
+  doc = res[0];
+  var td = res[1];
+  if(td){
+    (td.titles || []).forEach(function(sec){
+      sec.holders.forEach(function(h){
+        (titlesByToban[String(h.toban)] = titlesByToban[String(h.toban)] || [])
+          .push({title: h.title, rank: h.rank, metric: h.metric, n: h.n, is_top: h.is_top});
+      });
+    });
+    (td.guardians || []).forEach(function(g){
+      if(!g.holder) return;
+      var h = g.holder;
+      (titlesByToban[String(h.toban)] = titlesByToban[String(h.toban)] || [])
+        .push({title: h.title, rank: 1, metric: h.metric, n: h.n, is_top: false});
+    });
+  }
+  document.getElementById("leadPeriod").innerHTML =
+    "<b>いま集計中：" + esc(doc.period.label) + "</b> → 反映は" + esc(doc.period.applies) + "です。";
+  document.getElementById("leadData").textContent =
+    "データは " + (doc.data_to || "—") + " 時点（毎晩更新）。";
+  render();
+}).catch(function(){
+  document.getElementById("board").innerHTML =
+    '<p class="loading">読み込みに失敗しました。時間をおいて再度お試しください。</p>';
+});
+})();
+</script>
+</body>
+</html>
