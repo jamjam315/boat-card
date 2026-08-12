@@ -6,9 +6,17 @@
 // 「バックテストの集計だけ古い」といった、利用者から見て何が起きているか
 // 分からない事故を招く。キャッシュ戦略を正しく作り込むこと自体は可能だが、
 // 誤ったデータを見せるくらいなら通信して待つほうがこのサイトの性質に合う。
-// そのため fetch イベントは一切扱わない(=通信は今までどおりブラウザ任せ)。
 // この判断を変える場合は、少なくとも data.js とレースページを
 // network-first にしてからにすること。
+//
+// 【唯一の例外: オフライン案内(2026-08-12・Android化の準備)】
+// キャッシュするのは /offline.html 1枚だけで、データは1バイトも持たない。
+// しかも使うのは「ページを開こうとして通信に失敗したとき」に限る:
+//   ・扱うのは navigate リクエスト(=ページ遷移)のみ。data.js やJSONは素通し
+//   ・必ず通信を先に試し、成功したらその応答をそのまま返す(network-first)
+// つまり回線がある限り挙動は従来と1バイトも変わらず、鮮度の方針にも影響しない。
+// TWA(Androidアプリ)では圏外時に白い画面とエラーだけが出るため、
+// 「無言で壊れて見える」のを防ぐ目的で入れている。
 //
 // 【通知の中身】
 // 送信側(Edge Function send-morning-push など)から
@@ -20,14 +28,51 @@
 // 置き換わるため、朝の便と「データ更新の遅れ」のように性質の違う通知は
 // 別のtagで送る。省略された場合は従来どおり朝の便として扱う。
 
+// オフライン案内1枚だけを入れる箱。中身を変えたら名前の版を上げる。
+var OFFLINE_CACHE = 'teiyomi-offline-v1';
+var OFFLINE_URL = '/offline.html';
+
 // 新しい sw.js を置いたら、古いものを待たずに差し替える。
-// キャッシュを持たないので、途中で入れ替わっても表示に影響しない。
-self.addEventListener('install', function () {
+// 持っているのはオフライン案内1枚だけなので、途中で入れ替わっても表示に影響しない。
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE).then(function (c) {
+      // 取得に失敗しても install は成功させる(通知の受け口を止めないため)。
+      return c.add(new Request(OFFLINE_URL, { cache: 'reload' })).catch(function () {});
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then(function (keys) {
+      // 版を上げたときに古い箱を片付ける。
+      return Promise.all(keys.map(function (k) {
+        return k === OFFLINE_CACHE ? null : caches.delete(k);
+      }));
+    }).then(function () { return self.clients.claim(); })
+  );
+});
+
+// ---- オフライン時の案内(ページ遷移のみ・必ず通信を先に試す) ----
+self.addEventListener('fetch', function (event) {
+  var req = event.request;
+  // ページ遷移以外(data.js・JSON・画像・API)は一切触らない。
+  if (req.mode !== 'navigate' || req.method !== 'GET') return;
+  event.respondWith(
+    fetch(req).catch(function () {
+      // ここに来るのは通信そのものが失敗したときだけ(404や500は上のfetchが成功扱い)。
+      // 画面に出るのは案内だが、アドレス欄は開こうとしたページのまま残る。
+      // そのため案内側は再読み込みするだけで元のページへ戻れる。
+      return caches.match(OFFLINE_URL).then(function (res) {
+        return res || new Response('オフラインです。接続後に再読み込みしてください。', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      });
+    })
+  );
 });
 
 // ---- 通知の受け口(骨組み。中身は工程2) ----
