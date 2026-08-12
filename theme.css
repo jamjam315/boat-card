@@ -1,0 +1,105 @@
+/* 艇読みの見た目の土台。色・余白・角丸・数字の見え方をここ1枚に集約する。
+ *
+ * 【使い方】各ページは <link rel="stylesheet" href="/theme.css"> を読むだけ。
+ * ページ側の <style> にトークン(:root)を書かないこと。書くと出典が2つになり、
+ * 片方だけ古くなる事故が起きる。
+ *
+ * 【テーマを変えるとき】下の :root の値を変えれば全ページに反映される。
+ * ダークモードの見え方を変える場合は、その下の
+ * @media (prefers-color-scheme: dark) の同名トークンも合わせて変える。
+ *
+ * 【ここに入れないもの】
+ * - レーンカラー(1号艇=白 2号艇=黒 3号艇=赤 …)。これは公式の枠色で、
+ *   意味が決まっている定数。テーマを変えても変わってはいけないので、
+ *   使う場所に直接書いたままにしてある。
+ * - ページ固有のレイアウト。ここは「土台」だけを持つ。
+ */
+
+:root{
+  /* ---- 面と文字 ---- */
+  --bg:#eef0ec;            /* ページの地 */
+  --surface:#ffffff;       /* カードの地 */
+  --ink:#13242a;           /* 本文 */
+  --ink2:#4a5a61;          /* 補助の文字 */
+  --muted:#7c8a90;         /* 注記・母数など、いちばん弱い文字 */
+  --line:#e2e5e0;          /* 仕切り線(薄) */
+  --line2:#d3d8d2;         /* 枠線(やや濃) */
+
+  /* ---- 主役の色 ---- */
+  --water:#0f2a33;         /* ヘッダーの濃紺(水面) */
+  --accent:#0e7c66;        /* 緑。ボタン・リンク・強調 */
+  --accent-soft:#dff0ea;   /* 緑の淡い面 */
+  --on-accent:#ffffff;     /* 緑の上に乗る文字 */
+  --on-water:#eaf3f0;      /* 濃紺の上に乗る文字 */
+  --on-water-sub:#9fc3ba;  /* 濃紺の上の補助文字 */
+
+  /* ---- 意味を持つ色 ---- */
+  /* 回収率100%以上など「上振れ」。緑と同色にしているのは、良し悪しを
+     煽らないという方針のため(赤緑で射幸心を煽る配色にしない)。 */
+  --positive:#0e7c66;
+  --negative:#4a5a61;      /* 下振れ。目立たせず、事実として置くだけ */
+  --gold:#c9922a;          /* 称号の「頂」・要件充足 */
+  --gold-ink:#a2731c;      /* 金の文字(淡い面の上で読めるよう濃く) */
+  --warn-ink:#b06a00;      /* 注意書きの文字 */
+  --warn-bg:#fff5e6;
+  --warn-line:#f0d9b0;
+
+  /* ---- 余白(8pxベース) ---- */
+  --sp-1:4px;
+  --sp-2:8px;
+  --sp-3:12px;
+  --sp-4:16px;
+  --sp-6:24px;
+
+  /* ---- 形 ---- */
+  --radius:14px;           /* カード */
+  --radius-sm:10px;        /* 小さい箱・ボタン */
+  --radius-pill:999px;     /* ピル型 */
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#10171a;
+    --surface:#182226;
+    --ink:#eef3f2;
+    --ink2:#aebcc0;
+    --muted:#7e8d92;
+    --line:#243136;
+    --line2:#2e3d43;
+    --water:#0a1b20;
+    --accent:#3bbf9e;
+    --accent-soft:#16302a;
+    --on-accent:#0a1b20;
+    --on-water:#eaf3f0;
+    --on-water-sub:#9fc3ba;
+    --positive:#3bbf9e;
+    --negative:#aebcc0;
+    --gold:#e0b054;
+    --gold-ink:#e0b054;
+    --warn-ink:#ffc46b;
+    --warn-bg:#2a2114;
+    --warn-line:#3d3222;
+  }
+}
+
+/* ---- 数字の見え方(このサイトでいちばん効く) ----
+ * 艇読みは数字を読ませるサイトなので、桁が縦に揃うようにする。
+ * これまでは .nums を付けた箇所だけだったが、付け忘れが多く
+ * 表の中で桁がずれていた。既定を tabular にして、文章側だけ元に戻す。 */
+body{
+  font-variant-numeric:tabular-nums lining-nums;
+  font-feature-settings:"tnum" 1, "lnum" 1;
+}
+/* 見出し・本文の地の文は等幅数字でなくてよい(むしろ読みにくい)ので戻す。 */
+h1, h2, h3, p, li, summary, dt, dd, label{
+  font-variant-numeric:normal;
+  font-feature-settings:normal;
+}
+/* ただし p や li の中でも「数字として読ませる」ものは等幅に保つ。 */
+.nums, td, th, .nums *{
+  font-variant-numeric:tabular-nums lining-nums;
+  font-feature-settings:"tnum" 1, "lnum" 1;
+}
+
+/* 表の数値列は右揃え。数字は右端が揃うと桁が比べやすい。 */
+.num-col, td.num, th.num{ text-align:right; }
