@@ -10,20 +10,24 @@
      (古い数字を見せないという方針のまま、無言の失敗だけを防ぐ)。 -->
 <meta name="robots" content="noindex">
 <style>
+/* このページだけはトークンを自前で持つ(theme.cssを読まない)。
+   圏外で表示される画面なので、外部CSSに依存すると無スタイルで出てしまう。
+   theme.cssの値を変えたときは、ここも合わせて直すこと。 */
 :root{
   --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
-  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66;
+  --line:#e2e5e0; --line2:#d3d8d2; --accent:#0e7c66; --radius:14px;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
-    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; }
+    --line:#243136; --line2:#2e3d43; --accent:#3bbf9e; }
 }
+body{font-variant-numeric:tabular-nums lining-nums;}
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink); min-height:100vh;
   font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased; line-height:1.8;
   display:flex; align-items:center; justify-content:center; padding:24px;}
-.card{background:var(--surface); border:1px solid var(--line); border-radius:14px;
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   max-width:420px; width:100%; padding:26px 22px; text-align:center;}
 .lanes{display:grid; grid-template-columns:repeat(6,1fr); gap:3px; width:96px; height:9px; margin:0 auto 18px;}
 .lanes i{display:block; border-radius:2px;}
