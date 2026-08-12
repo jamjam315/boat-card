@@ -58,7 +58,11 @@ def load_js(path, varname):
 
 def build_race_css():
     """index.htmlの<style>をそのまま流用し、レースページ専用の小さな追加ルールだけ足す。
-    index.html自体は一切変更しない(読み取るだけ)。"""
+    index.html自体は一切変更しない(読み取るだけ)。
+
+    色・余白などのトークンは index.html ではなく theme.css にあるため、
+    レースページ側も <link href="/theme.css"> を race.css より先に読む
+    (テンプレートに入れてある)。ここで複製するのはページ固有のCSSだけ。"""
     content = open("index.html", encoding="utf-8").read()
     start = content.find("<style>") + len("<style>")
     end = content.find("</style>")
@@ -425,6 +429,7 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
+<link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="/race.css">
 </head>
 <body>
