@@ -11,44 +11,34 @@
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>松瀬弘美の二つ名「ベテランのイン穴あけ屋」と成績｜艇読み選手図鑑</title>
-<meta name="description" content="松瀬弘美選手（B1・静岡支部、56歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「ベテランのイン穴あけ屋」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<title>松瀬弘美の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑</title>
+<meta name="description" content="松瀬弘美選手（B1・静岡支部、56歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/3474.html">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://teiyomi.com/players/3474.html">
-<meta property="og:title" content="松瀬弘美の二つ名「ベテランのイン穴あけ屋」と成績｜艇読み選手図鑑">
-<meta property="og:description" content="松瀬弘美選手（B1・静岡支部、56歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「ベテランのイン穴あけ屋」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<meta property="og:title" content="松瀬弘美の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑">
+<meta property="og:description" content="松瀬弘美選手（B1・静岡支部、56歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <meta property="og:image" content="https://teiyomi.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/og-image.png">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
+<link rel="stylesheet" href="/theme.css">
 <style>
-:root{
-  --bg:#eef0ec; --surface:#ffffff; --ink:#13242a; --ink2:#4a5a61; --muted:#7c8a90;
-  --line:#e2e5e0; --line2:#d3d8d2; --water:#0f2a33; --accent:#0e7c66; --accent-soft:#dff0ea;
-  --fav:#c9922a;
-  --radius:14px;
-}
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#10171a; --surface:#182226; --ink:#eef3f2; --ink2:#aebcc0; --muted:#7e8d92;
-    --line:#243136; --line2:#2e3d43; --water:#0a1b20; --accent:#3bbf9e; --accent-soft:#16302a;
-    --fav:#e0b054; }
-}
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif; line-height:1.6;}
 .wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
 .nums{font-variant-numeric:tabular-nums lining-nums;}
-.topbar{background:var(--water); color:#eaf3f0; border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
-.topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:#9fc3ba;}
+.topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
+.topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:var(--on-water-sub);}
 .hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
 .hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
   margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
-.fav-btn.active{color:var(--fav);}
+.fav-btn.active{color:var(--gold);}
 .hero .catch{font-size:21px; font-weight:800; color:var(--accent); margin-top:14px;}
 .hero .catch-basis{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
 .hero-nav{flex:0 0 56px; display:none; flex-direction:column; align-items:center; justify-content:center;
@@ -105,8 +95,8 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
     <div class="hero-body">
       <div class="pname">松瀬弘美 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span><button class="fav-btn" id="favBtn" data-toban="3474" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
       <div class="pmeta">56歳 ・ 静岡支部 ・ 46kg</div>
-      <div class="catch">「ベテランのイン穴あけ屋」</div>
-      <div class="catch-basis">まくりでの1着が26.3%（全国平均15.2%より+11.1pt）。56歳</div>
+      <div class="catch">「堅実タイプ（勝ちパターンは平均的）」</div>
+      <div class="catch-basis">決まり手の傾向が全国平均に近い（まくり25.0% / 全国15.1%）</div>
     </div>
     <a class="hero-nav next" id="heroNext" aria-label="次の選手"></a>
   </section>
@@ -117,7 +107,7 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:48.4%"></i></span><span class="kval nums">48.4%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:26.3%"></i></span><span class="kval nums">26.3%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:14.5%"></i></span><span class="kval nums">14.5%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:5.4%"></i></span><span class="kval nums">5.4%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:5.4%"></i></span><span class="kval nums">5.4%</span></div><div class="note">直近1年・勝ち186件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:46.2%"></i></span><span class="kval nums">46.2%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:25.0%"></i></span><span class="kval nums">25.0%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:14.4%"></i></span><span class="kval nums">14.4%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:5.3%"></i></span><span class="kval nums">5.3%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:5.8%"></i></span><span class="kval nums">5.8%</span></div><div class="note">直近1年・勝ち208件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
