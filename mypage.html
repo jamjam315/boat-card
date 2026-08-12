@@ -175,6 +175,7 @@ body{background:var(--bg); color:var(--ink);
 
 <script src="data.js"></script>
 <script src="players_index.js"></script>
+<script src="twa.js"></script>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
 <script src="alerts.js"></script>
@@ -197,6 +198,14 @@ const esc = s => String(s == null ? "" : s)
 // あとからリンク先のURLや要素のidに埋め込むため、形が正しいものだけを通す。
 // おかしな値は表示しないだけにする(黙って落とす)。
 const isToban = t => /^\d{3,5}$/.test(String(t));
+
+// Androidアプリ(TWA)では購入への導線を出さない(Playのポリシー。判定は twa.js)。
+// ブラウザでは今までどおりリンクを出す。
+function premiumLinkHtml(){
+  return (window.TeiyomiTWA && TeiyomiTWA.isTWA())
+    ? `<span class="authbox-notice" style="border:none; padding:0; margin:0;">${TeiyomiTWA.gateText()}</span>`
+    : `<a href="premium/index.html">プレミアムを見る</a>`;
+}
 
 // ===== ログイン(トップから移設。文言・挙動そのまま) =====
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
@@ -473,13 +482,13 @@ function renderPlan(state){
     }
     box.innerHTML = `<div class="plan"><div class="plan-row">
       <span>プレミアム <span class="plan-badge">契約中</span></span>
-      <a href="premium/">契約内容を見る</a></div>
+      <a href="premium/" data-premium-cta>契約内容を見る</a></div>
       ${until ? `<p class="authbox-notice">${until}</p>` : ""}</div>`;
     return;
   }
   box.innerHTML = `<div class="plan"><div class="plan-row">
     <span>プレミアム <span class="plan-badge off">未契約</span></span>
-    <a href="premium/">プレミアムを見る</a></div>
+    <a href="premium/" data-premium-cta>プレミアムを見る</a></div>
     <p class="authbox-notice">条件を指定してのバックテストや、キャリアの全期間の推移をご覧いただけます。</p></div>`;
 }
 
@@ -495,7 +504,7 @@ function renderAlertsBox(){
   if(alertsPremium !== true){
     // 契約が確定するまでは何も出さない(点滅を避ける)。未契約なら静かに案内だけ。
     box.innerHTML = alertsPremium === false
-      ? `<div class="authbox">条件アラートはプレミアムの機能です。<a href="premium/index.html">プレミアムを見る</a></div>`
+      ? `<div class="authbox">条件アラートはプレミアムの機能です。${premiumLinkHtml()}</div>`
       : "";
     return;
   }
@@ -552,7 +561,7 @@ function renderNotesBox(){
   if(!box) return;
   if(alertsPremium !== true){
     box.innerHTML = alertsPremium === false
-      ? `<div class="authbox">検証ノートはプレミアムの機能です。<a href="premium/index.html">プレミアムを見る</a></div>`
+      ? `<div class="authbox">検証ノートはプレミアムの機能です。${premiumLinkHtml()}</div>`
       : "";
     return;
   }

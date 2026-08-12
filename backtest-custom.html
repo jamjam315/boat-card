@@ -239,7 +239,7 @@ body{background:var(--bg); color:var(--ink);
     <h2>この機能はプレミアム限定です</h2>
     <p id="gateLead">会場・期間・券種・買い目を自分で指定しての検証は、プレミアムにご登録いただくとご利用いただけます。</p>
     <p class="sub">あらかじめ用意した固定メニューのバックテストは、これまで通り無料でご利用いただけます。</p>
-    <a class="cta" href="premium/index.html">プレミアムを見る</a>
+    <a class="cta" href="premium/index.html" data-premium-cta>プレミアムを見る</a>
     <a class="alt" href="backtest.html">無料のバックテストに戻る</a>
   </section>
 
@@ -401,7 +401,7 @@ body{background:var(--bg); color:var(--ink);
         <li><b>条件アラート 🔔</b>：この条件に当てはまる出走があった朝に通知します</li>
         <li><b>検証ノート 📝</b>：この結果を記録して、あとで同じ条件を計算し直せます</li>
       </ul>
-      <a class="bt-trial-cta" href="premium/index.html">プレミアムを見る</a>
+      <a class="bt-trial-cta" href="premium/index.html" data-premium-cta>プレミアムを見る</a>
     </div>
 
     <!-- 検証ノートに残す。通常モード・選手モードどちらでも出す。 -->
@@ -447,6 +447,7 @@ body{background:var(--bg); color:var(--ink);
 
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a> ／ <a href="tokushoho.html">特定商取引法に基づく表記</a></p>
 </div>
+<script src="twa.js"></script>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
 <script src="alerts.js"></script>
@@ -467,9 +468,17 @@ body{background:var(--bg); color:var(--ink);
   var gate = document.getElementById("premiumGate");
   var checking = document.getElementById("gateChecking");
   var lead = document.getElementById("gateLead");
-  var DEFAULT_LEAD = lead.textContent;
+  // アプリ(TWA)では購入を促す言い回しを使わない(判定は twa.js)。
+  var IN_APP = !!(window.TeiyomiTWA && TeiyomiTWA.isTWA());
+  var DEFAULT_LEAD = IN_APP
+    ? "会場・期間・券種・買い目を自分で指定しての検証は、プレミアムの機能です。" + TeiyomiTWA.gateText()
+    : lead.textContent;
+  if(IN_APP) lead.textContent = DEFAULT_LEAD;
   var UNKNOWN_LEAD = "ご契約の状態を確認できませんでした。通信状況をご確認のうえ、ページを再読み込みしてお試しください。";
-  var TRIAL_LEAD = "このページは、下の「お試し」でそのまま動かせます。吉川喜継選手（4218）だけを対象に、会場・期間・券種・しぼり込みを自由に変えて確かめられます。プレミアムにご登録いただくと、全2,114選手と艇番での検証、条件アラート🔔・検証ノート📝が使えます。";
+  var TRIAL_LEAD = "このページは、下の「お試し」でそのまま動かせます。吉川喜継選手（4218）だけを対象に、会場・期間・券種・しぼり込みを自由に変えて確かめられます。"
+    + (IN_APP
+        ? "全2,114選手と艇番での検証、条件アラート🔔・検証ノート📝はプレミアムの機能です。" + TeiyomiTWA.gateText()
+        : "プレミアムにご登録いただくと、全2,114選手と艇番での検証、条件アラート🔔・検証ノート📝が使えます。");
 
   // which: "app"(契約者=全機能) / "gate"(状態が分からない等) / "trial"(未契約=お試し)
   // お試しでは、案内(gate)を上に出したまま、下の本体も触れるようにする。
@@ -1696,7 +1705,8 @@ body{background:var(--bg); color:var(--ink);
         msg.textContent = "ログインすると記録できます。";
       }else if(isPremiumRequired(err)){
         // サーバー側(RLS)が契約を確認して弾いた場合。契約が切れた直後などに起きる。
-        msg.textContent = "プレミアムにご登録いただくと記録できます。";
+        msg.textContent = (window.TeiyomiTWA && TeiyomiTWA.isTWA())
+          ? TeiyomiTWA.gateText() : "プレミアムにご登録いただくと記録できます。";
       }else{
         msg.textContent = "記録できませんでした。時間をおいて再度お試しください。";
       }
@@ -1859,7 +1869,8 @@ body{background:var(--bg); color:var(--ink);
         msg.textContent = "ログインすると保存できます。";
       }else if(isPremiumRequired(err)){
         // サーバー側(RLS)が契約を確認して弾いた場合。契約が切れた直後などに起きる。
-        msg.textContent = "プレミアムにご登録いただくと保存できます。";
+        msg.textContent = (window.TeiyomiTWA && TeiyomiTWA.isTWA())
+          ? TeiyomiTWA.gateText() : "プレミアムにご登録いただくと保存できます。";
       }else{
         msg.textContent = "保存できませんでした。時間をおいて再度お試しください。";
       }

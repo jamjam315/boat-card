@@ -1,0 +1,31 @@
+[
+  {
+    "_comment": [
+      "Digital Asset Links: teiyomi.com と Androidアプリ(TWA)が同じ持ち主であることの宣言。",
+      "TWAはこのファイルを読んでURLバー無しの全画面表示に切り替える。値が違うと",
+      "アプリ内にURLバーが出たままになる(=審査以前に見た目で分かる)。",
+      "",
+      "【sha256_cert_fingerprints は差し替えが必要】",
+      "下の値はプレースホルダ。Play Consoleでアプリを作ったあとに本物へ差し替えること。",
+      "  1. Play Console → 対象アプリ → テストとリリース → 設定 → アプリの署名",
+      "  2. 「アプリ署名鍵の証明書」の SHA-256 証明書のフィンガープリント をコピー",
+      "     (アップロード鍵ではなくアプリ署名鍵のほう。ここを間違えるとURLバーが消えない)",
+      "  3. このファイルの sha256_cert_fingerprints の値を置き換えてpush",
+      "  4. https://teiyomi.com/.well-known/assetlinks.json で反映を確認",
+      "",
+      "ローカルのデバッグビルドも通したい場合は、配列に2つ目の値として",
+      "デバッグ鍵のフィンガープリントを足す(本番と併記して構わない)。",
+      "この _comment キーは仕様上無視される(検証には影響しない)。"
+    ],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mtpworks.teiyomi",
+      "sha256_cert_fingerprints": [
+        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+      ]
+    }
+  }
+]

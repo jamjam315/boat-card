@@ -159,21 +159,41 @@ body{background:var(--bg); color:var(--ink);
     <p class="btn-note"><a href="../guide-premium.html">プレミアムの使い方を見る →</a></p>
   </section>
 
-  <section class="card">
+  <section class="card" data-premium-cta>
     <p class="card-ttl">料金</p>
     <div id="priceBox"></div>
   </section>
 
-  <section class="card" id="actionCard">
+  <section class="card" id="actionCard" data-premium-cta>
     <p class="card-ttl">お手続き</p>
     <div id="actionBox"><p class="state-msg">読み込み中…</p></div>
+  </section>
+
+  <!-- Androidアプリ(TWA)から開いたときだけ出る案内。アプリ内から外部の決済へ
+       誘導することがPlayのポリシーで禁じられているため、料金とお手続きは隠し、
+       購入を促さない一文だけを置く(リンクも張らない)。 -->
+  <section class="card" id="appNotice" hidden>
+    <p class="card-ttl">ご利用について</p>
+    <p class="state-msg" id="appNoticeText"></p>
   </section>
 
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a> ／ <a href="../tokushoho.html">特定商取引法に基づく表記</a></p>
 </div>
 
+<script src="../twa.js"></script>
 <script src="../favorites.js"></script>
 <script src="../membership.js"></script>
+<script>
+// アプリで開かれている場合だけ、料金・お手続きの代わりに案内を出す
+// (要素の非表示は twa.js が data-premium-cta を見てCSSで行う)。
+(function(){
+  if(!(window.TeiyomiTWA && TeiyomiTWA.isTWA())) return;
+  var box = document.getElementById("appNotice");
+  document.getElementById("appNoticeText").textContent =
+    TeiyomiTWA.gateText() + "すでにご契約中の方は、そのままアプリでプレミアムの機能をご利用いただけます。";
+  box.hidden = false;
+})();
+</script>
 <script>
 (function(){
   "use strict";

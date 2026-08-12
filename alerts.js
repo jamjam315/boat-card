@@ -232,10 +232,13 @@
     membershipReady.then(function (state) {
       if (!state || !state.active) {
         // 未ログイン・匿名・非会員はすべてここ(絞り込み通知はプレミアムの機能)。
+        // Androidアプリ(TWA)では、購入への導線も購入を促す文言も出さない
+        // (Playのポリシーで外部決済への誘導が禁じられているため)。
+        var inApp = window.TeiyomiTWA && TeiyomiTWA.isTWA();
         render("<h3>🔔 絞り込み通知はプレミアムの機能です</h3>" +
           "<p>保存した条件に当てはまる出走がある朝だけ、通知でお知らせします。" +
-          "プレミアム（月額）でご利用いただけます。</p>" +
-          '<a class="bell-cta" href="/premium/">プレミアムを見る</a>' +
+          (inApp ? TeiyomiTWA.gateText() : "プレミアム（月額）でご利用いただけます。") + "</p>" +
+          (inApp ? "" : '<a class="bell-cta" href="/premium/">プレミアムを見る</a>') +
           '<button type="button" class="bell-sub bell-close">閉じる</button>');
         wire(".bell-close", close);
         return;
@@ -287,7 +290,8 @@
           } else if (text === "not-logged-in" || text === "not-ready") {
             msg.textContent = "ログインすると保存できます。マイページからログインしてください。";
           } else if (err && (err.status === 403 || /42501|row.level security/i.test(text))) {
-            msg.textContent = "プレミアムにご登録いただくと保存できます。";
+            msg.textContent = (window.TeiyomiTWA && TeiyomiTWA.isTWA())
+              ? TeiyomiTWA.gateText() : "プレミアムにご登録いただくと保存できます。";
           } else {
             msg.textContent = "保存できませんでした。時間をおいて再度お試しください。";
           }

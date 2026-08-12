@@ -127,6 +127,7 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 <!-- 🔔(通知登録)用の認証スタック。読み込み順は favorites → membership → alerts
      (membershipはfavoritesが作るSupabaseクライアントを借りるため)。
      殿堂の描画はこのスタックを待たない(押した時に初めて使う)。 -->
+<script src="twa.js"></script>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
 <script src="alerts.js"></script>

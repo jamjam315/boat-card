@@ -369,11 +369,14 @@
   }
 
   function gateHtml() {
+    // アプリ(TWA)では購入を促す言い回しもリンクも出さない(判定は twa.js)。
+    var inApp = window.TeiyomiTWA && TeiyomiTWA.isTWA();
     return '<div class="cr-gate"><h3>この先はプレミアム限定です</h3>' +
       '<p>データがある全年の推移、級別の変遷、そしてコース別・会場別・条件別・大舞台・' +
-      '進入の癖といった「勝ち方」の内訳は、プレミアムにご登録いただくとご覧いただけます。</p>' +
+      '進入の癖といった「勝ち方」の内訳をご覧いただけます。' +
+      (inApp ? TeiyomiTWA.gateText() : 'プレミアムにご登録いただくとご覧いただけます。') + '</p>' +
       '<p class="sub">直近' + FREE_YEARS + '年の成績は、これまで通り無料でご覧いただけます。</p>' +
-      '<a class="cta" href="/premium/">プレミアムを見る</a></div>';
+      (inApp ? "" : '<a class="cta" href="/premium/">プレミアムを見る</a>') + '</div>';
   }
 
   // ---- 読み込みと描画 ----
