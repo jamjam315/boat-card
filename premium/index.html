@@ -54,18 +54,6 @@ body{background:var(--bg); color:var(--ink);
 .feat li::before{content:""; position:absolute; left:4px; top:.62em; width:7px; height:7px;
   border-radius:50%; background:var(--accent);}
 
-.price-main{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
-.price-main .amount{font-size:26px; font-weight:700; color:var(--ink);}
-.price-main .unit{font-size:12.5px; color:var(--muted);}
-.price-sub{margin:12px 0 0; padding-top:12px; border-top:1px dashed var(--line2);}
-.price-row{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-top:10px;}
-.price-row:first-child{margin-top:0;}
-.price-tag{flex:0 0 auto; font-size:11px; font-weight:700; color:var(--accent);
-  background:var(--accent-soft); border-radius:var(--radius-pill); padding:3px 10px;}
-.price-tag.soon{color:var(--muted); background:var(--line);}
-.price-row .amount{font-size:17px; font-weight:700;}
-.price-note{width:100%; margin:2px 0 0; font-size:11.5px; color:var(--muted); line-height:1.7;}
-
 .state-msg{font-size:13.5px; color:var(--ink2); margin:0;}
 .state-msg+.state-msg{margin-top:8px;}
 .btn{width:100%; margin-top:12px; padding:13px; border-radius:10px; border:none; background:var(--accent);
@@ -74,17 +62,6 @@ body{background:var(--bg); color:var(--ink);
 .btn[disabled]{opacity:.45; cursor:not-allowed;}
 .btn.sub{background:var(--surface); color:var(--accent); border:1px solid var(--line2); font-weight:600; font-size:13.5px;}
 .btn-note{font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.7;}
-.err{font-size:12.5px; color:#c0392b; margin:10px 0 0; line-height:1.7;}
-@media (prefers-color-scheme: dark){ .err{color:#ff8a7a;} }
-
-.authform{display:flex; gap:8px; margin-top:10px;}
-.authform input{flex:1 1 auto; min-width:0; font:inherit; font-size:13.5px; color:var(--ink);
-  background:var(--surface); border:1px solid var(--line2); border-radius:8px; padding:9px 10px;}
-.authform input:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
-.authform button{flex:0 0 auto; font:inherit; font-size:13.5px; font-weight:600; color:var(--on-accent);
-  background:var(--accent); border:none; border-radius:8px; padding:9px 16px; cursor:pointer;}
-.authform button[disabled]{opacity:.5; cursor:not-allowed;}
-
 .status-line{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13.5px;}
 .status-badge{font-size:11.5px; font-weight:700; color:var(--on-accent); background:var(--accent);
   border-radius:var(--radius-pill); padding:3px 11px;}
@@ -150,22 +127,11 @@ body{background:var(--bg); color:var(--ink);
     <p class="btn-note"><a href="../guide-premium.html">プレミアムの使い方を見る →</a></p>
   </section>
 
-  <section class="card" data-premium-cta>
-    <p class="card-ttl">料金</p>
-    <div id="priceBox"></div>
-  </section>
-
-  <section class="card" id="actionCard" data-premium-cta>
-    <p class="card-ttl">お手続き</p>
-    <div id="actionBox"><p class="state-msg">読み込み中…</p></div>
-  </section>
-
-  <!-- Androidアプリ(TWA)から開いたときだけ出る案内。アプリ内から外部の決済へ
-       誘導することがPlayのポリシーで禁じられているため、料金とお手続きは隠し、
-       購入を促さない一文だけを置く(リンクも張らない)。 -->
-  <section class="card" id="appNotice" hidden>
+  <!-- 登録の受け口。Web上での課金は行わないため、案内だけを置く。
+       既にご契約中の方には、状態と使い始める導線を出す(下のスクリプト)。 -->
+  <section class="card" id="actionCard">
     <p class="card-ttl">ご利用について</p>
-    <p class="state-msg" id="appNoticeText"></p>
+    <div id="actionBox"><p class="state-msg">読み込み中…</p></div>
   </section>
 
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a></p>
@@ -175,45 +141,18 @@ body{background:var(--bg); color:var(--ink);
 <script src="../favorites.js"></script>
 <script src="../membership.js"></script>
 <script>
-// アプリで開かれている場合だけ、料金・お手続きの代わりに案内を出す
-// (要素の非表示は twa.js が data-premium-cta を見てCSSで行う)。
-(function(){
-  if(!(window.TeiyomiTWA && TeiyomiTWA.isTWA())) return;
-  var box = document.getElementById("appNotice");
-  document.getElementById("appNoticeText").textContent =
-    TeiyomiTWA.gateText() + "すでにご契約中の方は、そのままアプリでプレミアムの機能をご利用いただけます。";
-  box.hidden = false;
-})();
-</script>
-<script>
 (function(){
   "use strict";
 
-  // ===== 料金の定義(このページの料金表示はすべてここから作る) =====
-  // 金額・条件を変えるときはここだけを直す。
-  // ※Web版での課金を取りやめたため、特定商取引法に基づく表記のページは
-  //   2026-08-13に削除済み。有料販売を再開する場合は同ページを復活させ、
-  //   ここの金額と一致させること。
-  var PRICING = {
-    regular: { amount: "500円", unit: "（税込）／月" },
-    discounts: [
-      { tag: "早期割引", amount: "300円",
-        note: "サービス開始から6ヶ月以内にご登録の方は、登録を続けている間このままの料金です（税込／月）。" },
-      { tag: "両アプリ割引", amount: "250円", soon: true,
-        note: "収支記録アプリ「レジャー帳」の有料プランと併せてご登録の方向け（税込／月）。準備中です。" }
-    ],
-    footnote: "割引の併用はできません。条件を満たす場合、最も安い料金が1つだけ適用されます。"
-  };
+  // ===== 「ご利用について」欄 =====
+  // Web上での課金は行わない(Stripeでの決済は取りやめ)。登録の受け口はここに置かず、
+  // Androidアプリ内での提供予定を案内するだけにする。
+  // 既にご契約中の方は機能をそのまま使えるので、状態と使い始める導線だけ出す。
+  //
+  // TWA(アプリ)から開いた場合の出し分けは twa.js が行う。このページには
+  // 購入導線が無いので data-premium-cta は付けていない(隠すものが無い)。
 
-  // ===== Edge FunctionのURL(supabase-config.jsonのurlから組み立てる) =====
-  var FN_CHECKOUT = "create-checkout-session";
-  var FN_PORTAL = "create-portal-session";
-
-  function fnUrl(name){
-    var cfg = window.TeiyomiAuth && TeiyomiAuth.getConfig ? TeiyomiAuth.getConfig() : null;
-    if(!cfg || !cfg.url) return null;
-    return cfg.url.replace(/\/+$/, "") + "/functions/v1/" + name;
-  }
+  var box = document.getElementById("actionBox");
 
   function esc(s){
     return String(s).replace(/[&<>"]/g, function(c){
@@ -221,162 +160,22 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
-  // ---------- 料金表示 ----------
-  function renderPrice(){
-    var html = '<div class="price-main"><span class="amount nums">' + esc(PRICING.regular.amount) +
-      '</span><span class="unit">' + esc(PRICING.regular.unit) + '</span></div><div class="price-sub">';
-    PRICING.discounts.forEach(function(d){
-      html += '<div class="price-row"><span class="price-tag' + (d.soon ? " soon" : "") + '">' + esc(d.tag) +
-        '</span><span class="amount nums">' + esc(d.amount) + '</span>' +
-        '<p class="price-note">' + esc(d.note) + '</p></div>';
-    });
-    html += '</div><p class="price-note" style="margin-top:12px;">' + esc(PRICING.footnote) + '</p>';
-    document.getElementById("priceBox").innerHTML = html;
+  /** 未契約の方(未ログイン・匿名・非会員すべて)への案内。
+      アプリから開かれている場合は、外部での購入を促す文面にならないようにする。 */
+  function renderComingSoon(){
+    var inApp = !!(window.TeiyomiTWA && TeiyomiTWA.isTWA());
+    var lead = inApp
+      ? '<p class="state-msg">プレミアムのご利用は、アプリ内でのお手続きとして<b>準備中</b>です。</p>'
+      : '<p class="state-msg">プレミアムへの登録は、<b>近日公開のAndroidアプリ内</b>で提供予定です。</p>';
+    box.innerHTML = lead +
+      '<p class="btn-note">' + (inApp ? '' : 'ウェブサイトからのお申し込みは受け付けていません。') +
+      '公開の時期が決まりましたら、このページでお知らせします。</p>' +
+      '<p class="btn-note">無料の「バックテスト」（固定メニュー）と、お気に入り・キャリアの直近3年ぶんは、' +
+      'これまで通り誰でもお使いいただけます。</p>' +
+      '<a class="btn sub" style="display:block; text-align:center; text-decoration:none;" href="../backtest.html">無料のバックテストを見る</a>';
   }
 
-  // ---------- お手続き欄(ログイン状態で3パターンに出し分け) ----------
-  var box = document.getElementById("actionBox");
-  var authFormOpen = false;   // false=閉 / true=メール入力中 / "sent"=送信済み
-
-  function setBusy(btn, label){
-    btn.disabled = true;
-    btn.dataset.label = btn.textContent;
-    btn.textContent = label;
-  }
-
-  function showError(msg){
-    var el = document.getElementById("actionErr");
-    if(el) el.textContent = msg;
-  }
-
-  /**
-   * Edge Functionを呼び、返ってきたURLへ遷移する。
-   * 失敗は日本語の1文にして画面に出す(英語のエラーはそのまま見せない)。
-   */
-  function callFunction(name, btn, busyLabel){
-    var url = fnUrl(name);
-    if(!url){
-      showError("接続の設定を読み込めませんでした。ページを再読み込みしてお試しください。");
-      return;
-    }
-    var cfg = TeiyomiAuth.getConfig();
-    showError("");
-    setBusy(btn, busyLabel);
-
-    TeiyomiAuth.getAccessToken().then(function(token){
-      if(!token) throw { code: "noauth" };
-      return fetch(url, {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "apikey": cfg.anonKey,
-          "Content-Type": "application/json"
-        },
-        body: "{}"
-      });
-    }).then(function(res){
-      return res.json().catch(function(){ return {}; }).then(function(body){
-        return { status: res.status, ok: res.ok, body: body };
-      });
-    }).then(function(r){
-      if(r.ok && r.body && r.body.url){
-        window.location.href = r.body.url;
-        return;
-      }
-      throw { code: "http", status: r.status, body: r.body };
-    }).catch(function(err){
-      btn.disabled = false;
-      if(btn.dataset.label) btn.textContent = btn.dataset.label;
-      showError(errorMessage(err));
-    });
-  }
-
-  function errorMessage(err){
-    if(!err) return "うまく処理できませんでした。時間をおいて再度お試しください。";
-    if(err.code === "noauth"){
-      return "ログイン情報を確認できませんでした。ページを再読み込みしてから、もう一度お試しください。";
-    }
-    if(err.code === "http"){
-      var body = err.body || {};
-      if(err.status === 401){
-        return "ログインの有効期限が切れているようです。ページを再読み込みして、ログインし直してからお試しください。";
-      }
-      if(err.status === 403){
-        if(body.error === "email_required"){
-          return "お手続きにはメールアドレスの登録が必要です。上のログイン欄からメールアドレスを登録してください。";
-        }
-        return "この操作は許可されていません。ログインし直してからお試しください。";
-      }
-      if(err.status === 404){
-        return "お手続きの準備がまだ整っていません（決済機能は準備中です）。しばらくお待ちください。";
-      }
-      if(err.status === 409 && body.error === "already_subscribed"){
-        // 二重に契約してしまわないよう、サーバー側で止めた場合。
-        // 画面の表示が古いだけのことが多いので、まず再読み込みを案内する。
-        return "すでにプレミアムをご契約中です。二重のお支払いにならないよう、お手続きを中止しました。ページを再読み込みすると、ご契約中の表示に切り替わります。";
-      }
-      return "お手続きの開始に失敗しました。時間をおいて再度お試しください。";
-    }
-    // fetch自体が失敗(オフライン・CORS等)
-    return "通信に失敗しました。電波の良い場所で、時間をおいて再度お試しください。";
-  }
-
-  // --- パターン1: 未ログイン / メール未登録(匿名) ---
-  function renderNeedEmail(){
-    if(authFormOpen === "sent"){
-      box.innerHTML = '<p class="state-msg">📧 登録用のメールを送りました。届いたメールのリンクを押すと、このページに戻ってお手続きを続けられます。</p>' +
-        '<p class="btn-note">送信元は認証サービス「Supabase」です。英語表示の場合がありますが、正規のメールです。</p>';
-      return;
-    }
-    box.innerHTML =
-      '<p class="state-msg">プレミアムのお申し込みには、先に<b>メールアドレスの登録</b>が必要です。</p>' +
-      '<p class="btn-note">パスワードはありません。入力したメールアドレスに届くリンクを押すだけで登録できます。お名前などは一切いただきません。</p>' +
-      '<form class="authform" id="pmAuthForm">' +
-        '<input type="email" id="pmEmail" placeholder="メールアドレス" autocomplete="email" required>' +
-        '<button type="submit" id="pmEmailBtn">送信</button>' +
-      '</form>' +
-      '<p class="err" id="actionErr"></p>';
-
-    document.getElementById("pmAuthForm").addEventListener("submit", function(ev){
-      ev.preventDefault();
-      var email = document.getElementById("pmEmail").value.trim();
-      var btn = document.getElementById("pmEmailBtn");
-      if(!email || email.indexOf("@") === -1){
-        showError("メールアドレスを入力してください。");
-        return;
-      }
-      showError("");
-      btn.disabled = true; btn.textContent = "送信中…";
-      TeiyomiAuth.sendMagicLink(email).then(function(){
-        authFormOpen = "sent";
-        renderNeedEmail();
-      }).catch(function(){
-        btn.disabled = false; btn.textContent = "送信";
-        showError("送信に失敗しました。時間をおいて再度お試しください。");
-      });
-    });
-  }
-
-  // --- パターン2: メール登録済み・非会員 ---
-  function renderCanSubscribe(state){
-    var extra = "";
-    if(state.status && state.status !== "canceled"){
-      // past_due(支払い失敗)等。状況が分かる一言を添える。
-      extra = '<p class="btn-note">現在のご契約の状態：' + esc(state.status) + '（有効ではありません）</p>';
-    }
-    box.innerHTML =
-      '<p class="state-msg">✅ ログイン中：' + esc(state.user.email || "") + '</p>' +
-      extra +
-      '<button type="button" class="btn" id="pmSubscribeBtn">プレミアムに登録する</button>' +
-      '<p class="btn-note">お支払い手続きは決済サービス「Stripe」のページで行います。カード情報を艇読みが受け取ることはありません。</p>' +
-      '<p class="err" id="actionErr"></p>';
-
-    document.getElementById("pmSubscribeBtn").addEventListener("click", function(){
-      callFunction(FN_CHECKOUT, this, "お支払いページへ移動中…");
-    });
-  }
-
-  // --- パターン3: 会員(active / trialing) ---
+  /** 既にご契約中の方。機能は従来どおり使える。 */
   function renderActive(state){
     var until = "";
     if(state.currentPeriodEnd){
@@ -391,34 +190,22 @@ body{background:var(--bg); color:var(--ink);
       (until ? '<p class="status-detail">' + esc(until) + '</p>' : "") +
       '</div>' +
       '<a class="btn" style="display:block; text-align:center; text-decoration:none;" href="../backtest-custom.html">条件を指定して検証する</a>' +
-      '<button type="button" class="btn sub" id="pmPortalBtn">お支払い方法の変更・解約</button>' +
-      '<p class="btn-note">解約・カードの変更は決済サービス「Stripe」の画面で行います。解約後も、お支払い済みの期間が終わるまではご利用いただけます。</p>' +
-      '<p class="err" id="actionErr"></p>';
-
-    document.getElementById("pmPortalBtn").addEventListener("click", function(){
-      callFunction(FN_PORTAL, this, "管理ページへ移動中…");
-    });
-  }
-
-  function renderUnknown(){
-    box.innerHTML =
-      '<p class="state-msg">ご契約の状態を確認できませんでした。</p>' +
-      '<p class="btn-note">通信が不安定か、一時的にサーバーへつながらない可能性があります。ページを再読み込みしてお試しください。</p>';
+      '<p class="btn-note">ご契約に関するお問い合わせは' +
+      '<a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a>までご連絡ください。</p>';
   }
 
   function render(state){
-    if(!state){ renderUnknown(); return; }          // 未接続・通信失敗
-    if(!state.user || state.user.isAnonymous || !state.user.email){ renderNeedEmail(); return; }
-    if(state.active){ renderActive(state); return; }
-    renderCanSubscribe(state);
+    // 状態が取れないときも、案内は出しておく(空欄にしない)。
+    if(state && state.active && state.user){ renderActive(state); return; }
+    renderComingSoon();
   }
 
-  renderPrice();
-  // 認証状態が確定した時点、および変化するたびに描画し直す。
-  TeiyomiMembership.onChange(function(state){
-    authFormOpen = false;
-    render(state);
-  });
+  TeiyomiMembership.onChange(render);
+
+  // 会員判定がいつまでも返らない場合の保険。
+  setTimeout(function(){
+    if(box.textContent.indexOf("読み込み中") !== -1) renderComingSoon();
+  }, 8000);
 })();
 </script>
 </body>
