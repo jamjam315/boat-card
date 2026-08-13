@@ -168,7 +168,7 @@ body{background:var(--bg); color:var(--ink);
     <p class="state-msg" id="appNoticeText"></p>
   </section>
 
-  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a> ／ <a href="../tokushoho.html">特定商取引法に基づく表記</a></p>
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a></p>
 </div>
 
 <script src="../twa.js"></script>
@@ -190,8 +190,10 @@ body{background:var(--bg); color:var(--ink);
   "use strict";
 
   // ===== 料金の定義(このページの料金表示はすべてここから作る) =====
-  // 金額・条件を変えるときはここだけを直す。tokushoho.html の記載とも
-  // 必ず一致させること(特定商取引法の表示と食い違わせない)。
+  // 金額・条件を変えるときはここだけを直す。
+  // ※Web版での課金を取りやめたため、特定商取引法に基づく表記のページは
+  //   2026-08-13に削除済み。有料販売を再開する場合は同ページを復活させ、
+  //   ここの金額と一致させること。
   var PRICING = {
     regular: { amount: "500円", unit: "（税込）／月" },
     discounts: [

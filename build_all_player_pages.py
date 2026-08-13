@@ -196,7 +196,7 @@ def build_sitemap(written):
     # sitemap.xml は両方のスクリプトが書き出しており、片方だけに載っているURLがあると、
     # あとから実行したほうに上書きされて消えてしまうため(実際に消えた経緯がある)。
     urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
-            "https://teiyomi.com/about.html", "https://teiyomi.com/tokushoho.html",
+            "https://teiyomi.com/about.html",
             "https://teiyomi.com/players/", "https://teiyomi.com/backtest.html",
             "https://teiyomi.com/backtest-custom.html", "https://teiyomi.com/mypage.html"]
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
