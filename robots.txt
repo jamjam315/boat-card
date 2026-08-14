@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
+# ストア(Google Play)提出用の画像置き場。サイトの一部ではないので拾わせない。
+# GitHub Pagesはリポジトリの中身をそのまま配るため、URLとしては存在してしまう。
+# どこからもリンクしていないうえ、sitemap.xmlにも載せていない。
+Disallow: /store-assets/
+
 Sitemap: https://teiyomi.com/sitemap.xml
