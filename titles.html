@@ -66,8 +66,13 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 .tlist .rk{flex:0 0 2.2em; color:var(--muted); font-size:11.5px;}
 .tlist .nm{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .tlist .nm a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);}
+/* 級別は順位のすぐ隣に置く(名前の後ろではない)。
+   名前欄は flex:1 1 auto で伸び縮みするので、級別を名前の後ろに置くと
+   左端が「指標の桁数」で前後してしまい、縦に見たときガタつく
+   (実測で1カード内 最大12.2px、カード間では26px ずれていた)。
+   順位の隣なら位置が固定され、幅も1pxも余計に使わない。 */
 .tlist .kls{flex:0 0 auto; font-size:10.5px; color:var(--muted); border:1px solid var(--line2);
-  border-radius:5px; padding:0 5px;}
+  border-radius:5px; padding:0 5px; min-width:2.1em; text-align:center;}
 .tlist .val{flex:0 0 auto; font-size:11px; color:var(--ink2); white-space:nowrap;}
 
 /* 会場の称号(守護神・申し子)の名簿。
@@ -82,14 +87,17 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 .gtable td{padding:6px 4px; border-top:1px dashed var(--line); vertical-align:top;}
 .gtable tr:first-child td{border-top:none;}
 .gtable .gv{width:4.4em; color:var(--ink2); font-weight:600; white-space:nowrap;}
-/* 1段目: 選手名と級別は左、ボタンは右端に寄せる。 */
+/* 1段目: 級別・選手名は左、ボタンは右端に寄せる。
+   級別を会場名のすぐ隣(=この段の先頭)に置くのは、名前の後ろだと
+   名前の文字数で左端が前後してしまうため(実測で25pxずれていた)。
+   上のランキング(.tlist)も同じ考えで順位の隣に置いている。 */
 .gtable .gtop{display:flex; align-items:baseline; gap:6px;}
 .gtable .gn{flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;}
-/* 名前の途中では折り返さない。切れるなら名前と級別の間で切る。 */
+/* 名前の途中では折り返さない。 */
 .gtable .gn a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line2);
   white-space:nowrap;}
 .gtable .kls{flex:0 0 auto; font-size:10.5px; color:var(--muted); border:1px solid var(--line2);
-  border-radius:5px; padding:0 5px;}
+  border-radius:5px; padding:0 5px; min-width:2.1em; text-align:center;}
 .gtable .gbtns{flex:0 0 auto; margin-left:auto; display:flex; align-items:baseline; gap:6px;}
 /* 2段目: 指標。数字なので折り返さない。 */
 .gtable .gval{color:var(--ink2); font-size:11.5px; white-space:nowrap; margin-top:3px;}
@@ -208,8 +216,10 @@ function card(sec){
       verifyHtml(top) + bellHtml(top, name) + "</div>";
   }
   html += '<ol class="tlist">' + rest.map(function(h){
-    return "<li><span class='rk nums'>" + h.rank + "位</span><span class='nm'>" + nameHtml(h) + "</span>" +
+    // 級別は順位の直後。理由は .tlist .kls のコメントを参照。
+    return "<li><span class='rk nums'>" + h.rank + "位</span>" +
       "<span class='kls'>" + esc(h["class"] || "—") + "</span>" +
+      "<span class='nm'>" + nameHtml(h) + "</span>" +
       "<span class='val nums'>" + esc(metricStr(name, h.metric)) + "・" + n(h.n) + "走</span>" +
       verifyHtml(h) + bellHtml(h, name) + "</li>";
   }).join("") + "</ol></section>";
@@ -223,8 +233,8 @@ function venueCard(list, suffix, desc, fmt){
     var h = g.holder;
     var body = h
       ? "<td>" +
-          "<div class='gtop'><span class='gn'>" + nameHtml(h) + "</span>" +
-            "<span class='kls'>" + esc(h["class"] || "—") + "</span>" +
+          "<div class='gtop'><span class='kls'>" + esc(h["class"] || "—") + "</span>" +
+            "<span class='gn'>" + nameHtml(h) + "</span>" +
             "<span class='gbtns'>" + verifyHtml(h) +
               bellHtml(h, g.venue + suffix, g.venue) + "</span></div>" +
           "<div class='gval nums'>" + fmt(h.metric) + "・当地" + n(h.n) + "走</div>" +
