@@ -35,7 +35,7 @@
       ".cr-msg{font-size:12.5px; color:var(--muted); margin:0;}" +
       ".cr-now{font-size:13px; color:var(--ink2); margin:0 0 10px; display:flex;" +
       "align-items:baseline; gap:8px; flex-wrap:wrap;}" +
-      ".cr-badge{font-size:12px; font-weight:700; color:#fff; background:var(--accent);" +
+      ".cr-badge{font-size:12px; font-weight:700; color:var(--on-accent); background:var(--accent);" +
       "border-radius:999px; padding:2px 10px;}" +
       ".cr-year{margin-top:12px;}" +
       ".cr-year:first-of-type{margin-top:0;}" +
@@ -92,7 +92,7 @@
       ".cr-gate p{margin:0; font-size:12.5px; color:var(--ink2); line-height:1.7;}" +
       ".cr-gate p.sub{margin-top:6px; font-size:11.5px; color:var(--muted);}" +
       ".cr-gate .cta{display:block; margin-top:12px; padding:11px; border-radius:9px;" +
-      "background:var(--accent); color:#fff; font-size:13.5px; font-weight:700;" +
+      "background:var(--accent); color:var(--on-accent); font-size:13.5px; font-weight:700;" +
       "text-align:center; text-decoration:none;}" +
       // ---- 二つ名バッジ(ヒーロー欄・選手名の直下) ----
       // 通常はシルバー系、「頂」だけ金枠+👑。緑基調のサイトから浮きすぎない
@@ -102,10 +102,13 @@
       "border-radius:999px; cursor:pointer; -webkit-tap-highlight-color:transparent;" +
       "font-family:inherit; background:var(--surface); white-space:nowrap;" +
       "border:1px solid #a8b4b9; color:#5d6b71;}" +
-      "@media (prefers-color-scheme: dark){.tt-badge{border-color:#5a686e; color:#aebcc0;}}" +
+      "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]) .tt-badge{border-color:#5a686e; color:#aebcc0;}}" +
+      ":root[data-theme=\"dark\"] .tt-badge{border-color:#5a686e; color:#aebcc0;}" +
       ".tt-badge.top{border-color:#c9922a; color:#a2731c; box-shadow:0 0 0 1px #c9922a inset;}" +
-      "@media (prefers-color-scheme: dark){.tt-badge.top{border-color:#e0b054; color:#e0b054;" +
-      "box-shadow:0 0 0 1px #e0b054 inset;}}" +
+      "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]) .tt-badge.top{border-color:#e0b054;" +
+      "color:#e0b054; box-shadow:0 0 0 1px #e0b054 inset;}}" +
+      ":root[data-theme=\"dark\"] .tt-badge.top{border-color:#e0b054; color:#e0b054;" +
+      "box-shadow:0 0 0 1px #e0b054 inset;}" +
       // 根拠の小モーダル。ページ遷移させず、その場で開いてタップで閉じる。
       ".tt-overlay{position:fixed; inset:0; background:rgba(10,20,25,.45); z-index:60;" +
       "display:flex; align-items:center; justify-content:center; padding:20px;}" +

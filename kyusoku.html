@@ -18,6 +18,7 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
 <link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 <style>
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink);
@@ -71,7 +72,8 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 .kbadge{font-size:10px; font-weight:700; line-height:1; padding:3px 8px; border-radius:var(--radius-pill);
   border:1px solid #a8b4b9; color:#5d6b71; background:var(--surface); cursor:pointer;
   font-family:inherit; -webkit-tap-highlight-color:transparent;}
-@media (prefers-color-scheme: dark){.kbadge{border-color:#5a686e; color:#aebcc0;}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .kbadge{border-color:#5a686e; color:#aebcc0;}}
+:root[data-theme="dark"] .kbadge{border-color:#5a686e; color:#aebcc0;}
 .kbadge.top{border-color:var(--gold); color:var(--gold);}
 @media (max-width:420px){ .kmain .p23{display:none;} }
 

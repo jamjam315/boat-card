@@ -584,7 +584,7 @@
       "display:flex; align-items:center; gap:6px; line-height:1.5;}" +
       "#teiyomiA2hsBanner .teiyomi-a2hs-icon{flex:0 0 auto; color:var(--accent,#0e7c66);}" +
       "#teiyomiA2hsBanner .teiyomi-a2hs-install{margin-top:9px; font:inherit; font-size:13px; font-weight:600;" +
-      "color:#fff; background:var(--accent,#0e7c66); border:none; border-radius:9px; padding:9px 14px;" +
+      "color:var(--on-accent,#fff); background:var(--accent,#0e7c66); border:none; border-radius:9px; padding:9px 14px;" +
       "cursor:pointer; -webkit-tap-highlight-color:transparent;}";
     document.head.appendChild(style);
   }

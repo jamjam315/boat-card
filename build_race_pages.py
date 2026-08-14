@@ -430,6 +430,7 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
 <link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 <link rel="stylesheet" href="/race.css">
 </head>
 <body>

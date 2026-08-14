@@ -188,10 +188,10 @@
       ".bell-pop .bell-msg{margin-top:10px; font-weight:600;}" +
       ".bell-pop .bell-cta{display:block; width:100%; margin-top:12px; padding:10px;" +
       "border-radius:9px; border:1px solid var(--accent,#0e7c66); background:var(--accent,#0e7c66);" +
-      "color:#fff; font:inherit; font-size:13px; font-weight:700; text-align:center;" +
+      "color:var(--on-accent,#fff); font:inherit; font-size:13px; font-weight:700; text-align:center;" +
       "cursor:pointer; text-decoration:none; box-sizing:border-box;}" +
       ".bell-pop .bell-cta[disabled]{opacity:.6; cursor:default;}" +
-      ".bell-pop a.bell-cta{color:#fff;}" +
+      ".bell-pop a.bell-cta{color:var(--on-accent,#fff);}" +
       ".bell-pop .bell-sub{display:block; width:100%; margin-top:8px; padding:9px;" +
       "border-radius:9px; border:1px solid var(--line2,#d3d8d2); background:none;" +
       "color:var(--ink2,#4a5a61); font:inherit; font-size:12.5px; text-align:center;" +

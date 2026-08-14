@@ -4,9 +4,14 @@
  * ページ側の <style> にトークン(:root)を書かないこと。書くと出典が2つになり、
  * 片方だけ古くなる事故が起きる。
  *
- * 【テーマを変えるとき】下の :root の値を変えれば全ページに反映される。
- * ダークモードの見え方を変える場合は、その下の
- * @media (prefers-color-scheme: dark) の同名トークンも合わせて変える。
+ * 【テーマは2つ】
+ * ライト「翠」   … 現行配色。明るい場所で読む前提
+ * ダーク「夜の水面」… 純黒を避けた濃紺グレー。暗い場所・夜のレース中に読む前提
+ * 既定は端末の設定に従い、利用者がヘッダーの 🌙/☀️ で切り替えると
+ * その選択(localStorage)が以後は優先される。切り替えの実装は theme.js。
+ *
+ * 【テーマを変えるとき】ライトは下の :root、ダークはその下の2ブロックを直す
+ * (ダークだけ同じ値を2箇所に書いている。理由はそのコメントを参照)。
  *
  * 【ここに入れないもの】
  * - レーンカラー(1号艇=白 2号艇=黒 3号艇=赤 …)。これは公式の枠色で、
@@ -16,6 +21,8 @@
  */
 
 :root{
+  color-scheme:light;
+
   /* ---- 面と文字 ---- */
   --bg:#eef0ec;            /* ページの地 */
   --surface:#ffffff;       /* カードの地 */
@@ -43,6 +50,7 @@
   --warn-ink:#b06a00;      /* 注意書きの文字 */
   --warn-bg:#fff5e6;
   --warn-line:#f0d9b0;
+  --gold-bg:#fbf3e2;       /* 金の淡い面 */
 
   /* ---- 余白(8pxベース) ---- */
   --sp-1:4px;
@@ -55,31 +63,90 @@
   --radius:14px;           /* カード */
   --radius-sm:10px;        /* 小さい箱・ボタン */
   --radius-pill:999px;     /* ピル型 */
+
+  /* ---- 影 ---- */
+  /* カードが地から浮いていることを、線だけでなく影でも示す。
+     強い影は使わない(このサイトは静かな見た目を保つ)。 */
+  --elev:0 1px 3px rgba(19,36,42,.06);
 }
 
+/* ===== ダークテーマ「夜の水面」 =====
+ * 下の値は2箇所に同じものを書いている。理由:
+ *   ・端末が暗い設定のとき  → @media の側が効く
+ *   ・利用者が自分で選んだとき → :root[data-theme] の側が効く(端末設定より優先)
+ * CSSだけでは1箇所にまとめられないので、片方だけ直さないよう必ず両方を揃えること。
+ * (data-theme は theme.js が <html> に付ける)
+ */
 @media (prefers-color-scheme: dark){
-  :root{
-    --bg:#10171a;
-    --surface:#182226;
-    --ink:#eef3f2;
-    --ink2:#aebcc0;
-    --muted:#7e8d92;
-    --line:#243136;
-    --line2:#2e3d43;
-    --water:#0a1b20;
-    --accent:#3bbf9e;
-    --accent-soft:#16302a;
-    --on-accent:#0a1b20;
+  /* 端末が暗い設定でも、利用者が明るいテーマを選んでいれば適用しない。 */
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+
+    /* ---- 面と文字 ---- */
+    --bg:#0d1518;            /* 夜の水面。純黒は避け、わずかに青緑を含ませる */
+    --surface:#152025;
+    --ink:#e8eeec;
+    --ink2:#b9c6c3;
+    --muted:#7e918d;
+    --line:#1e2b30;          /* 暗所では線を強く出さない(明所と同じ濃さだと目が疲れる) */
+    --line2:#2a383e;
+
+    /* ---- 主役の色 ---- */
+    --water:#0a1114;         /* ヘッダー。地より一段沈ませて、帯として見せる */
+    --accent:#2fb894;        /* 暗背景で沈まない明るめの緑 */
+    --accent-soft:#102a25;
+    --on-accent:#06231c;     /* 明るい緑の上に乗るので、文字は暗くする */
     --on-water:#eaf3f0;
     --on-water-sub:#9fc3ba;
-    --positive:#3bbf9e;
-    --negative:#aebcc0;
-    --gold:#e0b054;
+
+    /* ---- 意味を持つ色 ---- */
+    --positive:#2fb894;
+    --negative:#b9c6c3;
+    --gold:#e0b054;          /* 「頂」の金。暗所でいちばん映える明度 */
     --gold-ink:#e0b054;
+    --gold-bg:#2b2214;
     --warn-ink:#ffc46b;
     --warn-bg:#2a2114;
     --warn-line:#3d3222;
+
+    /* ---- 影 ---- */
+    /* 暗所では影が見えないので、影ではなく面の明度差で階層を出す。 */
+    --elev:none;
   }
+}
+:root[data-theme="dark"]{
+    color-scheme:dark;
+
+    /* ---- 面と文字 ---- */
+    --bg:#0d1518;            /* 夜の水面。純黒は避け、わずかに青緑を含ませる */
+    --surface:#152025;
+    --ink:#e8eeec;
+    --ink2:#b9c6c3;
+    --muted:#7e918d;
+    --line:#1e2b30;          /* 暗所では線を強く出さない(明所と同じ濃さだと目が疲れる) */
+    --line2:#2a383e;
+
+    /* ---- 主役の色 ---- */
+    --water:#0a1114;         /* ヘッダー。地より一段沈ませて、帯として見せる */
+    --accent:#2fb894;        /* 暗背景で沈まない明るめの緑 */
+    --accent-soft:#102a25;
+    --on-accent:#06231c;     /* 明るい緑の上に乗るので、文字は暗くする */
+    --on-water:#eaf3f0;
+    --on-water-sub:#9fc3ba;
+
+    /* ---- 意味を持つ色 ---- */
+    --positive:#2fb894;
+    --negative:#b9c6c3;
+    --gold:#e0b054;          /* 「頂」の金。暗所でいちばん映える明度 */
+    --gold-ink:#e0b054;
+    --gold-bg:#2b2214;
+    --warn-ink:#ffc46b;
+    --warn-bg:#2a2114;
+    --warn-line:#3d3222;
+
+    /* ---- 影 ---- */
+    /* 暗所では影が見えないので、影ではなく面の明度差で階層を出す。 */
+    --elev:none;
 }
 
 /* ---- 数字の見え方(このサイトでいちばん効く) ----
@@ -103,3 +170,18 @@ h1, h2, h3, p, li, summary, dt, dd, label{
 
 /* 表の数値列は右揃え。数字は右端が揃うと桁が比べやすい。 */
 .num-col, td.num, th.num{ text-align:right; }
+
+/* ---- テーマ切り替えボタン(theme.jsが .topbar に差し込む) ----
+   ヘッダーの右端に小さく置く。既存の要素の並びは変えない。 */
+.theme-toggle{
+  flex:0 0 auto; margin-left:auto; position:relative; z-index:2;
+  width:34px; height:34px; padding:0; border-radius:var(--radius-pill);
+  border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08);
+  color:var(--on-water); font:inherit; font-size:15px; line-height:1;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.theme-toggle:hover{ background:rgba(255,255,255,.16); }
+.theme-toggle:focus-visible{ outline:2px solid var(--on-water); outline-offset:2px; }
+/* トップページはヘッダー右に日付があるので、その左隣に置く。 */
+.topbar .theme-toggle{ margin-left:8px; }

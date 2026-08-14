@@ -339,6 +339,7 @@ def render_page(prof):
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
 <link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
 <style>{CSS}</style>
 </head>
 <body>
