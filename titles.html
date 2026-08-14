@@ -12,7 +12,7 @@
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>二つ名殿堂｜条件別成績の称号一覧（艇読み）</title>
-<meta name="description" content="高波・強風・雨・ナイター・決まり手など、条件別成績から自動付与される「二つ名」の保持者一覧。各称号は全国上位10名のみ。過去10年の公式データの機械的集計で、予想でも推奨でもありません。">
+<meta name="description" content="高波・強風・雨・ナイター・決まり手など、条件別成績から自動付与される「二つ名」の保持者一覧。各称号は現役選手の上位10名のみ。過去10年の公式データの機械的集計で、予想でも推奨でもありません。">
 <link rel="canonical" href="https://teiyomi.com/titles.html">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -97,7 +97,7 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 
   <div class="lead">
     <b>二つ名は、過去10年・55万レースの公式データの機械的集計から自動で付与されます。</b>
-    各称号を名乗れるのは全国上位10名だけ（守護神は各場1人）。1位には「頂」が付きます。
+    各称号を名乗れるのは<b>現役選手</b>の上位10名だけ（守護神は各場1人）。1位には「頂」が付きます。
     これは過去の実データの集計であり、<b>予想でも推奨でもありません。</b>
     成績は毎日の結果で入れ替わります。
     <span class="lead-hint">なお、二つ名は<b>1着率の傾向</b>です。よく勝つことと、舟券として儲かること（回収率）は別です。
@@ -108,7 +108,7 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
   <div id="hall"><p class="loading">読み込み中…</p></div>
 
   <footer class="foot">
-    <p>各称号の判定基準：母数50走以上（抜きは勝ち数30以上）で、条件下の成績が本人の通常時または全国平均を上回る選手のうち、指標の上位10名。守護神は当地1着率が本人比+5pt以上で各場最上位の1人。</p>
+    <p>各称号の判定基準：母数50走以上（抜きは勝ち数30以上）で、条件下の成績が本人の通常時または全国平均を上回る選手のうち、指標の上位10名。守護神は当地1着率が本人比+5pt以上で各場最上位の1人。集計は過去10年ぶんですが、付与の対象は現役選手のみです（引退した選手には付きません）。</p>
     <p><a href="/">トップ</a> ・ <a href="players/">選手一覧</a> ・ <a href="guide.html">読み方ガイド</a></p>
   </footer>
 </div>

@@ -84,6 +84,28 @@ WINTER_MONTHS = ("12", "01", "02")
 SUMMER_MONTHS = ("06", "07", "08")
 META_PATH = os.path.join("backtest-data", "meta.json")
 
+# 二つ名を付与する対象(=現役選手)の名簿。
+# 選手ページの生成対象そのもの(build_all_player_pages.py が書き出す索引)を使う。
+# 「今名乗れる称号」にするため、引退した選手には付与しない。
+PLAYERS_INDEX_PATH = "players_index.js"
+
+
+def active_tobans():
+    """選手ページがある登番の集合。ここに居る＝現役、と定義する。
+
+    最新の期のfanデータ(在籍名簿)ではなく索引を使う理由:
+    索引は players/{登番}.html と同時に作られるので、
+    「保持者なのにページが無い(リンク切れ)」が構造的に起きない。
+    fan名簿だと、在籍はしているが直近1年の出走が無い選手が入り、ページが無い。
+    """
+    src = open(PLAYERS_INDEX_PATH, encoding="utf-8").read()
+    tobans = json.loads(src[src.index("["):src.rindex("]") + 1])
+    if len(tobans) < 500:
+        # 索引が壊れている・空のまま上書きされた等。ここで気付かないと
+        # 「称号の保持者が居ない titles.json」を正常なものとして公開してしまう。
+        raise SystemExit(f"[abort] {PLAYERS_INDEX_PATH} の件数が異常です: {len(tobans)}")
+    return set(tobans)
+
 
 def night_venues():
     """ナイター場の会場名の集合。meta.jsonが無い環境(初回等)では空集合になり、
@@ -424,13 +446,19 @@ STYLE_TITLES = [
 ST_TITLE = "音速の申し子"
 
 
-def compute_titles(ways, national):
+def compute_titles(ways, national, active):
     """全称号の保持者を決める。
     返り値: (titles_doc, guardians_doc, player_titles)
       titles_doc    … 称号ごとの保持者リスト(titles.json用)
       guardians_doc … 会場ごとの守護神(空位はholder=None)
       player_titles … 登番 -> 選手JSONに入れる称号リスト
+
+    active … 付与対象の登番(現役選手)。集計そのものは過去10年の全レースで、
+    引退選手の走りも全国基準(national)には入ったままにする。変えるのは
+    「誰に名乗らせるか」だけで、しきい値・定員・順位の決め方は一切変えない。
     """
+    ways = {toban: t for toban, t in ways.items() if toban in active}
+
     def style(t, key):
         courses = {"outer_makuri": (4, 5, 6), "sashi": (2, 3, 4), "nige": (1,),
                    "makuri_sashi": range(1, 7), "nuki": range(1, 7)}[key]
@@ -651,7 +679,8 @@ def main():
         for toban, rec in p["by_toban"].items():
             latest_class[toban] = rec["級別"]
 
-    rosters, guardians, _ = compute_titles(ways, national)
+    active = active_tobans()
+    rosters, guardians, _ = compute_titles(ways, national, active)
 
     def holder_doc(c, rank, title_base, top_allowed=True):
         is_top = top_allowed and rank == 1
@@ -689,7 +718,8 @@ def main():
 
     titles_doc = {
         "generated_at": generated_at,
-        "note": "条件別成績からの自動付与。各称号は指標の上位10名(守護神は各場1人)。"
+        "note": "条件別成績からの自動付与。対象は現役選手(選手ページのある登番)のみ。"
+                "各称号は指標の上位10名(守護神は各場1人)。"
                 "1位のみ「・頂」。1選手は最大3称号(守護神は枠外で+1)。"
                 "指標(metric): 条件系=条件下1着率−本人通算1着率 / "
                 "勝ち型=その進入での決まり手勝率−全国 / 音速=平均ST(小さいほど上位) / "
