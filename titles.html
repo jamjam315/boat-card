@@ -97,7 +97,7 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
 
   <div class="lead">
     <b>二つ名は、過去10年・55万レースの公式データの機械的集計から自動で付与されます。</b>
-    各称号を名乗れるのは<b>現役選手</b>の上位10名だけ（守護神は各場1人）。1位には「頂」が付きます。
+    各称号を名乗れるのは<b>現役選手</b>の上位10名だけ（会場の称号は各場1人）。1位には「頂」が付きます。
     これは過去の実データの集計であり、<b>予想でも推奨でもありません。</b>
     成績は毎日の結果で入れ替わります。
     <span class="lead-hint">なお、二つ名は<b>1着率の傾向</b>です。よく勝つことと、舟券として儲かること（回収率）は別です。
@@ -108,7 +108,7 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
   <div id="hall"><p class="loading">読み込み中…</p></div>
 
   <footer class="foot">
-    <p>各称号の判定基準：母数50走以上（抜きは勝ち数30以上）で、条件下の成績が本人の通常時または全国平均を上回る選手のうち、指標の上位10名。守護神は当地1着率が本人比+5pt以上で各場最上位の1人。集計は過去10年ぶんですが、付与の対象は現役選手のみです（引退した選手には付きません）。</p>
+    <p>各称号の判定基準：母数50走以上（抜きは勝ち数30以上）で、条件下の成績が本人の通常時または全国平均を上回る選手のうち、指標の上位10名。会場の称号は当地50走以上で、申し子は当地1着率が本人比+5pt以上のうち差が最大の1人、守護神は当地1着率そのものが最上位の1人（どちらも各場1人・1人1場まで。同じ場で重なったときは守護神を優先し、申し子は次点へ）。集計は過去10年ぶんですが、付与の対象は現役選手のみです（引退した選手には付きません）。</p>
     <p><a href="/">トップ</a> ・ <a href="players/">選手一覧</a> ・ <a href="guide.html">読み方ガイド</a></p>
   </footer>
 </div>
@@ -199,18 +199,20 @@ function card(sec){
   return html;
 }
 
-function guardians(list){
+// 会場の称号は2本立て。指標の読み方が違う（守護神＝当地1着率そのもの、
+// 申し子＝本人の通算からの伸び幅）ので、表示もそれぞれの単位で出す。
+function venueCard(list, suffix, desc, fmt){
   var rows = list.map(function(g){
     var h = g.holder;
     var body = h
       ? "<td class='gn'>" + nameHtml(h) + " <span class='kls'>" + esc(h["class"] || "—") + "</span></td>" +
-        "<td class='gval nums'>+" + (h.metric*100).toFixed(1) + "pt・当地" + n(h.n) + "走 " +
-        verifyHtml(h) + bellHtml(h, g.venue + "の守護神", g.venue) + "</td>"
+        "<td class='gval nums'>" + fmt(h.metric) + "・当地" + n(h.n) + "走 " +
+        verifyHtml(h) + bellHtml(h, g.venue + suffix, g.venue) + "</td>"
       : "<td class='gn empty' colspan='2'>空位（基準を満たす選手がいません）</td>";
     return "<tr><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
   }).join("");
-  return '<section class="tcard"><h2>〇〇の守護神</h2>' +
-    '<p class="cond">その場での1着率が本人の通算を+5pt以上上回る選手のうち、最も差が大きい1人。各場1人だけの称号</p>' +
+  return '<section class="tcard"><h2>〇〇' + esc(suffix) + "</h2>" +
+    '<p class="cond">' + esc(desc) + "</p>" +
     '<table class="gtable">' + rows + "</table></section>";
 }
 
@@ -225,7 +227,12 @@ fetch("players/career/titles.json", {cache:"no-store"})
     (doc.titles || []).forEach(function(sec){
       if(ORDER.indexOf(sec.name) === -1) html += card(sec);
     });
-    html += guardians(doc.guardians || []);
+    html += venueCard(doc.children || [], "の申し子",
+      "その水面に来ると、普段の自分を大きく超える。当地の1着率が本人の通算を最も大きく上回る1人（+5pt以上）。各場1人だけの称号",
+      function(m){ return "+" + (m*100).toFixed(1) + "pt"; });
+    html += venueCard(doc.guardians || [], "の守護神",
+      "その水面での勝率が現役最高。当地での勝ちは誰にも譲らない1人。各場1人だけの称号",
+      function(m){ return "1着率" + (m*100).toFixed(1) + "%"; });
     document.getElementById("hall").innerHTML = html;
   })
   .catch(function(){

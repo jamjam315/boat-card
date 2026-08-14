@@ -409,13 +409,18 @@
 
   function titleGrounds(t) {
     var base = baseTitle(t.title);
-    var isGuardian = !!t.venue || /の守護神$/.test(base);
+    // 会場の称号かどうかは venue の有無で見る。「音速の申し子」と
+    // 「〇〇の申し子」は名前が似ているので、称号名では判定しないこと。
+    // (/の守護神$/ は venue を持たない古いtitles.jsonへの保険)
+    var isVenue = !!t.venue || /の守護神$/.test(base);
     var m = base === "音速の申し子" ? t.metric.toFixed(3)
                                     : "+" + (t.metric * 100).toFixed(1) + "pt";
     var text, rank;
-    if (isGuardian) {
+    if (isVenue) {
       var venue = t.venue || base.replace(/の守護神$/, "");
-      text = venue + "での1着率が、本人の通算比" + m + "（当地" + n(t.n) + "走）。";
+      text = t.kind === "guardian"
+        ? venue + "での1着率が" + (t.metric * 100).toFixed(1) + "%で、現役でいちばん高い（当地" + n(t.n) + "走）。"
+        : venue + "での1着率が、本人の通算比" + m + "（当地" + n(t.n) + "走）。";
       rank = "この場でただ1人の称号";
     } else {
       text = (TITLE_DESC[base] || "").replace("{M}", m).replace("{N}", n(t.n));

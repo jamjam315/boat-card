@@ -254,16 +254,19 @@ document.getElementById("tabB2").addEventListener("click", function(){ selectTab
 function openBadgePop(toban, i){
   var t = (titlesByToban[String(toban)] || [])[i];
   if(!t) return;
-  var isG = /の守護神$/.test(t.title.replace(/・頂$/, ""));
-  var m = /^音速/.test(t.title) ? "平均ST " + t.metric.toFixed(3)
-                                : "+" + (t.metric*100).toFixed(1) + "pt";
-  var rank = isG ? "この場でただ1人の称号" : t.rank + "位／10人中" + (t.is_top ? "（1位＝頂）" : "");
+  // 会場の称号は venue の有無で見る（「音速の申し子」と「〇〇の申し子」を
+  // 名前で見分けようとしないこと）。守護神だけ指標が絶対値の1着率。
+  var isV = !!t.venue || /の守護神$/.test(t.title.replace(/・頂$/, ""));
+  var m = t.kind === "guardian" ? "当地1着率 " + (t.metric*100).toFixed(1) + "%"
+        : /^音速/.test(t.title) ? "指標 平均ST " + t.metric.toFixed(3)
+                                : "指標 +" + (t.metric*100).toFixed(1) + "pt";
+  var rank = isV ? "この場でただ1人の称号" : t.rank + "位／10人中" + (t.is_top ? "（1位＝頂）" : "");
   var ov = document.createElement("div");
   ov.className = "kt-overlay";
   ov.innerHTML = '<div class="kt-pop" role="dialog" aria-modal="true">' +
     "<h3>" + (t.is_top ? "👑 " : "") + esc(t.title) + "</h3>" +
     '<p class="rankline">' + esc(rank) + "</p>" +
-    '<p class="nums">指標 ' + esc(m) + "・" + n(t.n) + "走</p>" +
+    '<p class="nums">' + esc(m) + "・" + n(t.n) + "走</p>" +
     (PAGES.has(String(toban))
       ? '<a class="golink" href="players/' + esc(String(toban)) + '.html">選手ページで根拠を見る →</a>' : "") +
     '<p class="fine">これは過去データの機械的集計です。予想でも推奨でもありません。</p>' +
@@ -309,11 +312,14 @@ Promise.all([
           .push({title: h.title, rank: h.rank, metric: h.metric, n: h.n, is_top: h.is_top});
       });
     });
-    (td.guardians || []).forEach(function(g){
+    // 会場の称号(守護神・申し子)。venueとkindを持たせないと、根拠ポップが
+    // 指標の単位を取り違える(守護神だけ絶対値の1着率のため)。
+    [].concat(td.guardians || [], td.children || []).forEach(function(g){
       if(!g.holder) return;
       var h = g.holder;
       (titlesByToban[String(h.toban)] = titlesByToban[String(h.toban)] || [])
-        .push({title: h.title, rank: 1, metric: h.metric, n: h.n, is_top: false});
+        .push({title: h.title, rank: 1, metric: h.metric, n: h.n, is_top: false,
+               venue: g.venue, kind: h.kind});
     });
   }
   document.getElementById("leadPeriod").innerHTML =

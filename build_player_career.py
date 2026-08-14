@@ -420,10 +420,18 @@ class KyusokuTally:
 #   条件軸=uplift、勝ち型=対全国、音速=全国平均ST−本人平均ST(速いほど大)。
 
 TITLE_CAPACITY = 10       # 各称号の定員
-MAX_TITLES = 3            # 守護神を除く1人あたりの上限
+MAX_TITLES = 3            # 会場称号を除く1人あたりの上限
 MIN_N = 50                # 共通の足切り母数
 NUKI_MIN_WINS = 30        # 最終章(抜き)だけの追加足切り
-GUARDIAN_MIN_UPLIFT = 0.05
+
+# ---- 会場の称号は2本立て ----
+# 「その水面の絶対的な強さ」と「その水面での伸びしろ」は別の話なので、称号も分ける。
+#   〇〇の守護神 … 当地1着率そのものが現役最高。「この場の勝ちは誰にも譲らない」
+#   〇〇の申し子 … 当地1着率−本人通算1着率(uplift)が最大。「この場に来ると化ける」
+# 守護神は絶対値なので強豪が並び、申し子は上振れ幅なので普段は目立たない選手も入る。
+# どちらも各場1人・1人1場まで(1人が複数場を独占すると称号の意味が薄れるため)。
+# 同じ場で同一人物が両方を取ったときは守護神を優先し、申し子はその場の次点へ回す。
+CHILD_MIN_UPLIFT = 0.05   # 申し子の足切り(uplift)。守護神は絶対値なので下限を置かない
 
 # 条件軸: (conditionsのキー, 称号名)。指標=uplift(条件下1着率−本人通算1着率)。
 COND_TITLES = [
@@ -559,42 +567,65 @@ def compute_titles(ways, national, active):
         if not over:
             break
 
-    # ---- 守護神(会場別・各場1人・1人1場まで・枠外) ----
-    guardian_cands = {}   # 会場 -> [{"toban","metric","n"}...]
-    for venue in sorted(national.venues.keys()):
-        lst = []
+    # ---- 会場の称号(守護神・申し子。どちらも各場1人・1人1場まで・枠外) ----
+    venues = sorted(national.venues.keys())
+
+    def venue_rows(venue):
+        """その会場でMIN_N走以上ある現役選手の (当地1着率, uplift, 当地走数)。"""
         for toban, t in ways.items():
             row = t.venues.get(venue)
             if not row or row[0] < MIN_N or not t.starts:
                 continue
-            uplift = row[1] / row[0] - t.wins / t.starts
-            if uplift < GUARDIAN_MIN_UPLIFT:
-                continue
-            lst.append({"toban": toban, "metric": uplift, "n": row[0]})
+            rate = row[1] / row[0]
+            yield toban, rate, rate - t.wins / t.starts, row[0]
+
+    # 守護神: 当地1着率そのものが最も高い1人。同率なら走数が多い方(母数が厚い方を上に)。
+    guardian_cands = {}
+    for venue in venues:
+        lst = [{"toban": tb, "metric": rate, "n": n} for tb, rate, _, n in venue_rows(venue)]
         lst.sort(key=lambda x: (-x["metric"], -x["n"]))
         guardian_cands[venue] = lst
 
-    guardian_ban = collections.defaultdict(set)   # toban -> 外された会場
-    while True:
-        holders = {}
-        by_toban = collections.defaultdict(list)
-        for venue, lst in guardian_cands.items():
-            top = next((c for c in lst if venue not in guardian_ban[c["toban"]]), None)
-            holders[venue] = top
-            if top:
-                by_toban[top["toban"]].append((top["metric"], venue))
-        over = False
-        for toban, vs in by_toban.items():
-            if len(vs) <= 1:
-                continue
-            over = True
-            vs.sort(key=lambda x: -x[0])
-            for _, venue in vs[1:]:
-                guardian_ban[toban].add(venue)
-        if not over:
-            break
+    # 申し子: uplift(当地1着率−本人通算1着率)が最も大きい1人。+5pt未満は候補にしない。
+    child_cands = {}
+    for venue in venues:
+        lst = [{"toban": tb, "metric": up, "n": n}
+               for tb, _, up, n in venue_rows(venue) if up >= CHILD_MIN_UPLIFT]
+        lst.sort(key=lambda x: (-x["metric"], -x["n"]))
+        child_cands[venue] = lst
 
-    return rosters, holders, candidates
+    def one_venue_each(cands, skip=None):
+        """各場の最上位を採り、1人が複数場を取ったら弱い方の場を諦めさせて次点を上げる。
+        skip[会場] に居る登番はその場の候補から外す(守護神との両取りを防ぐ)。
+        外す一方(banは増える一方)なので必ず止まる。"""
+        ban = collections.defaultdict(set)   # toban -> 諦めた会場
+        while True:
+            holders = {}
+            by_toban = collections.defaultdict(list)
+            for venue, lst in cands.items():
+                top = next((c for c in lst
+                            if venue not in ban[c["toban"]]
+                            and not (skip and skip.get(venue) == c["toban"])), None)
+                holders[venue] = top
+                if top:
+                    by_toban[top["toban"]].append((top["metric"], venue))
+            over = False
+            for toban, vs in by_toban.items():
+                if len(vs) <= 1:
+                    continue
+                over = True
+                vs.sort(key=lambda x: -x[0])
+                for _, venue in vs[1:]:
+                    ban[toban].add(venue)
+            if not over:
+                return holders
+
+    guardians = one_venue_each(guardian_cands)
+    # 守護神を先に決めてから、その場の守護神本人を申し子の候補から外す(守護神優先)。
+    taken = {v: (c["toban"] if c else None) for v, c in guardians.items()}
+    children = one_venue_each(child_cands, skip=taken)
+
+    return rosters, guardians, children, candidates
 
 
 def class_periods():
@@ -680,7 +711,7 @@ def main():
             latest_class[toban] = rec["級別"]
 
     active = active_tobans()
-    rosters, guardians, _ = compute_titles(ways, national, active)
+    rosters, guardians, children, _ = compute_titles(ways, national, active)
 
     def holder_doc(c, rank, title_base, top_allowed=True):
         is_top = top_allowed and rank == 1
@@ -704,29 +735,39 @@ def main():
             player_titles[h["toban"]].append(
                 {"title": h["title"], "rank": h["rank"], "metric": h["metric"],
                  "n": h["n"], "is_top": h["is_top"]})
-    guardians_out = []
-    for venue, c in guardians.items():
-        if c is None:
-            guardians_out.append({"venue": venue, "holder": None})
-            continue
-        # 守護神は各場1人なので「・頂」は付けない(全員に付くと頂の意味が無い)。
-        h = holder_doc(c, 1, f"{venue}の守護神", top_allowed=False)
-        guardians_out.append({"venue": venue, "holder": h})
-        player_titles[c["toban"]].append(
-            {"title": h["title"], "rank": 1, "metric": h["metric"],
-             "n": h["n"], "is_top": False, "venue": venue})
+    def venue_titles_out(holders, suffix, kind):
+        """会場称号(守護神・申し子)の名簿を作る。どちらも各場1人なので「・頂」は
+        付けない(全員に付くと頂の意味が無い)。kindは指標の読み方が2種類あるため、
+        表示側が「絶対値の1着率」と「本人比のpt」を取り違えないように持たせる。"""
+        out = []
+        for venue, c in holders.items():
+            if c is None:
+                out.append({"venue": venue, "holder": None})
+                continue
+            h = holder_doc(c, 1, f"{venue}{suffix}", top_allowed=False)
+            h["kind"] = kind
+            out.append({"venue": venue, "holder": h})
+            player_titles[c["toban"]].append(
+                {"title": h["title"], "rank": 1, "metric": h["metric"],
+                 "n": h["n"], "is_top": False, "venue": venue, "kind": kind})
+        return out
+
+    # 順序: 守護神を先に積む(選手JSONのtitles[]で守護神が先に並ぶ)。
+    guardians_out = venue_titles_out(guardians, "の守護神", "guardian")
+    children_out = venue_titles_out(children, "の申し子", "child")
 
     titles_doc = {
         "generated_at": generated_at,
         "note": "条件別成績からの自動付与。対象は現役選手(選手ページのある登番)のみ。"
-                "各称号は指標の上位10名(守護神は各場1人)。"
-                "1位のみ「・頂」。1選手は最大3称号(守護神は枠外で+1)。"
+                "各称号は指標の上位10名(会場称号は各場1人・1人1場まで)。"
+                "1位のみ「・頂」。1選手は最大3称号(会場称号は枠外で+1)。"
                 "指標(metric): 条件系=条件下1着率−本人通算1着率 / "
                 "勝ち型=その進入での決まり手勝率−全国 / 音速=平均ST(小さいほど上位) / "
-                "守護神=当地1着率−本人通算1着率。",
+                "守護神=当地1着率そのもの(絶対値) / 申し子=当地1着率−本人通算1着率。",
         "capacity": TITLE_CAPACITY, "max_titles": MAX_TITLES, "min_n": MIN_N,
         "titles": titles_out,
         "guardians": guardians_out,
+        "children": children_out,
     }
     with open(TITLES_PATH, "w", encoding="utf-8") as f:
         json.dump(titles_doc, f, ensure_ascii=False, separators=(",", ":"))
@@ -889,8 +930,11 @@ def main():
           f"/ {kyu_label} データ〜{kyu_last} / B1 {len(kyusoku_doc['b1'])}人 B2 {len(kyusoku_doc['b2'])}人")
     n_holders = len(player_titles)
     n_guard = sum(1 for g in guardians_out if g["holder"])
+    n_child = sum(1 for g in children_out if g["holder"])
     print(f"       二つ名: {TITLES_PATH} ({os.path.getsize(TITLES_PATH):,} bytes) "
-          f"/ 保持者 {n_holders}人 / 守護神 {n_guard}場(空位 {len(guardians_out)-n_guard}場)")
+          f"/ 保持者 {n_holders}人 "
+          f"/ 守護神 {n_guard}場(空位 {len(guardians_out)-n_guard}場) "
+          f"/ 申し子 {n_child}場(空位 {len(children_out)-n_child}場)")
 
 
 if __name__ == "__main__":

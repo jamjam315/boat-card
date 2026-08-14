@@ -144,6 +144,9 @@
   /** 称号名(「・頂」付き可)と会場から、保存する条件と説明文を組み立てる。 */
   function titlePreset(title, venue) {
     var base = String(title || "").replace(/・頂$/, "");
+    // 会場の称号(〇〇の守護神 / 〇〇の申し子)は、その会場で走る日に通知する。
+    // 判定は venue を第一にする。「音速の申し子」は会場称号ではないので、
+    // 称号名だけで /の申し子$/ を見てはいけない(誤って会場条件を付けてしまう)。
     if (venue || /の守護神$/.test(base)) {
       var v = venue || base.replace(/の守護神$/, "");
       return { cond: { venues: [v] }, line: v + "で走る日に通知します。", base: base };
