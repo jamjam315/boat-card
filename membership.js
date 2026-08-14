@@ -6,12 +6,14 @@
 // (1ページに複数クライアントを作ると認証ストレージが競合するため)。
 //
 // membershipsテーブルはRLSにより「自分の行だけ読める / 書き込みは全面禁止」。
-// 書き込むのはStripe Webhookを受けるEdge Functionだけ(service role)。
+// 書き込むのはservice roleを持つサーバー側だけ(現在は書き込み口が無い状態。
+// Google Play課金へ移行後、そのレシート検証を受ける処理がここに入る)。
 (function () {
   "use strict";
 
-  // 有料機能を使える状態。Stripeのstatusをそのまま保存しているので、
-  // past_due(支払い失敗中)・canceled・incomplete等はここに含めない。
+  // 有料機能を使える状態。past_due(支払い失敗中)・canceled・incomplete等は含めない。
+  // membershipsテーブルのstatusはこの語彙のまま使う(課金の提供元が変わっても、
+  // 会員判定の仕組みはそのまま流用できるようにしておく)。
   var ACTIVE_STATUSES = ["active", "trialing"];
 
   var listeners = [];

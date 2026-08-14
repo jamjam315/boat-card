@@ -413,22 +413,6 @@ enabled = true
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 
-[functions.create-checkout-session]
-enabled = true
-# このFunctionは auth: 'user'(JWT必須)で実装しているため、プラットフォーム側の
-# JWT検証(デフォルトのverify_jwt = true)を維持する。'publishable'/'secret'/'none'
-# モードのFunctionを追加する場合のみ、そのFunction個別にfalseへ変更すること。
-entrypoint = "./functions/create-checkout-session/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/create-checkout-session/*.html" ]
-
-[functions.create-portal-session]
-enabled = true
-# create-checkout-sessionと同じく auth: 'user'(JWT必須)で実装しているため、
-# プラットフォーム側のJWT検証(デフォルトのverify_jwt = true)を維持する。
-entrypoint = "./functions/create-portal-session/index.ts"
-
 [functions.send-morning-push]
 enabled = true
 # Supabase Cron(pg_cron + pg_net)から叩かれる。CronはSupabaseのJWTを持たないため
@@ -450,12 +434,3 @@ enabled = true
 # 呼び出した本人の購読にだけテスト通知を送る。auth: 'user'(JWT必須)で実装して
 # いるため、プラットフォーム側のJWT検証(既定のtrue)を維持する。
 entrypoint = "./functions/send-test-push/index.ts"
-
-[functions.stripe-webhook]
-enabled = true
-# StripeのサーバーはSupabaseのJWTを持たずに呼んでくるため、プラットフォーム側の
-# JWT検証を無効化する。代わりにFunction内でStripe署名(STRIPE_WEBHOOK_SECRET)の
-# 検証を必須にしており、署名が無い/不正なリクエストは400で弾く。
-# この設定はこのFunctionのみに効き、create-checkout-session側のJWT検証には影響しない。
-verify_jwt = false
-entrypoint = "./functions/stripe-webhook/index.ts"
