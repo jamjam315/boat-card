@@ -104,6 +104,15 @@
       "border:1px solid #a8b4b9; color:#5d6b71;}" +
       "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]) .tt-badge{border-color:#5a686e; color:#aebcc0;}}" +
       ":root[data-theme=\"dark\"] .tt-badge{border-color:#5a686e; color:#aebcc0;}" +
+      // 二つ名を持つ選手だけに出す共有ボタン。バッジのすぐ下に置く。
+      // 外部SDKは読まず、x.com/intent/post へのただのリンクにしている
+      // (CSPを緩めずに済むうえ、押すまで何も通信しない)。
+      ".tt-share-row{text-align:center; margin-top:9px;}" +
+      ".tt-share{display:inline-flex; align-items:center; gap:5px;" +
+      "font-size:11.5px; color:var(--muted); text-decoration:none;" +
+      "border:1px solid var(--line2); border-radius:999px; padding:6px 13px;" +
+      "-webkit-tap-highlight-color:transparent;}" +
+      ".tt-share:hover{color:var(--accent); border-color:var(--accent);}" +
       ".tt-badge.top{border-color:#c9922a; color:#a2731c; box-shadow:0 0 0 1px #c9922a inset;}" +
       "@media (prefers-color-scheme: dark){:root:not([data-theme=\"light\"]) .tt-badge.top{border-color:#e0b054;" +
       "color:#e0b054; box-shadow:0 0 0 1px #e0b054 inset;}}" +
@@ -501,10 +510,42 @@
       b.addEventListener("click", function () { openTitlePop(t); });
       box.appendChild(b);
     });
+    // 共有はバッジの「下」に置く。バッジと同じflexの中に入れると、
+    // 横幅いっぱいに伸びてボタンに見えなくなる。
+    var share = document.createElement("div");
+    share.className = "tt-share-row";
+    share.appendChild(shareLink(doc, titles));
+
     // 選手名(pname)・基本情報(pmeta)の直下、キャッチコピーの上に置く。
     var meta = hero.querySelector(".pmeta");
-    if (meta && meta.nextSibling) hero.insertBefore(box, meta.nextSibling);
-    else hero.appendChild(box);
+    var at = (meta && meta.nextSibling) ? meta.nextSibling : null;
+    if (at) { hero.insertBefore(box, at); hero.insertBefore(share, at); }
+    else { hero.appendChild(box); hero.appendChild(share); }
+  }
+
+  /** 𝕏 への共有リンク。押した先で本文とURLが入った状態の投稿画面が開く。
+      URLは選手ページそのものにする(被リンクを本体に集めるため)。
+      画像はページのog:imageとしてX側が拾う(cards/players/{登番}.png)。 */
+  function shareLink(doc, titles) {
+    // 並びはカード画像(build_share_cards.py)と同じ「頂が先、次に順位順」にする。
+    // 画像と本文で称号の順番が違うと、同じ投稿の中で食い違って見えるため。
+    var sorted = titles.slice().sort(function (a, b) {
+      return (a.is_top === b.is_top) ? (a.rank - b.rank || (a.title < b.title ? -1 : 1))
+                                     : (a.is_top ? -1 : 1);
+    });
+    var names = sorted.slice(0, 3).map(function (t) { return "「" + t.title + "」"; }).join("");
+    var rest = sorted.length > 3 ? "ほか" + (sorted.length - 3) + "個" : "";
+    var url = "https://teiyomi.com/players/" + doc.toban + ".html";
+    var text = (doc.name || doc.toban) + "の二つ名は" + names + rest + "。\n" +
+      "過去10年・55万レースの機械的集計から自動で付いた称号です。\n#艇読み";
+    var a = document.createElement("a");
+    a.className = "tt-share";
+    a.href = "https://x.com/intent/post?text=" + encodeURIComponent(text) +
+      "&url=" + encodeURIComponent(url);
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "𝕏 で共有";
+    return a;
   }
 
   var loaded = null;

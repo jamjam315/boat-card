@@ -307,11 +307,21 @@ def kon_block(prof):
     return f'<div class="kon"><b>{label}</b> {flow_str}{course_hint} {tail}</div>'
 
 
+def share_card_url(toban):
+    """SNSに貼ったときに出る画像。二つ名を持つ選手だけ専用カードがある
+    (build_share_cards.py が cards/players/ に置く)。無い選手は共通の1枚に戻す。
+    存在しないURLを指すと、Xでは画像なしのリンクになって共通の1枚より不利。"""
+    if os.path.exists(os.path.join("cards", "players", f"{toban}.png")):
+        return f"https://teiyomi.com/cards/players/{toban}.png"
+    return "https://teiyomi.com/og-image.png"
+
+
 def render_page(prof):
     fp = prof["profile"]
     title = meta_title(prof)
     description = meta_description(prof)
     url = f"https://teiyomi.com/players/{prof['touban']}.html"
+    og_image = share_card_url(prof["touban"])
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -332,9 +342,9 @@ def render_page(prof):
 <meta property="og:url" content="{url}">
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
-<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta property="og:image" content="{og_image}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:image" content="{og_image}">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">

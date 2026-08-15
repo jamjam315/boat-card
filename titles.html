@@ -14,6 +14,15 @@
 <title>二つ名殿堂｜条件別成績の称号一覧（艇読み）</title>
 <meta name="description" content="高波・強風・雨・ナイター・決まり手など、条件別成績から自動付与される「二つ名」の保持者一覧。各称号は現役選手の上位10名のみ。過去10年の公式データの機械的集計で、予想でも推奨でもありません。">
 <link rel="canonical" href="https://teiyomi.com/titles.html">
+<!-- SNSに貼られたときの見え方。画像は殿堂専用のカード
+     (build_share_cards.py が cards/titles.png に作る)。 -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teiyomi.com/titles.html">
+<meta property="og:title" content="二つ名殿堂｜条件別成績の称号一覧（艇読み）">
+<meta property="og:description" content="高波・強風・雨・ナイター・決まり手など、条件別成績から自動付与される「二つ名」の保持者一覧。各称号は現役選手の上位10名のみ。">
+<meta property="og:image" content="https://teiyomi.com/cards/titles.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/cards/titles.png">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#0f2a33">
@@ -32,6 +41,8 @@ body{background:var(--bg); color:var(--ink);
 .topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
 .topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub); letter-spacing:.02em; position:relative; z-index:1;}
 .backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+/* 共有だけ他のリンクと役割が違うので、少しだけ色を持たせる。 */
+.backnav .share{color:var(--accent);}
 .back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
 .back:hover{color:var(--accent)}
 
@@ -118,6 +129,10 @@ button.bell-btn{font:inherit; font-size:10.5px; background:var(--surface); curso
     <a class="back" href="/">← トップに戻る</a>
     <a class="back" href="kyusoku.html">📈 昇級ウォッチ</a>
     <a class="back" href="players/">🔍 選手一覧</a>
+    <!-- 𝕏への共有。外部SDKは読まず、intentへのただのリンクにしている
+         (CSPを緩めずに済み、押すまで何も通信しない)。 -->
+    <a class="back share" target="_blank" rel="noopener"
+       href="https://x.com/intent/post?text=%E4%BA%8C%E3%81%A4%E5%90%8D%E6%AE%BF%E5%A0%82%E3%80%82%E9%AB%98%E6%B3%A2%E3%83%BB%E5%BC%B7%E9%A2%A8%E3%83%BB%E9%9B%A8%E3%83%BB%E3%83%8A%E3%82%A4%E3%82%BF%E3%83%BC%E3%83%BB%E6%B1%BA%E3%81%BE%E3%82%8A%E6%89%8B%E3%81%AA%E3%81%A9%E3%80%81%E6%9D%A1%E4%BB%B6%E5%88%A5%E6%88%90%E7%B8%BE%E3%81%8B%E3%82%89%E8%87%AA%E5%8B%95%E3%81%A7%E4%BB%98%E3%81%8F16%E3%81%AE%E7%A7%B0%E5%8F%B7%E3%80%82%0A%E9%81%8E%E5%8E%BB10%E5%B9%B4%E3%83%BB55%E4%B8%87%E3%83%AC%E3%83%BC%E3%82%B9%E3%81%AE%E6%A9%9F%E6%A2%B0%E7%9A%84%E9%9B%86%E8%A8%88%E3%81%A7%E3%81%99%E3%80%82%0A%23%E8%89%87%E8%AA%AD%E3%81%BF&amp;url=https%3A%2F%2Fteiyomi.com%2Ftitles.html">𝕏 で共有</a>
   </nav>
 
   <div class="lead">
