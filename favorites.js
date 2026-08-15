@@ -271,6 +271,29 @@
     return attempt(0);
   }
 
+  /**
+   * メールアドレスとパスワードでログインする。
+   *
+   * 【何のためにあるか】
+   * 通常の利用者はこれを使わない。使うのはGoogle Playの審査だけ。
+   * Playは「ログインがあるアプリには審査用の資格情報を出せ」と求めてくるが、
+   * このサイトのログインはメールに届く6桁コードだけで、審査員は当然そのメールを
+   * 受け取れない。そこで審査用アカウント1つにパスワードを設定し、それで入れる
+   * 口をひとつだけ用意する(画面はmypageの ?login=password のときだけ出る)。
+   *
+   * 既存のOTP(sendMagicLink / verifyLoginCode)と匿名からの昇格には手を入れて
+   * いない。ここは並んで存在するだけの、独立した3本目の経路。
+   *
+   * 匿名セッション中に呼んでも問題ない(Supabase側で置き換わる)。ログイン後の
+   * 後処理は onAuthStateChange → handleAuthChange が担うので、ここには書かない。
+   */
+  function signInWithPassword(email, password) {
+    if (!supaReady || !supaClient) return Promise.reject(new Error("Supabase未接続です"));
+    return supaClient.auth
+      .signInWithPassword({ email: email, password: password })
+      .then(function (r) { if (r.error) throw r.error; return r; });
+  }
+
   function signOut() {
     if (!supaReady || !supaClient) return Promise.resolve();
     return supaClient.auth
@@ -361,6 +384,7 @@
     },
     sendMagicLink: sendMagicLink,
     verifyLoginCode: verifyLoginCode,
+    signInWithPassword: signInWithPassword,   // 審査用。通常の導線からは呼ばれない
     signOut: signOut,
 
     // ---- 他ページ(プレミアム関連・バックテスト5b)から再利用するための読み取り口 ----

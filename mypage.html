@@ -202,6 +202,12 @@ function premiumLinkHtml(){
 // ===== ログイン(トップから移設。文言・挙動そのまま) =====
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
 let authSentEmail = "";     // 送信先。6桁コードの検証に同じアドレスが要るため覚えておく
+
+// ?login=password のときだけ、パスワードでのログイン欄を出す。
+// Google Playの審査員が使うためだけのもの。普通に開いた画面には現れないので、
+// 一般の利用者に見えるログイン手段は今までどおり「メールに届く6桁コード」だけ。
+// (隠しているのは目立たせないためで、守りの本体はパスワードそのもの)
+const passwordLogin = new URLSearchParams(location.search).get("login") === "password";
 function renderAuthBox(){
   const box = document.getElementById("authBox");
   if(!box) return;
@@ -218,6 +224,36 @@ function renderAuthBox(){
       document.getElementById("authLogoutBtn").addEventListener("click", function(){
         this.disabled = true; this.textContent = "処理中…";
         TeiyomiAuth.signOut().catch(()=>{}).then(()=>{ authFormOpen=false; renderAuthBox(); });
+      });
+      return;
+    }
+
+    // 審査用のパスワードログイン。既存のOTPの分岐より前に置いているのは、
+    // この画面に来た人にはメール送信の導線を見せる必要がないため。
+    if(passwordLogin){
+      box.innerHTML = `<div class="authbox">
+        <p style="margin:0 0 4px;">メールアドレスとパスワードでログインします。</p>
+        <form class="authbox-form" id="authPwForm">
+          <input type="email" class="authbox-input" id="authPwEmail" placeholder="メールアドレス" autocomplete="username" required>
+          <input type="password" class="authbox-input" id="authPwPass" placeholder="パスワード" autocomplete="current-password" required>
+          <button type="submit" class="authbox-submit" id="authPwBtn">ログイン</button>
+        </form>
+        <p class="authbox-msg" id="authPwMsg"></p>
+      </div>`;
+      document.getElementById("authPwForm").addEventListener("submit", function(ev){
+        ev.preventDefault();
+        const btn = document.getElementById("authPwBtn");
+        const msgEl = document.getElementById("authPwMsg");
+        const email = document.getElementById("authPwEmail").value.trim();
+        const pass = document.getElementById("authPwPass").value;
+        if(!email || !pass){ msgEl.textContent = "メールアドレスとパスワードを入力してください。"; return; }
+        btn.disabled = true; btn.textContent = "確認中…"; msgEl.textContent = "";
+        // 成功時の後処理(お気に入りの同期・表示更新)は、6桁コードのときと同じ
+        // teiyomi-auth-changed の経路に任せる。
+        TeiyomiAuth.signInWithPassword(email, pass).catch(()=>{
+          msgEl.textContent = "メールアドレスかパスワードが違います。";
+          btn.disabled = false; btn.textContent = "ログイン";
+        });
       });
       return;
     }
