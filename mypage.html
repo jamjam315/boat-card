@@ -49,6 +49,12 @@ body{background:var(--bg); color:var(--ink);
 .back:hover{color:var(--accent)}
 
 .sec-label{font-size:11.5px; color:var(--muted); margin:16px 2px 6px;}
+/* ログイン欄の下に小さく置く補足リンク(アカウント削除の窓口)。
+   カードにすると「使い方」等と同じ重さになり、日常的に押すものではないので
+   1行のリンクに留める。 */
+.sec-note{font-size:11.5px; margin:7px 2px 0;}
+.sec-note a{color:var(--muted); text-decoration:underline; text-decoration-color:var(--line2);}
+.sec-note a:hover{color:var(--accent);}
 
 /* ---- ログイン欄(トップから移設。タップ領域の指定も含めそのまま持ってきている) ---- */
 .authbox{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
@@ -140,6 +146,9 @@ body{background:var(--bg); color:var(--ink);
 
   <p class="sec-label">ログイン</p>
   <div id="authBox"></div>
+  <!-- アカウント削除の窓口。#authBox の中身はJSが毎回作り直すので、
+       消えないよう外側に静的に置いている。 -->
+  <p class="sec-note"><a href="delete-account.html">アカウントとデータの削除について</a></p>
 
   <p class="sec-label">本日の出走</p>
   <div id="favToday"></div>

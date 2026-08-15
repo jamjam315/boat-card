@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>アカウントとデータの削除について｜艇読み</title>
+<meta name="description" content="艇読み（teiyomi.com）のアカウント削除リクエストの窓口です。削除されるデータの一覧、依頼の手順、対応までの目安（7日以内）を説明しています。">
+<link rel="canonical" href="https://teiyomi.com/delete-account.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teiyomi.com/delete-account.html">
+<meta property="og:title" content="アカウントとデータの削除について｜艇読み">
+<meta property="og:description" content="艇読み（teiyomi.com）のアカウント削除リクエストの窓口です。削除されるデータの一覧、依頼の手順、対応までの目安（7日以内）を説明しています。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
+<style>
+/* 見た目はプライバシーポリシー(privacy.html)に合わせている。
+   同じ性質の説明ページなので、2枚で作りが違うと戸惑わせるため。 */
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+
+.topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub); letter-spacing:.02em; position:relative; z-index:1;}
+
+.backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+.back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.intro .updated{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
+.intro p{margin:0; font-size:13.5px; color:var(--ink2); line-height:1.8;}
+
+.step{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.step-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.step-num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--on-accent);
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.step-ttl{font-size:15px; font-weight:700;}
+.step-body{font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.step-body b{color:var(--ink);}
+.step-body ul{margin:8px 0 0; padding-left:20px;}
+.step-body li{margin-top:5px;}
+.step-body p+p{margin-top:10px;}
+.step-body a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+/* 削除されるものの一覧。何がどこから消えるかを行で見せる。 */
+.dtable{width:100%; border-collapse:collapse; margin-top:8px; font-size:13px;}
+.dtable th, .dtable td{padding:8px 4px; border-top:1px dashed var(--line); text-align:left;
+  vertical-align:top; line-height:1.6;}
+.dtable tr:first-child th, .dtable tr:first-child td{border-top:none;}
+.dtable th{width:9.5em; color:var(--ink); font-weight:600;}
+.dtable td{color:var(--ink2);}
+
+/* 連絡先。押せば宛先入りのメールが開く。 */
+.mailbox{margin-top:12px; padding:14px 16px; background:var(--accent-soft);
+  border:1px solid var(--line2); border-radius:var(--radius-sm);}
+.mailbox .to{font-size:15px; font-weight:700;}
+.mailbox .to a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);
+  word-break:break-all;}
+.mailbox .note{font-size:11.5px; color:var(--muted); margin:6px 0 0;}
+.mailcta{display:block; margin-top:12px; padding:12px; border-radius:9px;
+  border:1px solid var(--accent); color:var(--accent); font-size:13.5px; font-weight:700;
+  text-align:center; text-decoration:none; -webkit-tap-highlight-color:transparent;}
+.mailcta:hover{background:var(--accent-soft);}
+
+/* 消える前にやっておくと良いこと(取り消せない操作なので、先に伝える)。 */
+.warn{background:var(--warn-bg); border:1px solid var(--warn-line); border-radius:var(--radius-sm);
+  margin-top:12px; padding:12px 14px; font-size:12.5px; color:var(--warn-ink); line-height:1.7;}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>アカウントとデータの削除について</p></div>
+  </header>
+  <nav class="backnav">
+    <a class="back" href="index.html">← トップに戻る</a>
+    <a class="back" href="mypage.html">⭐ マイページ</a>
+    <a class="back" href="privacy.html">プライバシーポリシー</a>
+  </nav>
+
+  <section class="intro">
+    <p class="updated">最終更新日：2026年8月15日</p>
+    <p>艇読み（teiyomi.com）のアカウントと、お預かりしているデータの削除をご希望の方のためのページです。<b>削除はメールでのご依頼を受けて、運営者が行います。</b>手順と、削除されるものの一覧を下にまとめました。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><span class="step-ttl">削除されるデータ</span></div>
+    <div class="step-body">
+      <p>アカウントを削除すると、そのアカウントに紐づくデータは<b>すべて同時に消えます</b>。一部だけ残ることはありません。</p>
+      <table class="dtable">
+        <tr><th>メールアドレス</th><td>ログインに使っているアドレス。アカウントそのものが消えます</td></tr>
+        <tr><th>お気に入り選手</th><td>登録していた選手の登録番号</td></tr>
+        <tr><th>条件アラート</th><td>保存していた通知の条件と、そのオン・オフの設定</td></tr>
+        <tr><th>検証ノート</th><td>記録していたバックテストの条件・結果・メモ</td></tr>
+        <tr><th>通知の送信先</th><td>お知らせを届けるための送信先の情報と暗号化の鍵</td></tr>
+        <tr><th>契約状態</th><td>有料プランの加入状況の記録</td></tr>
+        <tr><th>通知の送信記録</th><td>同じ日に二重で通知しないための記録</td></tr>
+      </table>
+      <p>これらは<b>アカウントを消すと自動的に一緒に消える</b>作りになっています（データベース側で連鎖削除するよう定義してあります）。手作業で1件ずつ消すのではないため、消し忘れが起きません。</p>
+      <p>なお、本サイトは氏名・住所・電話番号・生年月日・クレジットカード情報を<b>そもそも取得していません</b>。閲覧履歴を独自に記録する仕組みもありません。詳しくは<a href="privacy.html">プライバシーポリシー</a>をご覧ください。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">削除を依頼する</span></div>
+    <div class="step-body">
+      <p>下記のアドレスへ、<b>アカウントに登録しているメールアドレスから</b>ご連絡ください。ご本人からのご依頼であることを確認するため、登録アドレス以外からのご依頼にはお応えできない場合があります。</p>
+      <div class="mailbox">
+        <p class="to">📧 <a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a></p>
+        <p class="note">運営者：MTP Works</p>
+        <a class="mailcta" href="mailto:mtpworks.info@gmail.com?subject=%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E5%89%8A%E9%99%A4%E3%81%AE%E4%BE%9D%E9%A0%BC&amp;body=%E8%89%87%E8%AA%AD%E3%81%BF%E3%81%AE%E3%82%A2%E3%82%AB%E3%82%A6%E3%83%B3%E3%83%88%E3%81%A8%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E5%89%8A%E9%99%A4%E3%82%92%E5%B8%8C%E6%9C%9B%E3%81%97%E3%81%BE%E3%81%99%E3%80%82%0A%0A%E2%80%BB%E3%81%93%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%81%AF%E3%80%81%E7%99%BB%E9%8C%B2%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E3%83%A1%E3%83%BC%E3%83%AB%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9%E3%81%8B%E3%82%89%E9%80%81%E4%BF%A1%E3%81%97%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82%0A">✉️ メールの下書きを開く</a>
+      </div>
+      <p>件名・本文は決まった形式でなくてかまいません。「アカウントを削除してほしい」と分かれば十分です。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">対応までの目安</span></div>
+    <div class="step-body">
+      <p>ご依頼を受け取ってから、<b>7日以内</b>に削除いたします。削除が完了しましたら、ご依頼いただいたアドレスへご連絡します。</p>
+      <p>削除したデータは元に戻せません。有料プランをご利用中の場合は、<b>先に解約のお手続きをお済ませください</b>（アカウントを削除しても、ストア側の定期購入は自動では解約されません）。</p>
+      <div class="warn">⚠️ 削除は取り消せません。お気に入りや検証ノートを残しておきたい場合は、先にお手元に控えてから依頼してください。</div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">アカウントを消さずにデータだけ消す</span></div>
+    <div class="step-body">
+      <p>「全部消すほどではない」という場合は、依頼をせずにご自分で消せるものがあります。</p>
+      <ul>
+        <li><b>通知の送信先</b>：<a href="mypage.html">マイページ</a>の「出走のお知らせ」をオフにすると、その場で削除されます</li>
+        <li><b>条件アラート・検証ノート</b>：マイページの一覧から1件ずつ削除できます</li>
+        <li><b>お気に入り選手</b>：選手ページや選手一覧の☆を外すと削除されます</li>
+      </ul>
+      <p>また、ログインせずに使っている場合（メールアドレスを登録していない場合）は、そもそもメールアドレスをお預かりしていません。この場合はブラウザの保存データを消していただくだけで、端末側の記録は残りません。</p>
+    </div>
+  </section>
+
+  <p class="foot">
+    <a href="index.html">トップ</a> ・ <a href="mypage.html">マイページ</a> ・ <a href="privacy.html">プライバシーポリシー</a>
+  </p>
+</div>
+</body>
+</html>
