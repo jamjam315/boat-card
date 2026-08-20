@@ -29,6 +29,24 @@ import {
 } from '../_shared/morning-message.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
+
+/**
+ * 契約中かどうか。statusだけでなく期限も見る。
+ *
+ * statusを書き戻す担当が止まっても、current_period_endを過ぎれば自動的に
+ * 権利が切れるようにしておくための保険(緩む側ではなく締まる側に倒す)。
+ * 期限がnullのときは「切れている」ではなく「記録が無い」なので有効扱いにする。
+ *
+ * 同じ判定が is_premium()(RLS)・membership.js・send-morning-push にもある。
+ * 直すときは4か所そろえること。
+ */
+function isActive(m: { status?: string | null; current_period_end?: string | null }): boolean {
+  if (!ACTIVE_STATUSES.includes(m.status ?? '')) return false
+  if (!m.current_period_end) return true
+  const t = new Date(m.current_period_end).getTime()
+  if (Number.isNaN(t)) return true
+  return t > Date.now()
+}
 const VAPID_SUBJECT = 'mailto:mtpworks.info@gmail.com'
 // 公開鍵は秘密ではないので直書きする(favorites.js・send-morning-pushと同じ値)。
 const VAPID_PUBLIC_KEY =
@@ -94,8 +112,9 @@ export default {
       // 契約者が無料プランの文面を確認するのに使う。もらえるものが減るだけなので
       // 迂回にはならない。
       const { data: mem } = await supabaseAdmin
-        .from('memberships').select('status').eq('user_id', userId).limit(1)
-      const realPremium = ACTIVE_STATUSES.includes(mem?.[0]?.status ?? '')
+        .from('memberships').select('status,current_period_end')
+        .eq('user_id', userId).limit(1)
+      const realPremium = isActive(mem?.[0] ?? {})
       const asFree = new URL(req.url).searchParams.get('free') === '1'
       const premium = realPremium && !asFree
 

@@ -16,6 +16,24 @@
   // 会員判定の仕組みはそのまま流用できるようにしておく)。
   var ACTIVE_STATUSES = ["active", "trialing"];
 
+  /**
+   * 契約中かどうか。statusだけでなく期限も見る。
+   *
+   * statusを書き戻す担当が止まっても、current_period_endを過ぎれば自動的に
+   * 権利が切れるようにしておくための保険(緩む側ではなく締まる側に倒す)。
+   * 期限がnullのときは「切れている」ではなく「記録が無い」なので有効扱いにする。
+   *
+   * 同じ判定が is_premium()(RLS)・send-morning-push・send-test-push にもある。
+   * 直すときは4か所そろえること。
+   */
+  function isActive(status, periodEnd) {
+    if (ACTIVE_STATUSES.indexOf(status) === -1) return false;
+    if (!periodEnd) return true;
+    var t = new Date(periodEnd).getTime();
+    if (isNaN(t)) return true;   // 読めない値は期限なし扱い(表示のためだけの値なので)
+    return t > Date.now();
+  }
+
   var listeners = [];
 
   function auth() {
@@ -51,7 +69,7 @@
         var status = row ? row.status : null;
         return {
           status: status,
-          active: ACTIVE_STATUSES.indexOf(status) !== -1,
+          active: isActive(status, row ? row.current_period_end : null),
           priceId: row ? row.price_id : null,
           currentPeriodEnd: row ? row.current_period_end : null,
           user: user

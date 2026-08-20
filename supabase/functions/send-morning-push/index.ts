@@ -36,6 +36,24 @@ import {
 } from '../_shared/morning-message.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
+
+/**
+ * 契約中かどうか。statusだけでなく期限も見る。
+ *
+ * statusを書き戻す担当が止まっても、current_period_endを過ぎれば自動的に
+ * 権利が切れるようにしておくための保険(緩む側ではなく締まる側に倒す)。
+ * 期限がnullのときは「切れている」ではなく「記録が無い」なので有効扱いにする。
+ *
+ * 同じ判定が is_premium()(RLS)・membership.js・send-test-push にもある。
+ * 直すときは4か所そろえること。
+ */
+function isActive(m: { status?: string | null; current_period_end?: string | null }): boolean {
+  if (!ACTIVE_STATUSES.includes(m.status ?? '')) return false
+  if (!m.current_period_end) return true
+  const t = new Date(m.current_period_end).getTime()
+  if (Number.isNaN(t)) return true
+  return t > Date.now()
+}
 const VAPID_SUBJECT = 'mailto:mtpworks.info@gmail.com'
 // 公開鍵は秘密ではないので直書きする。環境変数にすると、フロント(favorites.js)と
 // 食い違ったときに「購読はできるのに届かない」という原因の分かりにくい壊れ方を
@@ -112,7 +130,7 @@ export default {
           .in('user_id', userIds)
           .order('created_at', { ascending: true }).order('toban').range(from, to)),
       fetchAllRows((from, to) =>
-        supabaseAdmin.from('memberships').select('user_id,status')
+        supabaseAdmin.from('memberships').select('user_id,status,current_period_end')
           .in('user_id', userIds).order('user_id').range(from, to)),
       fetchAllRows((from, to) =>
         supabaseAdmin.from('push_send_log').select('user_id')
@@ -134,7 +152,7 @@ export default {
     }
 
     const premium = new Set(
-      (memRes.data ?? []).filter((m) => ACTIVE_STATUSES.includes(m.status)).map((m) => m.user_id),
+      (memRes.data ?? []).filter(isActive).map((m) => m.user_id),
     )
     const alreadySent = new Set((logRes.data ?? []).map((r) => r.user_id))
 
