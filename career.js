@@ -388,7 +388,7 @@
       '進入の癖といった「勝ち方」の内訳をご覧いただけます。' +
       (inApp ? TeiyomiTWA.gateText() : 'プレミアムにご登録いただくとご覧いただけます。') + '</p>' +
       '<p class="sub">直近' + FREE_YEARS + '年の成績は、これまで通り無料でご覧いただけます。</p>' +
-      (inApp ? "" : '<a class="cta" href="/premium/">プレミアムを見る</a>') + '</div>';
+      '<a class="cta" href="/premium/">プレミアムを見る</a></div>';
   }
 
   // ---- 読み込みと描画 ----

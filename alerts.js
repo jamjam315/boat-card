@@ -241,7 +241,7 @@
         render("<h3>🔔 絞り込み通知はプレミアムの機能です</h3>" +
           "<p>保存した条件に当てはまる出走がある朝だけ、通知でお知らせします。" +
           (inApp ? TeiyomiTWA.gateText() : "プレミアム（月額）でご利用いただけます。") + "</p>" +
-          (inApp ? "" : '<a class="bell-cta" href="/premium/">プレミアムを見る</a>') +
+          '<a class="bell-cta" href="/premium/">プレミアムを見る</a>' +
           '<button type="button" class="bell-sub bell-close">閉じる</button>');
         wire(".bell-close", close);
         return;

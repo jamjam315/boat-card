@@ -63,6 +63,9 @@ body{background:var(--bg); color:var(--ink);
 .btn[disabled]{opacity:.45; cursor:not-allowed;}
 .btn.sub{background:var(--surface); color:var(--accent); border:1px solid var(--line2); font-weight:600; font-size:13.5px;}
 .btn-note{font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.7;}
+/* 購入手続きの結果を伝える1行。何も無いときは空のまま(場所は取らない)。 */
+.btn-msg{font-size:12px; color:var(--warn-ink); margin:8px 0 0; line-height:1.7;}
+.btn-msg:empty{margin:0;}
 .status-line{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13.5px;}
 .status-badge{font-size:11.5px; font-weight:700; color:var(--on-accent); background:var(--accent);
   border-radius:var(--radius-pill); padding:3px 11px;}
@@ -141,17 +144,20 @@ body{background:var(--bg); color:var(--ink);
 <script src="../twa.js"></script>
 <script src="../favorites.js"></script>
 <script src="../membership.js"></script>
+<script src="../billing.js"></script>
 <script>
 (function(){
   "use strict";
 
   // ===== 「ご利用について」欄 =====
-  // Web上での課金は行わない(Stripeでの決済は取りやめ)。登録の受け口はここに置かず、
-  // Androidアプリ内での提供予定を案内するだけにする。
-  // 既にご契約中の方は機能をそのまま使えるので、状態と使い始める導線だけ出す。
+  // 購入できるのはアプリ(TWA)の中だけ。Webからは今までどおり案内だけを出す。
   //
-  // TWA(アプリ)から開いた場合の出し分けは twa.js が行う。このページには
-  // 購入導線が無いので data-premium-cta は付けていない(隠すものが無い)。
+  // 出し分けは TeiyomiBilling.available() で決める。「アプリかどうか」ではなく
+  // 「Playの購入シートを出せるか」を見ているので、判定できなければ必ず
+  // 案内側(買えない側)に倒れる。Playのポリシー違反の方向には壊れない。
+  //
+  // このページには外部決済への導線が無いので data-premium-cta は付けていない
+  // (隠すものが無い)。
 
   var box = document.getElementById("actionBox");
 
@@ -161,19 +167,70 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
-  /** 未契約の方(未ログイン・匿名・非会員すべて)への案内。
-      アプリから開かれている場合は、外部での購入を促す文面にならないようにする。 */
+  var FREE_NOTE = '<p class="btn-note">無料の「バックテスト」（固定メニュー）と、' +
+    'お気に入り・キャリアの直近3年ぶんは、これまで通り誰でもお使いいただけます。</p>';
+  var FREE_LINK = '<a class="btn sub" style="display:block; text-align:center; ' +
+    'text-decoration:none;" href="../backtest.html">無料のバックテストを見る</a>';
+
+  /** 未契約の方(未ログイン・匿名・非会員すべて)への案内。Webから見たとき。 */
   function renderComingSoon(){
     var inApp = !!(window.TeiyomiTWA && TeiyomiTWA.isTWA());
     var lead = inApp
       ? '<p class="state-msg">プレミアムのご利用は、アプリ内でのお手続きとして<b>準備中</b>です。</p>'
-      : '<p class="state-msg">プレミアムへの登録は、<b>近日公開のAndroidアプリ内</b>で提供予定です。</p>';
+      : '<p class="state-msg">プレミアムへの登録は、<b>Androidアプリ内</b>で承っています。</p>';
     box.innerHTML = lead +
       '<p class="btn-note">' + (inApp ? '' : 'ウェブサイトからのお申し込みは受け付けていません。') +
-      '公開の時期が決まりましたら、このページでお知らせします。</p>' +
-      '<p class="btn-note">無料の「バックテスト」（固定メニュー）と、お気に入り・キャリアの直近3年ぶんは、' +
-      'これまで通り誰でもお使いいただけます。</p>' +
-      '<a class="btn sub" style="display:block; text-align:center; text-decoration:none;" href="../backtest.html">無料のバックテストを見る</a>';
+      'Google Play から艇読みのアプリを入れると、アプリ内でご登録いただけます。</p>' +
+      FREE_NOTE + FREE_LINK;
+  }
+
+  /**
+   * アプリ内で買えるときの表示。
+   *
+   * 金額はストアから取った値をそのまま出す。取れなければ金額を伏せる
+   * (コードに書いた数字と実際の請求額が食い違うのがいちばん困るため)。
+   */
+  function renderBuy(){
+    var user = window.TeiyomiAuth && TeiyomiAuth.getUser();
+    // 匿名のままだと購入を引き継げない。先にログインしてもらう。
+    if(!user || user.isAnonymous){
+      box.innerHTML =
+        '<p class="state-msg">ご登録の前に、メールアドレスでのログインをお願いします。</p>' +
+        '<p class="btn-note">ご購入をアカウントに紐づけるためです。' +
+        '機種変更をしても、同じアドレスでログインすればそのままお使いいただけます。</p>' +
+        '<a class="btn" style="display:block; text-align:center; text-decoration:none;" ' +
+        'href="../mypage.html">ログインする</a>' + FREE_NOTE;
+      return;
+    }
+
+    TeiyomiBilling.price().then(function(p){
+      var yen = TeiyomiBilling.priceText(p);
+      box.innerHTML =
+        '<p class="state-msg">艇読みプレミアム' +
+        (yen ? '　<b>' + esc(yen) + ' / 月</b>' : '') + '</p>' +
+        '<p class="btn-note">いつでも解約できます。解約後も、お支払い済みの期間の' +
+        '終わりまではお使いいただけます。</p>' +
+        '<button type="button" class="btn" id="buyBtn">' +
+        (yen ? esc(yen) + ' / 月で登録する' : 'プレミアムに登録する') + '</button>' +
+        '<p class="btn-msg" id="buyMsg"></p>' +
+        FREE_NOTE;
+
+      document.getElementById("buyBtn").addEventListener("click", function(){
+        var btn = this;
+        var msg = document.getElementById("buyMsg");
+        btn.disabled = true; btn.textContent = "手続き中…"; msg.textContent = "";
+        TeiyomiBilling.buy().then(function(r){
+          if(r.ok) return;   // 成功時は membership の更新で画面が描き直される
+          btn.disabled = false;
+          btn.textContent = yen ? yen + " / 月で登録する" : "プレミアムに登録する";
+          msg.textContent =
+            r.reason === "cancelled"    ? "" :
+            r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいてもう一度お試しください。" :
+            r.reason === "unavailable"  ? "この画面ではご登録いただけません。アプリからお試しください。" :
+                                          "手続きに失敗しました。時間をおいてもう一度お試しください。";
+        });
+      });
+    });
   }
 
   /** 既にご契約中の方。機能は従来どおり使える。 */
@@ -198,7 +255,11 @@ body{background:var(--bg); color:var(--ink);
   function render(state){
     // 状態が取れないときも、案内は出しておく(空欄にしない)。
     if(state && state.active && state.user){ renderActive(state); return; }
-    renderComingSoon();
+    // 買える環境かどうかを聞いてから出し分ける。判定できなければ案内側に倒れる。
+    if(!window.TeiyomiBilling){ renderComingSoon(); return; }
+    TeiyomiBilling.available().then(function(canBuy){
+      if(canBuy) renderBuy(); else renderComingSoon();
+    }, renderComingSoon);
   }
 
   TeiyomiMembership.onChange(render);

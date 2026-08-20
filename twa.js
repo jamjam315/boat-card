@@ -27,8 +27,10 @@
   // 両方でこの文字列を使う(アプリ側のAndroidManifestにも同じ値が入っている)。
   var PAYMENT_METHOD = "https://play.google.com/billing";
 
-  // アプリ内で有料機能に触れたときの案内。購入を促さず、外部への導線も置かない。
-  var GATE_TEXT = "この機能は艇読みプレミアム（Web版）でご利用いただけます。";
+  // アプリ内で有料機能に触れたときの案内。
+  // Play Billing を入れたので、購入はアプリの中で完結する。
+  // 「Web版で」と案内する必要がなくなったため文言から外した。
+  var GATE_TEXT = "この機能は艇読みプレミアムでご利用いただけます。";
 
   function detect() {
     try {
@@ -49,16 +51,20 @@
 
   var isTWA = detect();
 
-  // HTMLに印を付ける。静的に書かれた購入ボタンは、この印を見てCSSで隠す
-  // (JSで1つずつ消すと、消し忘れが起きるうえ一瞬見えてしまう)。
+  // HTMLに印を付ける。ページ側がアプリかどうかで見た目を変えたいときに使う。
+  //
+  // 【data-premium-cta を隠すのをやめた経緯】
+  // 以前はこの印を見て [data-premium-cta] をCSSで隠していた。Web上の決済へ
+  // 誘導することがPlayのポリシーで禁じられていたためで、当時は購入が
+  // サイト側にしか無かった。
+  // Play Billing を入れた今、data-premium-cta が指すのはすべて /premium/ で、
+  // そこはアプリ内購入の入口になった。外部決済への導線ではないので、隠すと
+  // 買えなくなるだけになる。
+  // 仕組み自体(属性とこの印)は残してある。将来また外部への導線を隠したく
+  // なったら、下のCSSを1行戻せばよい。
+  //   '[data-twa="1"] [data-premium-cta]{display:none !important;}'
   if (isTWA) {
-    var el = document.documentElement;
-    el.setAttribute("data-twa", "1");
-    var s = document.createElement("style");
-    s.id = "twaStyle";
-    // data-premium-cta を付けた要素が、アプリでは最初から表示されない。
-    s.textContent = '[data-twa="1"] [data-premium-cta]{display:none !important;}';
-    (document.head || el).appendChild(s);
+    document.documentElement.setAttribute("data-twa", "1");
   }
 
   /**
