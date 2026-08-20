@@ -26,6 +26,19 @@
 
   function twa() { return window.TeiyomiTWA || null; }
 
+  /**
+   * 会員状態を取り直して、開いている画面すべてに配る。
+   *
+   * window. を必ず経由する。ブラウザでは window の中身がそのまま名前として
+   * 使えるので `TeiyomiMembership.reload()` とも書けるが、それだと
+   * 「window にはあるが名前としては見えない」環境で例外になり、Promiseの
+   * catch に飲まれて黙って何も起きない。実際この書き方でreloadが動いていなかった。
+   */
+  function reloadMembership() {
+    var m = window.TeiyomiMembership;
+    if (m && m.reload) m.reload();
+  }
+
   /** 購入できる環境か(Promise<boolean>)。 */
   function available() {
     var t = twa();
@@ -143,10 +156,7 @@
             var okNow = !!(res && res.is_active);
             return response.complete(okNow ? "success" : "fail").then(function () {
               if (!okNow) return { ok: false, reason: "not_verified" };
-              // 開いている画面すべてを新しい会員状態で描き直す。
-              if (window.TeiyomiMembership && TeiyomiMembership.reload) {
-                TeiyomiMembership.reload();
-              }
+              reloadMembership();   // 開いている画面すべてを描き直す
               return { ok: true };
             });
           });
@@ -176,9 +186,7 @@
         var mine = (list || []).filter(function (p) { return p.itemId === PRODUCT_ID; });
         if (!mine.length) return { ok: false, reason: "no_purchase" };
         return verify(mine[0].purchaseToken).then(function (res) {
-          if (window.TeiyomiMembership && TeiyomiMembership.reload) {
-            TeiyomiMembership.reload();
-          }
+          reloadMembership();
           return { ok: !!(res && res.is_active) };
         });
       });
@@ -186,6 +194,47 @@
       return { ok: false, reason: "failed" };
     });
   }
+
+  /**
+   * 起動時に、持っている購読を1回だけ確かめ直す。
+   *
+   * 【なぜ要るのか】
+   * 解約・支払いの停止・返金は、Google側で起きてこちらには通知が来ない
+   * (Real-time Developer Notifications は今は入れていない)。放っておくと、
+   * 解約した人の画面がプレミアムのままになる。アプリを開いたときに
+   * 確かめ直せば、表示が実際の状態へ寄っていく。
+   *
+   * 【呼びすぎないための2段構え】
+   *   ここ    … 1セッションに1回だけ(タブを開き直すまで再実行しない)
+   *   サーバー … 前回の検証から24時間はGoogleに問い合わせず保存済みの行を返す
+   * 実際にGoogleを叩くのは1人1日1回までになる。
+   *
+   * 【何もしない条件】
+   * ブラウザ(買えない環境)・未ログイン・匿名は対象外。購入が1件も無ければ
+   * 検証もしない。手で権利を付けた行(審査用アカウント等)を、
+   * 「Playに購入が無い」という理由で消してしまわないため。
+   */
+  var AUTO_KEY = "teiyomi_billing_checked";
+
+  function autoRestore() {
+    try {
+      if (sessionStorage.getItem(AUTO_KEY) === "1") return;
+    } catch (e) { /* プライベートモード等。毎回走るが害はない */ }
+
+    var auth = window.TeiyomiAuth;
+    var user = auth && auth.getUser();
+    if (!user || user.isAnonymous) return;   // 認証がまだ確定していない場合も含む
+
+    available().then(function (canBuy) {
+      if (!canBuy) return;
+      try { sessionStorage.setItem(AUTO_KEY, "1"); } catch (e) {}
+      restore();   // 結果は見ない。反映は TeiyomiMembership.reload() が行う
+    });
+  }
+
+  // ログイン状態が決まってから走らせる。読み込んだ時点ではまだ匿名のことが多い。
+  window.addEventListener("teiyomi-auth-changed", autoRestore);
+  autoRestore();   // 既に確定済みだったとき用
 
   window.TeiyomiBilling = {
     productId: PRODUCT_ID,
