@@ -23,6 +23,9 @@
 
   var PACKAGE = "com.mtpworks.teiyomi";
   var KEY = "teiyomi_twa";
+  // Playの課金を指す決まった名前。PaymentRequest と getDigitalGoodsService の
+  // 両方でこの文字列を使う(アプリ側のAndroidManifestにも同じ値が入っている)。
+  var PAYMENT_METHOD = "https://play.google.com/billing";
 
   // アプリ内で有料機能に触れたときの案内。購入を促さず、外部への導線も置かない。
   var GATE_TEXT = "この機能は艇読みプレミアム（Web版）でご利用いただけます。";
@@ -58,9 +61,43 @@
     (document.head || el).appendChild(s);
   }
 
+  /**
+   * このアプリ内で購入手続きができるか。
+   *
+   * 【isTWA() とは別物】
+   * isTWA() は「アプリとして開かれているか」で、購入導線を*隠す*ための判定。
+   * こちらは「Playの購入シートを出せるか」で、購入UIを*出す*ための判定。
+   * 引き算(隠す)ではなく足し算(出す)にしてあるのは、判定に失敗したときに
+   * 必ず「買えない側」へ倒れるようにするため。Playのポリシー違反の方向には壊れない。
+   *
+   * getDigitalGoodsService はアプリがPlayから入っているときにだけ動く。
+   * 手元でサイドロードしたビルドでは、この関数があっても購入まで通らない
+   * (その場合もここで例外になり、false になる)。
+   *
+   * referrer方式(isTWA)と違い、こちらはどのページでも同じように判定できる。
+   */
+  var billingSvc = null;   // 一度取れたら使い回す(取得のたびに橋渡しが走るため)
+
+  function billingService() {
+    if (billingSvc) return Promise.resolve(billingSvc);
+    if (!window.getDigitalGoodsService) return Promise.resolve(null);
+    return window.getDigitalGoodsService(PAYMENT_METHOD).then(function (svc) {
+      billingSvc = svc || null;
+      return billingSvc;
+    }).catch(function () { return null; });
+  }
+
   window.TeiyomiTWA = {
     /** Androidアプリ(TWA)として開かれているか。 */
     isTWA: function () { return isTWA; },
+    /** アプリ内で購入手続きができるか(Promise<boolean>)。 */
+    billingAvailable: function () {
+      return billingService().then(function (svc) { return !!svc; });
+    },
+    /** Digital Goods の窓口。取れなければ null。billing.js が使う。 */
+    billingService: billingService,
+    /** PaymentRequest に渡す決済手段の名前。 */
+    paymentMethod: PAYMENT_METHOD,
     /** アプリ内で有料機能に触れたときの案内文(購入を促さない)。 */
     gateText: function () { return GATE_TEXT; },
     packageName: PACKAGE

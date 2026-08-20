@@ -93,6 +93,14 @@
   window.TeiyomiMembership = {
     ACTIVE_STATUSES: ACTIVE_STATUSES.slice(),
     load: load,
+    /**
+     * 会員状態を取り直して、購読している全員に配る。
+     *
+     * 購入が済んだ直後に呼ぶためのもの。onChange を購読している画面
+     * (5b・選手ページ・マイページ・プレミアム)が、これ1回で全部更新される。
+     * 呼ばないと、買ったのに画面が「未契約」のままになる。
+     */
+    reload: notify,
     /** 会員状態が決まる/変わるたびに呼ばれるコールバックを登録する。 */
     onChange: function (fn) {
       listeners.push(fn);
