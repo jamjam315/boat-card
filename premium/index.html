@@ -9,8 +9,22 @@
      GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
      'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
-     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。
+
+     【このページだけ connect-src に https://play.google.com がある】
+     Play Billingの購入シートを出すとき、PaymentRequest は決済手段の名前
+     (https://play.google.com/billing)を connect-src と突き合わせる。
+     許可が無いと new PaymentRequest がその場で例外を投げ、購入シートが
+     出ないまま失敗する(2026-08-20に実機で確認。
+       RangeError: ... payment method identifier violates Content Security Policy)。
+     価格の取得(getDetails)はアプリとのJS橋渡しで通信ではないため、
+     CSPの対象外。だから「価格は出るのに買えない」という形で現れる。
+
+     許可を足すのはこのページだけにしてある。購入を始めるのはここだけで
+     (TeiyomiBilling.buy の呼び出しは1か所)、他のページが読む billing.js は
+     restore()しか使わず PaymentRequest を作らないため。
+     他へ購入ボタンを足すときは、そのページのCSPにも同じ許可が要る。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://play.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>プレミアム｜艇読み</title>
 <meta name="description" content="艇読みのプレミアムプラン。条件を指定してのバックテスト（会場・期間・券種・買い目の自由指定）が使えます。">
 <!-- 課金が実際に動くまでの仮公開のためnoindex。サイト共通ナビからのリンクもまだ張らない。
