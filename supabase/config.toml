@@ -434,3 +434,11 @@ enabled = true
 # 呼び出した本人の購読にだけテスト通知を送る。auth: 'user'(JWT必須)で実装して
 # いるため、プラットフォーム側のJWT検証(既定のtrue)を維持する。
 entrypoint = "./functions/send-test-push/index.ts"
+
+[functions.verify-purchase]
+enabled = true
+# 購入トークンをGoogle Play Developer APIで検証し、membershipsを書き換える。
+# auth: 'user'(JWT必須)で実装しているため、プラットフォーム側のJWT検証
+# (既定のtrue)を維持する。誰が呼んだかが確実に分かるので、書き込む先も
+# 必ずその本人の行だけになる。
+entrypoint = "./functions/verify-purchase/index.ts"

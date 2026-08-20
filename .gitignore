@@ -38,3 +38,10 @@ service-account*.json
 
 # エディタ・作業ツールの手元設定(この端末の都合であって、サイトの一部ではない)
 .claude/
+
+# Deno/npm の依存キャッシュ。Edge Functionを手元で型チェック・テストしたときに
+# できる作業用の置き場で、サイトの一部でもデプロイ対象でもない
+# (Supabaseはデプロイ時に自分で解決する)。2,000ファイル超あり、
+# mainに入るとGitHub Pagesでそのまま公開されてしまう。
+node_modules/
+deno.lock
