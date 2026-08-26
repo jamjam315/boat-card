@@ -572,6 +572,13 @@ function renderFeatured(){
   const box=document.getElementById("featured");
   const F=window.FEATURED;
   if(!F || !PLAYER_PAGES.has(F.toban)){ box.innerHTML=""; return; }
+  // featured.jsはdata.jsと一緒に毎朝作り直される。作り直しに失敗した日は前回ぶんが
+  // そのまま残るので、data.jsの対象日と一致しない限り枠ごと出さない。
+  // 会場・レース番号はその日限りの情報で、古いまま出すと事実と食い違うため
+  // (2026-07-13〜08-26、生成スクリプトの失敗に気づけず45日ぶん出し続けた)。
+  const fmd = (DATA.date || "").match(/^(\d+)年(\d+)月(\d+)日$/);
+  const fiso = fmd ? `${fmd[1]}-${String(fmd[2]).padStart(2,"0")}-${String(fmd[3]).padStart(2,"0")}` : null;
+  if(!fiso || F.date !== fiso){ box.innerHTML=""; return; }
   const racesTxt = F.races.length<=1 ? `${F.races[0]}R`
     : F.races.slice(0,-1).map(r=>`${r}R`).join("・") + "と" + F.races[F.races.length-1] + "R";
   box.innerHTML = `<a class="feat" href="players/${F.toban}.html" target="_blank" rel="noopener">
