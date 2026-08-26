@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-選手図鑑・本実装v5: fan(全選手・母数厚い公式集計)とK(1年分・自前蓄積)を統合する。
+選手図鑑・本実装v5: fan(全選手・母数厚い公式集計)とK(直近1年・自前蓄積)を統合する。
 - 進入コース傾向・基本属性 → fan(コース別1〜6着回数、勝率等)を優先して使う。
-- 決まり手・当地(会場別) → fanには無いため、引き続きK(results.jsonl)から算出。
+- 決まり手・当地(会場別) → fanには無いため、引き続きK(results/{年}.jsonl)から算出。
+  期間は「データの最新日から365日前まで」(load_k_stats のコメント参照)。
 - 今節/直近の流れ → 既存のfetch_update.py(player_flow)ロジックをそのまま流用。
 """
-import json, os, statistics
+import json, os, statistics, datetime
 from collections import Counter, defaultdict
 import results_store
 
@@ -91,8 +92,17 @@ def compute_tenji_labels(venue_tenji, player_venue_tenji):
 def load_k_stats():
     """results/{年}.jsonl(K。2026-07-19に単一のresults.jsonlから年別に分割)から、
     選手ごとの決まり手・会場別成績・進入コース1着分布、
-    および展示タイムの安定度(会場差補正済み)を集計する。"""
+    および展示タイムの安定度(会場差補正済み)を集計する。
+
+    【直近1年に絞る理由(2026-08-27)】
+    build_stats.py / build_backtest.py / build_player_st.py と同じ経緯。2026-07-20〜24の
+    過去データ拡張でresultsが約1年分から約10年分に増えたが、この3本が同日に入れた
+    「直近1年」絞りに、このファイルだけ追随していなかった。結果、選手ページは
+    「直近1年・勝ち◯件の内訳です」と名乗りながら10年分を集計していた。
+    期間の定義・実装は3本と同一の「データの最新日から365日前まで」に揃える。"""
     rows = results_store.load_all_records()
+    latest = datetime.date.fromisoformat(max(r["date"] for r in rows))
+    cutoff = (latest - datetime.timedelta(days=365)).isoformat()
     nat_kimarite = Counter()
     players = defaultdict(lambda: {"kwin": Counter(), "sts": [], "venue": defaultdict(lambda: {"n":0,"w1":0})})
     by_venue = defaultdict(list)   # (登番,会場) -> [(date,race_no,進,ST,着), ...]  (今節用)
@@ -100,6 +110,8 @@ def load_k_stats():
     venue_tenji = defaultdict(list)                       # 会場 -> [展,...]  (会場平均を出すため全選手ぶん)
     player_venue_tenji = defaultdict(lambda: defaultdict(list))  # 登番 -> 会場 -> [展,...]
     for r in rows:
+        if r["date"] < cutoff:
+            continue
         for x in r["結果"]:
             p = players[x["登番"]]
             v = p["venue"][r["会場"]]
