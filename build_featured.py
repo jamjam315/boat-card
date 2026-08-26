@@ -74,7 +74,10 @@ def main():
         return
 
     fan_master = load_fan_master()
-    players_k, NAT_PCT, by_venue, by_player = load_k_stats()
+    # tenji_labels(展示タイムの安定度)はトップの注目選手枠では使わないが、受け取らないと
+    # 「戻り値の数が合わない」で落ちる。実際これに気づかず45日間失敗し続けた
+    # (2026-07-13〜08-26)ので、使わなくても必ず受けること。
+    players_k, NAT_PCT, by_venue, by_player, tenji_labels = load_k_stats()
 
     profiles = {}
     for t in candidates_t:
