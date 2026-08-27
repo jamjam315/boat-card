@@ -151,6 +151,18 @@ def load_k_stats():
     return players, NAT_PCT, by_venue, by_player, tenji_labels
 
 
+AGE_LABEL = {"若き": "若手", "ベテランの": "ベテラン"}
+
+
+def age_note(age_tag, age):
+    """根拠の一文に載せる年齢表記。
+
+    二つ名の要素を2つまでに絞ったことで、「ベテランの」「若き」は多くの場合
+    二つ名から落ちる。落としたぶんの情報をここで受け止める(年齢の数字だけ
+    だった従来より、かえって伝わる)。"""
+    return f"{AGE_LABEL[age_tag]}（{age}歳）"
+
+
 def is_master(home):
     """「◯◯の主」を名乗れるか。勝率・差だけでなく母数(VENUE_MASTER_N)も見る。
 
@@ -275,10 +287,14 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
                 venue_form = f"{home['venue']}の{base}"
                 why = f"{home['venue']}で際立って好成績、かつ「{best_k}」が持ち味のため"
             age_tag = ("若き" if age and age <= YOUNG_AGE else "ベテランの" if age and age >= VETERAN_AGE else None)
-            catch = (age_tag or "") + venue_form
+            # 要素は2つまで(コア語 + 修飾1つ)。優先度は 当地 > 強調 > 年齢。
+            # 「◯◯の{base}」は当地を修飾として使い切っているので、年齢は載せない。
+            # 「◯◯巧者」「◯◯の主」はコア語が当地そのもので修飾が空いているため、年齢を載せる。
+            keep_age = age_tag if venue_form.endswith(("巧者", "の主")) else None
+            catch = (keep_age or "") + venue_form
             # 詳しい数字は下部の「当地」欄に集約する。ここでは「なぜこの二つ名か」だけ短く伝える。
             basis_parts.append(f"{why}（詳しくは下の「当地」欄）")
-            if age_tag: basis_parts.append(f"{age}歳")
+            if age_tag: basis_parts.append(age_note(age_tag, age))
         elif best_diff < MIN_DIFF:
             catch = "堅実タイプ（勝ちパターンは平均的）"
             basis_parts.append(f"決まり手の傾向が全国平均に近い（{best_k}{kimarite_pct[best_k]}% / 全国{NAT_PCT[best_k]:.1f}%）")
@@ -286,14 +302,12 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
             prefix = "絶対的な" if best_diff >= 40 else ("鉄板の" if best_diff >= 25 else None)
             st_tag = "電光石火の" if (avg_st is not None and len(k_p["sts"]) >= 10 and st_diff <= ST_FAST_DIFF) else None
             age_tag = ("若き" if age and age <= YOUNG_AGE else "ベテランの" if age and age >= VETERAN_AGE else None)
-            mods = []
-            if st_tag: mods.append(st_tag)
-            elif prefix: mods.append(prefix)
-            if age_tag: mods.append(age_tag)
-            catch = "".join(mods[:2]) + base
+            # 要素は2つまで(コア語 + 修飾1つ)。当地が無いので 強調 > 年齢 の順で1つだけ採る。
+            mods = [m for m in (st_tag or prefix, age_tag) if m]
+            catch = (mods[0] if mods else "") + base
             basis_parts.append(f"{best_k}での1着が{kimarite_pct[best_k]}%（全国平均{NAT_PCT[best_k]:.1f}%より+{best_diff:.1f}pt）")
             if st_tag: basis_parts.append(f"平均ST{avg_st:.3f}（全国平均{NAT_ST}より{st_diff:+.3f}）")
-            if age_tag: basis_parts.append(f"{age}歳")
+            if age_tag: basis_parts.append(age_note(age_tag, age))
 
     # 進入コース傾向(fanベース、表示用)
     course_out = {}
