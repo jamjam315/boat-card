@@ -26,6 +26,9 @@ MIN_OTHER_N = 5
 VENUE_DIFF_MIN = 20
 VENUE_MASTER_WIN = 50
 VENUE_MASTER_DIFF = 45
+# 「◯◯の主」は称号の最上位なので、当地判定(MIN_VENUE_N=10)より厚い母数を要求する。
+# 10走だと7〜8勝で最上位が付いてしまい、調査時点の該当19人のうち18人がn=10〜12だった。
+VENUE_MASTER_N = 15
 MIN_TENJI_N = 30  # 展示タイムの安定度を出すのに必要な最低サンプル数(会場補正後の残差の件数)
 KIMARITE_ORDER = ["逃げ", "まくり", "差し", "まくり差し", "抜き"]
 
@@ -148,6 +151,21 @@ def load_k_stats():
     return players, NAT_PCT, by_venue, by_player, tenji_labels
 
 
+def is_master(home):
+    """「◯◯の主」を名乗れるか。勝率・差だけでなく母数(VENUE_MASTER_N)も見る。
+
+    判定をここ1か所にまとめているのは、二つ名の文字列と、返り値の home_master
+    フラグ(トップの注目選手の選出で使う)がずれないようにするため。"""
+    return bool(home and home["n"] >= VENUE_MASTER_N
+                and home["win"] >= VENUE_MASTER_WIN and home["diff"] >= VENUE_MASTER_DIFF)
+
+
+def is_master_grade(home):
+    """成績としては主の水準か(母数は問わない)。母数が足りないものを
+    「◯◯の決まり手」に流さず巧者に留めるための判定。"""
+    return bool(home and home["win"] >= VENUE_MASTER_WIN and home["diff"] >= VENUE_MASTER_DIFF)
+
+
 def home_venue(p_k):
     venues = p_k["venue"]
     total_n = sum(v["n"] for v in venues.values())
@@ -241,9 +259,14 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
         base = BASE_NOUN.get((best_k, ctag), f"{ctag}×{best_k}タイプ") if best_diff >= MIN_DIFF else "堅実タイプ"
 
         if home:
-            if home["win"] >= VENUE_MASTER_WIN and home["diff"] >= VENUE_MASTER_DIFF:
+            if is_master(home):
                 venue_form = f"{home['venue']}の主"
                 why = f"{home['venue']}で圧倒的な強さを見せているため"
+            elif is_master_grade(home):
+                # 数字は主の水準だが、当地の走行数がまだ{VENUE_MASTER_N}走に届かない。
+                # 決まり手名詞を足して強く見せず、巧者に留める。
+                venue_form = f"{home['venue']}巧者"
+                why = f"{home['venue']}で際立って好成績のため"
             elif best_diff < MIN_DIFF:
                 # 決まり手に際立った個性が無い場合は、決まり手名詞を組み込まず地名だけで表現する
                 venue_form = f"{home['venue']}巧者"
@@ -292,5 +315,5 @@ def build_profile(touban, fan_p, k_p, NAT_PCT, by_venue, by_player, venue_today=
         # 二つ名の「際立ちの強さ」を他選手と比較するための値(トップページの注目選手選びで使う)。
         # best_diffは決まり手が全国平均よりどれだけ際立つか(pt)。total_wins<MIN_WIN_Nの時はNone(蓄積中)。
         "best_diff": best_diff if total_wins >= MIN_WIN_N else None,
-        "home_master": bool(home and home["win"] >= VENUE_MASTER_WIN and home["diff"] >= VENUE_MASTER_DIFF),
+        "home_master": is_master(home),
     }
