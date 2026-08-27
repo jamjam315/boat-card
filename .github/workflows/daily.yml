@@ -17,6 +17,10 @@ on:
         description: '朝の通知を、JSTの時間帯に関係なく送る（復旧作業で昼以降に回す時だけON）'
         type: boolean
         default: false
+      skip_if_fresh:
+        description: '本日ぶんが取得済みなら何もしない（OFFにすると取得済みでも作り直す）'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -27,7 +31,54 @@ env:
   TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
 
 jobs:
+  # 3便に増やしたぶん、既に取れている日は何もせずに終わる。
+  #
+  # 判定をここ(別ジョブ)に置いているのは、空振りの便でdataブランチ(約1GB)の
+  # 取り出しまで走らせないため。data.jsだけを取り出して数秒で終わる。
+  #
+  # 比較は日本語のままだと環境しだいで崩れるので、ISO(YYYY-MM-DD)に直してから行う。
+  # 読めない・欠けている時は「取れていない」側に倒す(空振りするより、
+  # 二重に走って同じ結果を書くほうが安全)。
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.fresh.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: data.js
+          sparse-checkout-cone-mode: false
+
+      - name: 本日ぶんが取得済みかどうか
+        id: fresh
+        env:
+          SKIP_IF_FRESH: ${{ inputs.skip_if_fresh }}
+        run: |
+          # 手動実行で明示的にOFFにした時だけ、取得済みでも作り直す。
+          # scheduleからの実行では空になるので、この分岐には入らない。
+          if [ "${SKIP_IF_FRESH}" = "false" ]; then
+            echo "skip_if_fresh=false のため、取得済みでも作り直します"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          have=$(grep -o '"date":"[^"]*"' data.js | head -1 | cut -d'"' -f4)
+          iso=$(printf '%s' "$have" | sed 's/年/-/; s/月/-/; s/日//' \
+                | awk -F- '{printf "%04d-%02d-%02d", $1, $2, $3}')
+          today=$(TZ=Asia/Tokyo date +%F)
+          echo "data.js: ${have:-読めず} (${iso:-−}) / 今日(JST): ${today}"
+
+          if [ "$iso" = "$today" ]; then
+            echo "本日ぶん取得済みのためスキップ"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "本日ぶんはまだ取得できていないので、このまま実行します"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   update:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
