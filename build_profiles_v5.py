@@ -89,6 +89,15 @@ def compute_tenji_labels(venue_tenji, player_venue_tenji):
     return labels
 
 
+# load_k_stats() が最後に使った集計期間。呼び出し側が「今の調子」の窓を
+# 同じデータに揃えるために読む。
+#
+# 戻り値を増やす形にしていないのは、増やした側の追随漏れで呼び出し元が黙って
+# 落ちる事故が実際に起きたため(2026-07-13〜08-26、build_featured.pyが45日間
+# ValueErrorで停止していた)。ここに置けば、読まない呼び出し元は何も壊れない。
+LAST_PERIOD = {"latest": None, "cutoff": None}
+
+
 def load_k_stats():
     """results/{年}.jsonl(K。2026-07-19に単一のresults.jsonlから年別に分割)から、
     選手ごとの決まり手・会場別成績・進入コース1着分布、
@@ -103,6 +112,8 @@ def load_k_stats():
     rows = results_store.load_all_records()
     latest = datetime.date.fromisoformat(max(r["date"] for r in rows))
     cutoff = (latest - datetime.timedelta(days=365)).isoformat()
+    LAST_PERIOD["latest"] = latest.isoformat()
+    LAST_PERIOD["cutoff"] = cutoff
     nat_kimarite = Counter()
     players = defaultdict(lambda: {"kwin": Counter(), "sts": [], "venue": defaultdict(lambda: {"n":0,"w1":0})})
     by_venue = defaultdict(list)   # (登番,会場) -> [(date,race_no,進,ST,着), ...]  (今節用)

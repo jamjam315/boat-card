@@ -9,10 +9,9 @@ fan(コース傾向・属性・母数厚い公式集計) + K(決まり手・当�
 """
 import os, json, re, statistics, datetime
 from xml.sax.saxutils import escape
-from build_profiles_v5 import load_fan_master, load_k_stats, build_profile
+from build_profiles_v5 import LAST_PERIOD, load_fan_master, load_k_stats, build_profile
 
 OUT_DIR = "players"
-TODAY_ISO = "2026-07-05"   # 生成基準日(直近30日の起点として使う)
 KIMARITE_ORDER = ["逃げ", "まくり", "差し", "まくり差し", "抜き"]
 LANE_COLORS = {1:"#ffffff",2:"#2b2b2b",3:"#d83a36",4:"#2f6fd0",5:"#f2c200",6:"#1f9e54"}
 
@@ -396,9 +395,30 @@ def render_page(prof):
 </html>"""
 
 
+def generation_base_date():
+    """「今の調子(直近30日)」の窓を決める基準日を返す。
+
+    build_profiles_v5.kon_setsu_flow は today_iso を「まだ結果が出ていない日」として
+    扱い、窓を [today_iso - 30日, today_iso) で切る。そこでデータの最新日の翌日を
+    渡し、最新日ぶんまでが窓に入るようにする。
+
+    実行日(date.today())を使わないのは、データの取得が止まった時に窓が
+    データの外へずれて、全選手の「今の調子」が空になるため。データが古いことは
+    別の警報(check_recent_results.py)で気づく作りになっており、ここで
+    二重に壊す必要はない。
+
+    load_k_stats() が直近1年の絞り込みで使ったのと同じ最新日を読む(LAST_PERIOD)。
+    そのため必ず load_k_stats() のあとに呼ぶこと。"""
+    latest = datetime.date.fromisoformat(LAST_PERIOD["latest"])
+    return (latest + datetime.timedelta(days=1)).isoformat()
+
+
 def main():
     fan_master = load_fan_master()
     players_k, NAT_PCT, by_venue, by_player, tenji_labels = load_k_stats()
+    today_iso = generation_base_date()
+    print(f"集計期間: {LAST_PERIOD['cutoff']} 〜 {LAST_PERIOD['latest']}"
+          f" / 「今の調子」の基準日: {today_iso}")
     both = sorted(set(fan_master) & set(players_k))
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -410,7 +430,7 @@ def main():
         try:
             fp = fan_master[t]; kp = players_k[t]
             prof = build_profile(t, fp, kp, NAT_PCT, by_venue, by_player,
-                                  venue_today=None, day_today=None, today_iso=TODAY_ISO,
+                                  venue_today=None, day_today=None, today_iso=today_iso,
                                   tenji_label=tenji_labels.get(t))
             html = render_page(prof)
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
