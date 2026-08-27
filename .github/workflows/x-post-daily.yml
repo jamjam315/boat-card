@@ -1,0 +1,91 @@
+# 昇級ボーダーウォッチの変化を、毎晩20:05 JSTにXへ投稿する。
+#
+# 【なぜデータ生成(01:00)と時刻を分けているか】
+# 結果データの集計は results.yml が深夜01:00に済ませている。投稿だけを人が
+# 見ている時間帯に切り出すことで、集計が遅れても投稿時刻はぶれず、
+# 投稿でこけても集計側は無傷、という関係にしてある。
+# results.yml / daily.yml には一切手を触れていない。
+#
+# 【止めたいとき】
+# Actionsタブ →「昇級ウォッチをXへ投稿」→ 右上「…」→ Disable workflow。
+# これで cron は止まり、手動起動もできなくなる。再開は同じ場所から Enable。
+name: 昇級ウォッチをXへ投稿
+
+on:
+  schedule:
+    # 20:05 JST（UTC 11:05）。GitHubのcronは混雑すると飛ぶが、飛んだ日は
+    # 投稿が1日抜けるだけで、翌日の実行が新しい data_to を見て追いつく。
+    - cron: '5 11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '投稿せずに本文を確認するだけにする（false にすると実際に投稿します）'
+        type: boolean
+        default: true
+
+# 状態ファイル(x_state/)をコミットするため。
+permissions:
+  contents: write
+
+# x-post-test.yml と同じグループ。テスト投稿と重なっても同時に走らせない。
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 依存を入れる
+        run: pip install requests requests-oauthlib
+
+      - name: 変化を見て、あれば投稿する
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # cron からの実行は本番投稿。手動実行は入力に従い、
+          # 入力が空・想定外の値なら dry-run に倒す
+          # (黙って本番投稿になるほうが怖いため)。
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            echo "定時実行のため本番投稿します"
+            python scripts/x_kyusoku_watch.py
+          elif [ "${DRY_RUN}" = "false" ]; then
+            echo "手動実行・本番投稿します"
+            python scripts/x_kyusoku_watch.py
+          else
+            echo "手動実行・dry-run で確認します（投稿はしません）"
+            python scripts/x_kyusoku_watch.py --dry-run
+          fi
+
+      # 投稿に失敗した場合は前のステップが非0で落ち、ここには来ない。
+      # 状態が古いままなので、翌日もう一度同じ変化が拾われて投稿される
+      # (成功していないのに「投稿済み」を記録しないほうが安全)。
+      - name: 状態ファイルをコミット
+        run: |
+          git config user.name "boat-bot"
+          git config user.email "boat-bot@users.noreply.github.com"
+          git add x_state/
+          if git diff --staged --quiet; then
+            echo "状態に変化なし"
+            exit 0
+          fi
+          git commit -m "x_state: 昇級ウォッチの状態を更新 ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          # 他のワークフローとpushが重なった時のために、rebaseして数回やり直す
+          # (触るディレクトリが別なので、rebaseで中身が壊れることはない)。
+          for i in 1 2 3; do
+            git push && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin main || exit 1
+          done
+          exit 1
