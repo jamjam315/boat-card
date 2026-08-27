@@ -1,0 +1,57 @@
+# Xへの自動投稿の疎通確認だけを行う、使い捨てに近いワークフロー。
+#
+# 【cronを付けていない理由】
+# 投稿は取り消しの効かない外向きの操作なので、この段階では人が押した時だけ動かす。
+# 夜間パイプラインへの組み込みは工程2で、差分検出の設計と一緒に入れる。
+# 既存の results.yml / daily.yml には一切触っていない。
+#
+# 【使い方】
+#   Actionsタブ → 「Xへのテスト投稿」 → Run workflow
+#     dry_run = true  … 投稿せず、送る予定の本文をログに出すだけ(既定)
+#     dry_run = false … 実際に @teiyomi_app へ投稿する
+name: Xへのテスト投稿
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '投稿せずに本文を確認するだけにする（false にすると実際に投稿します）'
+        type: boolean
+        default: true
+
+# 二重起動での連投を防ぐ。前の実行が終わるまで次は待たせる(打ち消さない＝
+# 走り出した投稿を途中で止めない)。
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 依存を入れる
+        run: pip install requests requests-oauthlib
+
+      - name: 投稿する
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # 既定は必ず dry-run 側に倒す。入力が空・想定外の値だった時に
+          # 黙って本番投稿になるほうが怖いため。
+          if [ "${DRY_RUN}" = "false" ]; then
+            echo "本番投稿します"
+            python scripts/x_post.py --text "⚙️ 自動投稿のテスト中です。びっくりさせたらすみません。（このポストは後で消します）"
+          else
+            echo "dry-run で確認します（投稿はしません）"
+            python scripts/x_post.py --dry-run --text "⚙️ 自動投稿のテスト中です。びっくりさせたらすみません。（このポストは後で消します）"
+          fi
