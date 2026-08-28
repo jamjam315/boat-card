@@ -421,6 +421,14 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-morning-push/index.ts"
 
+[functions.kick-github]
+enabled = true
+# Supabase Cron から GitHub Actions を起動する。Cron は Supabase の JWT を
+# 持たないためプラットフォーム側のJWT検証を無効化し、代わりに関数内で
+# x-cron-secret ヘッダーを CRON_SECRET と突き合わせる(鍵は朝の便と共用)。
+verify_jwt = false
+entrypoint = "./functions/kick-github/index.ts"
+
 [functions.send-delay-notice]
 enabled = true
 # send-morning-push と同じく Supabase Cron から叩かれる。CronはSupabaseのJWTを
