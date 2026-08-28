@@ -1,0 +1,69 @@
+# 外部キッカー(Supabase Edge Function の kick-github)が生きているかを確かめる。
+#
+# 【なぜワークフローにしてあるか】
+# kick-github は CRON_SECRET を知っている相手からしか叩けない。その鍵は
+# GitHub Secrets と Supabase の両方に入っているので、ここから叩けば
+# 手元に鍵を持ち出さずに疎通を確認できる。
+#
+# 【いつ使うか】
+#   ・キッカーを繋いだ直後の確認
+#   ・PATの期限切れ(発行から1年)のあと、新しいPATが効いているかの確認
+#   ・毎晩の起動が来なくなったとき、キッカーとGitHubのどちらが原因かの切り分け
+#
+# 【何が起きるか】
+# 指定したワークフローが実際に起動する。既定の daily.yml は、その日のデータが
+# 揃っていれば鮮度ガードで5秒で空振りするので、気軽に押してよい。
+# x-post-daily.yml を選ぶと dry_run=true で起動するので投稿はされない。
+name: キッカーの疎通確認
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow:
+        description: '起動させるワークフロー'
+        type: choice
+        default: 'daily.yml'
+        options:
+          - daily.yml
+          - results.yml
+          - x-post-daily.yml
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: kick-github を叩く
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TARGET: ${{ inputs.workflow }}
+        run: |
+          set -u
+          FUNC_URL="https://vynbhssakpxiikmseoja.supabase.co/functions/v1/kick-github"
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET が未設定です"
+            exit 1
+          fi
+
+          # x-post-daily.yml は投稿してしまうので、この確認では必ず dry-run で起動する。
+          # (本番の便は Supabase Cron 側が dry_run:false を送る)
+          if [ "${TARGET}" = "x-post-daily.yml" ]; then
+            BODY="{\"workflow\":\"${TARGET}\",\"inputs\":{\"dry_run\":true}}"
+          else
+            BODY="{\"workflow\":\"${TARGET}\"}"
+          fi
+          echo "送る本文: ${BODY}"
+
+          code=$(curl -sS --max-time 30 -o /tmp/kick.json -w '%{http_code}' \
+                   -X POST "$FUNC_URL" \
+                   -H "x-cron-secret: ${CRON_SECRET}" \
+                   -H "content-type: application/json" \
+                   -d "${BODY}")
+          echo "HTTP ${code}"
+          echo "応答: $(cat /tmp/kick.json)"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::キッカーが起動に失敗しました（HTTP ${code}）。応答の reason を読んでください。"
+            exit 1
+          fi
+          echo "起動しました。Actionsタブで ${TARGET} の新しい実行を確認してください。"
