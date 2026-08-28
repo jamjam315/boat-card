@@ -12,6 +12,16 @@ on:
 permissions:
   contents: write
 
+# 2つの実行を同時に走らせない。外部キッカーとGitHubのcronが近い時刻に起動すると
+# 並走し得る。この処理は結果の取り込みからバックテストの再集計まで長く、
+# 途中で止める手段が無いので、後発は前が終わるまで待たせる。
+# (待った結果、同じ日を二度取り込むことになるが、collect_results.py は
+#  date:会場:レース番号 で重複を弾くので「0レース追加」で終わる。)
+# 走り出した集計を途中で止めたくないので cancel-in-progress は false。
+concurrency:
+  group: results-collect
+  cancel-in-progress: false
+
 # データ本体(results/ program/ raw/)は data ブランチにある。
 # 下の _data がその作業ディレクトリで、Pythonスクリプトはここを見る。
 # 出力のうち backtest-data/ と stats.js 等は main 側(ブラウザが直接読むため)。

@@ -25,6 +25,20 @@ on:
 permissions:
   contents: write
 
+# 2つの実行を同時に走らせない。外部キッカーとGitHubのcronが近い時刻に
+# 起動すると並走し得るが、この処理は1回7分ほどかかるため、途中で
+# 鮮度ガードは効かない(まだ当日データを取っていないので両方とも通過する)。
+# 結果、公式サーバーへのダウンロードが2重になり、data.jsを両方が作って
+# 片方の push が non-fast-forward で弾かれる。
+#
+# 後発を待たせれば、動き出したときには鮮度ガードが「本日ぶん取得済み」で
+# 5秒で空振りする。時刻をずらして避けるのではなく、ここで構造的に潰す
+# (cronの発火時刻が読めないことが、そもそもの問題なので)。
+# 走り出したデータ更新を途中で止めたくないので cancel-in-progress は false。
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
 # データ本体(results/ program/ raw/)は data ブランチにある。
 # 下の _data がその作業ディレクトリで、Pythonスクリプトはここを見る。
 env:
