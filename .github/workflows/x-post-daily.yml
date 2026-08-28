@@ -36,7 +36,16 @@ jobs:
   watch:
     runs-on: ubuntu-latest
     steps:
+      # ref を明示しているのは、状態ファイルを必ず最新で読むため。
+      # 指定しないと「実行が作られた瞬間のコミット」で固定される。上の
+      # concurrency で直列化していても、2つの実行がほぼ同時に作られた場合
+      # (GitHubのcronが遅れて発火した直後に外部キッカーが叩いた等)、
+      # 後続は前の実行が書いた last_posted_date を含まない古い状態を読み、
+      # 同じ内容をもう一度投稿してしまう。実測で前の実行は33秒でコミットまで
+      # 終わるので、この窓は約30秒。1日1回でも1年動かせば踏む。
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-python@v5
         with:
