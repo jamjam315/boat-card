@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-08-30", "toban": "4686", "name": "丸野一樹", "k": "A1", "age": 34, "br": "滋賀", "catch": "桐生巧者", "basis": "桐生で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "桐生", "races": [9], "reason": "home"};
+window.FEATURED = {"date": "2026-08-31", "toban": "4649", "name": "和田操拓", "k": "B1", "age": 42, "br": "滋賀", "catch": "多摩川の差し込み屋", "basis": "多摩川で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "多摩川", "races": [5, 11], "reason": "home"};
