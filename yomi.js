@@ -160,6 +160,95 @@
     return now > closeMs;
   }
 
+  // ---------------------------------------------------------------- 採点
+
+  // 結果点の配点(30点満点)。読み点(70点)はPhase2で足す。
+  var PT_HIT = 20;                              // 当たったこと自体
+  var PT_ROI = [[500, 10], [200, 8], [100, 5]]; // 回収率(%)がこれ以上なら、この点
+  var MAX_RESULT_PT = 30;
+
+  /**
+   * 買い目が当たったか。払戻側の「当たった組」と突き合わせる。
+   *
+   * 着順から自分で組み立てて判定しない。同着・失格・返還といった扱いは
+   * 公式の払戻がすでに答えを出しているので、そちらに従うほうが忠実で、
+   * こちらで例外を数え落とす余地も無くなる。
+   *
+   * 組の表記は券種で違うが、突き合わせ方は3通りしかない:
+   *   1艇(単勝・複勝)   … "3"      → 買った艇と一致するか
+   *   順番あり(2連単等) … "3-2"    → 押した順のまま一致するか
+   *   順番なし(2連複等) … "2-3"    → 並べ替えて一致するか
+   * どの券種も「払戻の行のどれかに一致すれば当たり」で統一できる
+   * (複勝は2行、拡連複は3行あるため)。
+   */
+  function matchPay(ken, lanes, rows) {
+    var s = KEN_BY_ID[ken];
+    if (!s || !Array.isArray(rows)) return null;
+    var mine = s.n === 1 ? String(lanes[0])
+      : s.ordered ? lanes.join("-")
+        : lanes.slice().sort().join("-");
+    for (var i = 0; i < rows.length; i++) {
+      var c = String(rows[i] && rows[i].c || "");
+      var theirs = s.n === 1 ? c
+        : s.ordered ? c
+          : c.split("-").map(Number).sort().join("-");
+      if (theirs === mine) return rows[i];
+    }
+    return null;
+  }
+
+  /** 着順の配列(艇番順)から、1〜3着の艇番を取り出す。 */
+  function top3(order) {
+    var out = [];
+    for (var pos = 1; pos <= 3; pos++) {
+      for (var i = 0; i < (order || []).length; i++) {
+        if (order[i] === pos) { out.push(i + 1); break; }
+      }
+    }
+    return out;
+  }
+
+  function resultPoints(hit, roi) {
+    if (!hit) return 0;
+    var pt = PT_HIT;
+    for (var i = 0; i < PT_ROI.length; i++) {
+      if (roi >= PT_ROI[i][0]) { pt += PT_ROI[i][1]; break; }
+    }
+    return Math.min(pt, MAX_RESULT_PT);
+  }
+
+  /**
+   * 1件を採点する。payouts の該当レースを渡す。
+   * race が無い(その日のファイルに載っていない)場合は null を返し、採点しない。
+   */
+  function scoreOne(rec, race) {
+    if (!race) return null;
+    if (race.status) {
+      // 中止・返還。当たりでも外れでもないので、点も付けず集計からも外す。
+      return { at: new Date().toISOString(), st: "void", pt: null };
+    }
+    var row = matchPay(rec.ken, rec.lanes, (race.pay || {})[rec.ken]);
+    var unit = rec.amount / 100;              // 払戻は100円あたりの金額
+    var yen = row ? Math.round(row.y * unit) : 0;
+    var roi = rec.amount > 0 ? Math.round(yen / rec.amount * 1000) / 10 : 0;
+    return {
+      at: new Date().toISOString(),
+      st: row ? "hit" : "miss",
+      top3: top3(race.order),
+      kimarite: race.kimarite || null,
+      yen: yen,
+      profit: yen - rec.amount,
+      roi: roi,
+      pop: row && row.p != null ? row.p : null,
+      pt: resultPoints(!!row, roi)
+    };
+  }
+
+  /** 今日(JST)の日付。集計の窓を切るのに使う。端末のTZに依存させない。 */
+  function todayJst() {
+    return new Date(Date.now() + JST_OFFSET_HOURS * 3600000).toISOString().slice(0, 10);
+  }
+
   // ---------------------------------------------------------------- 公開API
 
   window.TeiyomiYomi = {
@@ -242,6 +331,84 @@
       var next = all.filter(function (r) { return r.id !== id; });
       if (next.length === all.length) return false;
       return writeAll(next);
+    },
+
+    MAX_RESULT_PT: MAX_RESULT_PT,
+    todayJst: todayJst,
+    scoreOne: scoreOne,
+    matchPay: matchPay,
+
+    /** まだ採点していない記録の、レース開催日の一覧(古い順・重複なし)。 */
+    unscoredDates: function () {
+      var seen = {};
+      readAll().forEach(function (r) {
+        if (!r.score) seen[r.key.split(":")[0]] = true;
+      });
+      return Object.keys(seen).sort();
+    },
+
+    /**
+     * その日の payouts を渡して、その日の記録をまとめて採点し、書き戻す。
+     * 採点した件数を返す。一度採点したら二度と取りに行かない
+     * (結果は変わらないので、毎回ネットワークに出る意味が無い)。
+     */
+    applyPayouts: function (dateIso, doc) {
+      var races = (doc && doc.races) || {};
+      var all = readAll();
+      var n = 0;
+      all.forEach(function (r) {
+        if (r.score) return;
+        if (r.key.split(":")[0] !== dateIso) return;
+        var s = scoreOne(r, races[r.key]);
+        if (s) { r.score = s; n++; }
+      });
+      if (n) writeAll(all);
+      return n;
+    },
+
+    /**
+     * 直近days日(レース開催日で数える)の集計。
+     * 返り値: {all, byTag:{}, byKen:{}} で、それぞれ
+     *   {n, hit, miss, void, bet, yen, profit, roi, hitRate, pt}
+     * 不成立(void)は件数だけ数え、的中率・回収率の分母には入れない。
+     */
+    summary: function (days) {
+      days = days || 30;
+      var since = new Date(Date.parse(todayJst() + "T00:00:00Z") - (days - 1) * 86400000)
+        .toISOString().slice(0, 10);
+      function blank() {
+        return { n: 0, hit: 0, miss: 0, "void": 0, bet: 0, yen: 0, pt: 0, ptn: 0 };
+      }
+      function fin(a) {
+        var judged = a.hit + a.miss;
+        a.profit = a.yen - a.bet;
+        a.roi = a.bet > 0 ? Math.round(a.yen / a.bet * 1000) / 10 : null;
+        a.hitRate = judged > 0 ? Math.round(a.hit / judged * 1000) / 10 : null;
+        a.avgPt = a.ptn > 0 ? Math.round(a.pt / a.ptn * 10) / 10 : null;
+        return a;
+      }
+      var out = { all: blank(), byTag: {}, byKen: {}, since: since, days: days };
+      readAll().forEach(function (r) {
+        if (r.key.split(":")[0] < since) return;      // 窓の外は集計しない
+        var s = r.score;
+        if (!s) return;                               // 採点待ちは数えない
+        var tag = r.tag || "（タグなし）";
+        [out.all,
+         out.byTag[tag] || (out.byTag[tag] = blank()),
+         out.byKen[r.ken] || (out.byKen[r.ken] = blank())].forEach(function (a) {
+          a.n++;
+          if (s.st === "void") { a["void"]++; return; }
+          if (s.st === "hit") a.hit++; else a.miss++;
+          a.bet += r.amount;
+          a.yen += s.yen;
+          a.pt += s.pt;
+          a.ptn++;
+        });
+      });
+      fin(out.all);
+      Object.keys(out.byTag).forEach(function (k) { fin(out.byTag[k]); });
+      Object.keys(out.byKen).forEach(function (k) { fin(out.byKen[k]); });
+      return out;
     },
 
     /** 買い目を "1-2-3"(順番あり) / "1=2"(順番なし) の形にする。 */
