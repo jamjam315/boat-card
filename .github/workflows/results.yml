@@ -83,11 +83,18 @@ jobs:
         # 読み込み元は _data/results/、出力先は main の backtest-data/。
         run: python build_backtest_custom.py
 
+      # 読み採点(P1-3)は端末の中で採点する。買い目を端末から出さない方針なので、
+      # 結果のほうを公開側に置く必要がある。results/ は data ブランチにあって
+      # ブラウザから読めないため、採点に要るぶんだけを main に書き出す。
+      # 直近3日ぶんを作り直すのは、遅れて届いた結果を拾い直せるようにするため。
+      - name: 読み採点用の払戻JSONを作る(payouts/)
+        run: python build_payouts.py --days 3
+
       - name: 変化があればコミット(main・公開サイト)
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A backtest-data/ players/career/ players/bt/
+          git add -A backtest-data/ players/career/ players/bt/ payouts/
           git add stats.js players.js backtest.js frames.js kyusoku.json
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
