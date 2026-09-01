@@ -348,6 +348,25 @@
     },
 
     /**
+     * その日の結果は手に入らないと諦める。
+     *
+     * payouts が404で、しかもレース当日でも前日でもない場合に使う。放っておくと
+     * マイページを開くたびに同じ404を叩き続け、コンソールにも出続ける。
+     * 「取れなかった」という結末も一つの結末なので、記録に書いて先へ進む。
+     */
+    markNoData: function (dateIso) {
+      var all = readAll();
+      var n = 0;
+      all.forEach(function (r) {
+        if (r.score || r.key.split(":")[0] !== dateIso) return;
+        r.score = { at: new Date().toISOString(), st: "nodata", pt: null };
+        n++;
+      });
+      if (n) writeAll(all);
+      return n;
+    },
+
+    /**
      * その日の payouts を渡して、その日の記録をまとめて採点し、書き戻す。
      * 採点した件数を返す。一度採点したら二度と取りに行かない
      * (結果は変わらないので、毎回ネットワークに出る意味が無い)。
@@ -377,7 +396,7 @@
       var since = new Date(Date.parse(todayJst() + "T00:00:00Z") - (days - 1) * 86400000)
         .toISOString().slice(0, 10);
       function blank() {
-        return { n: 0, hit: 0, miss: 0, "void": 0, bet: 0, yen: 0, pt: 0, ptn: 0 };
+        return { n: 0, hit: 0, miss: 0, "void": 0, pending: 0, bet: 0, yen: 0, pt: 0, ptn: 0 };
       }
       function fin(a) {
         var judged = a.hit + a.miss;
@@ -391,12 +410,16 @@
       readAll().forEach(function (r) {
         if (r.key.split(":")[0] < since) return;      // 窓の外は集計しない
         var s = r.score;
-        if (!s) return;                               // 採点待ちは数えない
         var tag = r.tag || "（タグなし）";
+        // 記録した数はそのまま数える。採点がまだのものを件数から落とすと、
+        // 今日記録したばかりの人に「記録0件」と見えて壊れて見える。
+        // 率と金額の勘定にだけ入れない。
         [out.all,
          out.byTag[tag] || (out.byTag[tag] = blank()),
          out.byKen[r.ken] || (out.byKen[r.ken] = blank())].forEach(function (a) {
           a.n++;
+          // 採点待ちと「結果が取れなかった」は、率にも金額にも入れない。
+          if (!s || s.st === "nodata") { a.pending++; return; }
           if (s.st === "void") { a["void"]++; return; }
           if (s.st === "hit") a.hit++; else a.miss++;
           a.bet += r.amount;

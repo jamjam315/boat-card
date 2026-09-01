@@ -132,10 +132,29 @@ body{background:var(--bg); color:var(--ink);
   border:1px solid var(--line); color:var(--muted);}
 .ym-amt{font-size:12px; color:var(--muted); margin-left:auto;
   font-variant-numeric:tabular-nums lining-nums;}
-/* 採点はP1-3で入る。今は列だけ用意して空にしておく
-   (あとから場所を作るより、最初から居場所を決めておくほうが崩れない)。 */
-.ym-score{margin:3px 0 0; font-size:12px; color:var(--muted); min-height:1em;}
+.ym-score{margin:3px 0 0; font-size:12px; color:var(--muted); min-height:1em;
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;}
+.ym-hit{font-weight:700; color:var(--accent);}
+.ym-miss{color:var(--muted);}
+.ym-void{color:var(--muted);}
+.ym-wait{color:var(--muted); font-style:normal;}
+.ym-plus{color:var(--accent); font-weight:700;}
+.ym-minus{color:var(--ink2);}
+.ym-pt{margin-left:auto; font-size:11.5px; color:var(--muted);}
 .ym-act{margin:5px 0 0; display:flex; justify-content:flex-end;}
+
+/* ---- 直近30日の集計 ---- */
+.ym-sum{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:2px 0 0;}
+.ym-cell{text-align:center;}
+.ym-cell b{display:block; font-size:17px; font-weight:700; color:var(--ink);
+  font-variant-numeric:tabular-nums lining-nums;}
+.ym-cell span{font-size:10.5px; color:var(--muted);}
+.ym-sub{margin:12px 0 0; font-size:11.5px; color:var(--muted);}
+.ym-brk{width:100%; border-collapse:collapse; margin-top:5px; font-size:12px;}
+.ym-brk th, .ym-brk td{padding:4px 2px; text-align:right; border-top:1px solid var(--line);
+  font-variant-numeric:tabular-nums lining-nums;}
+.ym-brk th{font-weight:400; color:var(--muted); font-size:11px; border-top:none;}
+.ym-brk th:first-child, .ym-brk td:first-child{text-align:left; overflow-wrap:anywhere;}
 
 .nt-row{padding:12px 0; border-top:1px dashed var(--line2);}
 .nt-row:first-of-type{border-top:none; padding-top:2px;}
@@ -664,7 +683,77 @@ function renderNotesBox(){
 
 // ===== 読み採点(締切前に記録した買い目の見返し) =====
 // 端末内(localStorage)にしか無いので、ログイン状態には左右されない。
-// 採点欄はP1-3で埋まる。今は場所だけ空けてある。
+
+// まだ採点していない記録の日付ぶんだけ payouts を取りに行く。
+// 一度採点したら score に書き戻され、以後この関数は何も取りに行かない。
+// その日のファイルがまだ無い(翌日の集計前)なら404。何もせず「採点待ち」のまま置く。
+let yomiFetching = false;
+function fetchYomiScores(){
+  if(yomiFetching || !window.TeiyomiYomi) return;
+  const dates = TeiyomiYomi.unscoredDates();
+  if(!dates.length) return;
+  yomiFetching = true;
+  // 前日ぶんまでは payouts が出来ているはず。それより古い日で404なら、
+  // もう出来ない(結果収集がその日を取りこぼした等)。毎回404を叩き続けないよう諦める。
+  const giveUpBefore = new Date(Date.parse(TeiyomiYomi.todayJst()+"T00:00:00Z") - 86400000)
+    .toISOString().slice(0,10);
+  Promise.all(dates.map(d =>
+    fetch(`payouts/${d}.json`, {cache:"no-store"})
+      .then(r => r.ok ? r.json() : null)
+      .then(doc => doc ? TeiyomiYomi.applyPayouts(d, doc)
+                       : (d < giveUpBefore ? TeiyomiYomi.markNoData(d) : 0))
+      .catch(() => 0)          // オフライン等。次に開いたときに拾い直せばよい
+  )).then(counts => {
+    yomiFetching = false;
+    if(counts.some(n => n > 0)) renderYomiBox();
+  });
+}
+
+function yomiSummaryHtml(s){
+  if(!s.all.n) return "";
+  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
+  const pct = v => v == null ? "—" : v + "%";
+  const rows = (obj, head) => {
+    const ks = Object.keys(obj);
+    if(ks.length < 2) return "";   // 1種類しか無いときは全体と同じなので出さない
+    return `<p class="ym-sub">${head}</p><table class="ym-brk">
+      <tr><th>&nbsp;</th><th>件</th><th>的中率</th><th>回収率</th><th>収支</th></tr>` +
+      ks.map(k=>`<tr><td>${esc(k)}</td><td>${obj[k].n}</td><td>${pct(obj[k].hitRate)}</td>
+        <td>${pct(obj[k].roi)}</td><td>${yen(obj[k].profit)}円</td></tr>`).join("") + `</table>`;
+  };
+  return `<div class="authbox">
+    <div class="ym-sum">
+      <div class="ym-cell"><b>${s.all.n}</b><span>記録</span></div>
+      <div class="ym-cell"><b>${pct(s.all.hitRate)}</b><span>的中率</span></div>
+      <div class="ym-cell"><b>${pct(s.all.roi)}</b><span>回収率</span></div>
+      <div class="ym-cell"><b>${yen(s.all.profit)}</b><span>収支(円)</span></div>
+    </div>
+    ${rows(s.byTag, "出所タグ別")}
+    ${rows(s.byKen, "券種別")}
+    <p class="authbox-notice">直近${s.days}日（${s.since}以降）の記録から集計しています。
+      ${s.all.pending ? `うち${s.all.pending}件は採点待ちです。` : ""}
+      採点待ちと不成立（返還）は件数だけ数え、的中率と回収率には入れていません。</p>
+  </div>`;
+}
+
+/** 1件ぶんの採点表示。P1-3では結果点(30点)だけ。読み点はPhase2。 */
+function yomiScoreHtml(r){
+  const s = r.score;
+  if(!s) return `<span class="ym-wait">採点待ち（翌朝に結果が出ます）</span>`;
+  // 何日も前の記録に「翌朝に結果が出ます」と出し続けるのは嘘になるので、
+  // 取得を諦めたものは言い分ける。
+  if(s.st === "nodata") return `<span class="ym-wait">結果を取得できませんでした</span>`;
+  if(s.st === "void") return `<span class="ym-void">不成立（返還）</span>`;
+  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
+  const top = (s.top3 || []).join("-");
+  return `<span>${esc(top)}${s.kimarite ? "／" + esc(s.kimarite) : ""}</span>` +
+    (s.st === "hit"
+      ? `<span class="ym-hit">的中</span><span>払戻 ${s.yen.toLocaleString()}円</span>
+         <span class="ym-plus">${yen(s.profit)}円</span>`
+      : `<span class="ym-miss">不的中</span><span class="ym-minus">${yen(s.profit)}円</span>`) +
+    `<span class="ym-pt">結果 ${s.pt}/${TeiyomiYomi.MAX_RESULT_PT}　読み —（Phase2）</span>`;
+}
+
 function renderYomiBox(){
   const box = document.getElementById("yomiBox");
   const label = document.getElementById("yomiLabel");
@@ -681,7 +770,8 @@ function renderYomiBox(){
     return;
   }
 
-  box.innerHTML = `<div class="authbox">` + rows.map(r=>{
+  box.innerHTML = yomiSummaryHtml(TeiyomiYomi.summary(30)) +
+    `<div class="authbox">` + rows.map(r=>{
     // key は "YYYY-MM-DD:会場:R"。表示は日付と会場Rに分ける。
     const p = r.key.split(":");
     return `<div class="ym-row" data-id="${esc(r.id)}">
@@ -690,7 +780,7 @@ function renderYomiBox(){
         <span class="ym-lanes">${esc(TeiyomiYomi.betText(r.ken, r.lanes))}</span>
         ${r.tag ? `<span class="ym-tag">${esc(r.tag)}</span>` : ""}
         <span class="ym-amt">${r.amount}円</span></p>
-      <p class="ym-score"></p>
+      <p class="ym-score">${yomiScoreHtml(r)}</p>
       <p class="ym-act"><button type="button" class="authbox-btn ym-del">削除</button></p>
     </div>`;
   }).join("") +
@@ -706,6 +796,7 @@ function renderYomiBox(){
   });
 }
 renderYomiBox();
+fetchYomiScores();
 
 if(window.TeiyomiMembership){
   TeiyomiMembership.onChange(state=>{
