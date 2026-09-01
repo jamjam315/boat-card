@@ -104,8 +104,16 @@
 
   function render() {
     var n = Y.listByRace(snap.key).length;
+    // 出所タグごとの内訳も出す。上限が「1レース×1出所タグ」なので、
+    // どの読みであと何点記録できるかが分かる形にしておく。
+    var byTag = Y.countByTag(snap.key);
+    var parts = Object.keys(byTag).map(function (t) {
+      return esc(t || "タグなし") + " " + byTag[t];
+    });
     var head = '<div class="yhead"><b>予想を記録</b>' +
-      (n ? '<span class="ycount">' + n + '件</span>' : '') + '</div>';
+      (n ? '<span class="ycount">このレース: ' + n + '件' +
+        (parts.length > 1 ? '（' + parts.join('・') + '）' : '') + '</span>' : '') +
+      '</div>';
 
     if (closed) {
       // 締切後は記録できないが、既に記録したものは読めるようにしておく。
@@ -174,6 +182,7 @@
     bad_amount: "金額を確かめてください。",
     bad_key: "このレースを特定できませんでした。",
     too_many: "記録が上限に達しました。古いものを消してください。",
+    too_many_here: "このレース・この出所は" + Y.MAX_PER_RACE_TAG + "点まで記録できます。",
     storage: "この端末に保存できませんでした（プライベートモード等）。"
   };
 
