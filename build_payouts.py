@@ -29,7 +29,6 @@
 これで記録と結果がそのまま突き合わせられる。
 """
 import argparse
-import datetime
 import io
 import json
 import os
@@ -108,7 +107,7 @@ def race_doc(r):
     }
 
 
-def build_one(date_iso, rows, generated_at):
+def build_one(date_iso, rows):
     races = {}
     seen = set()
     for r in sorted(rows, key=lambda x: (x["会場"], x["レース番号"])):
@@ -117,7 +116,11 @@ def build_one(date_iso, rows, generated_at):
             continue
         seen.add(key)
         races[key] = race_doc(r)
-    doc = {"date": date_iso, "generated_at": generated_at, "races": races}
+    # 生成時刻は入れない。毎晩3日ぶんを作り直すので、時刻を持たせると中身が
+    # 同じでも毎回差分が出て、意味の無いコミットが積み上がる(過去に career/ で
+    # 2,116ファイルがタイムスタンプだけで差分になった)。いつ作ったかは
+    # gitのコミットが覚えている。
+    doc = {"date": date_iso, "races": races}
     os.makedirs(OUT_DIR, exist_ok=True)
     path = os.path.join(OUT_DIR, f"{date_iso}.json")
     with io.open(path, "w", encoding="utf-8") as f:
@@ -170,11 +173,10 @@ def main():
         # 最新日から数日ぶん。遅れて届いた結果を拾い直せるように1日だけにしない。
         target = dates[-a.days:]
 
-    generated_at = datetime.datetime.now().isoformat(timespec="seconds")
     by_date = load_by_date(target)
     total = 0
     for d in target:
-        path, n, void, size = build_one(d, by_date.get(d, []), generated_at)
+        path, n, void, size = build_one(d, by_date.get(d, []))
         total += size
         print(f"[done] {path}  {n}レース(不成立{void}) {size / 1024:.0f}KB")
     if len(target) > 1:
