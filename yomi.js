@@ -32,7 +32,14 @@
   "use strict";
 
   var KEY = "teiyomi_yomi_records";
+  // スナップショットはレース単位で1つだけ持つ。1レース分が約2.2KBあり、
+  // 同じレースに何点も買う人(3連単のフォーメーション等)が記録ごとに抱えると、
+  // 中身が全く同じものを何十個も置くことになる。
+  var SNAP_KEY = "teiyomi_yomi_snapshots";
   var MAX_RECORDS = 500;      // 端末の保存領域を食い潰さないための上限
+  // 1レース×1出所タグあたりの上限。同じ読み(出所)で何十点も流すと、
+  // 「その読みが当たったか」ではなく「手広く買ったか」の記録になってしまう。
+  var MAX_PER_RACE_TAG = 30;
   var MAX_TAG_LEN = 20;       // 出所タグの長さ
   var MAX_AMOUNT = 1000000;   // 金額の上限(入力ミスでとんでもない額が残らないように)
 
@@ -115,6 +122,59 @@
       // 気づけるように false を返す。
       return false;
     }
+  }
+
+  // ---- スナップショット(レース単位で1つ) ----
+
+  function readSnaps() {
+    try {
+      var raw = localStorage.getItem(SNAP_KEY);
+      if (!raw) return {};
+      var o = JSON.parse(raw);
+      return (o && typeof o === "object" && !Array.isArray(o)) ? o : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeSnaps(o) {
+    try {
+      localStorage.setItem(SNAP_KEY, JSON.stringify(o));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * 記録ごとに抱えていたスナップショットを、レース単位の置き場へ寄せる。
+   *
+   * P1-1では1件ごとに data.js のレース要素(約2.2KB)を持たせていた。同じレースに
+   * 複数記録すると同じ中身が何個も並ぶので、レースキーで1つに畳む。
+   * 中身は変えない(「本人が見ていた数字」をそのまま残す、という芯は動かさない)。
+   * 同じレースに違うスナップショットが来ることは無い(同じ日の同じレースの
+   * data.js要素なので)が、万一来ても先に入っているほうを残す。
+   */
+  function migrateSnapshots() {
+    var all;
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      all = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (!Array.isArray(all)) return;
+    var snaps = readSnaps();
+    var moved = 0;
+    all.forEach(function (r) {
+      if (!r || !r.snapshot) return;
+      if (r.key && !snaps[r.key]) snaps[r.key] = r.snapshot;
+      delete r.snapshot;
+      moved++;
+    });
+    if (!moved) return;
+    if (writeSnaps(snaps)) writeAll(all);
   }
 
   function newId() {
@@ -251,10 +311,15 @@
 
   // ---------------------------------------------------------------- 公開API
 
+  // 記録ごとに抱えていたスナップショットを、レース単位の置き場へ寄せる。
+  // 公開APIを組み立てる前に済ませ、以後は新しい形だけを相手にする。
+  migrateSnapshots();
+
   window.TeiyomiYomi = {
     KEN: KEN,
     MAX_TAG_LEN: MAX_TAG_LEN,
     MAX_AMOUNT: MAX_AMOUNT,
+    MAX_PER_RACE_TAG: MAX_PER_RACE_TAG,
 
     /** 新しい順に全件。 */
     list: function () {
@@ -307,30 +372,74 @@
       var all = readAll();
       if (all.length >= MAX_RECORDS) return { ok: false, reason: "too_many" };
 
+      var tag = String(opt.tag || "").slice(0, MAX_TAG_LEN);
+      var sameTag = all.filter(function (r) {
+        return r.key === opt.key && (r.tag || "") === tag;
+      }).length;
+      if (sameTag >= MAX_PER_RACE_TAG) return { ok: false, reason: "too_many_here" };
+
       var rec = {
         id: newId(),
         key: opt.key,
         at: new Date().toISOString(),
         ken: opt.ken,
         lanes: opt.lanes.slice(),
-        tag: String(opt.tag || "").slice(0, MAX_TAG_LEN),
+        tag: tag,
         amount: amount,
         // 採点はP1-3で入れる。器だけ先に用意しておく
         // (あとから列を足すより、最初から空で持っておくほうが読み書きが素直)。
-        score: null,
-        snapshot: opt.snapshot || null
+        score: null
       };
+
+      // スナップショットはレース単位で1つ。2件目以降は保存し直さない
+      // (同じレースなら中身も同じで、記録ごとに持つと約2.2KBずつ無駄に増える)。
+      if (opt.snapshot) {
+        var snaps = readSnaps();
+        if (!snaps[opt.key]) {
+          snaps[opt.key] = opt.snapshot;
+          if (!writeSnaps(snaps)) return { ok: false, reason: "storage" };
+        }
+      }
+
       all.push(rec);
       if (!writeAll(all)) return { ok: false, reason: "storage" };
       return { ok: true, record: rec };
     },
 
+    /** そのレースのスナップショット(記録時点の data.js のレース要素)。 */
+    snapshot: function (key) {
+      return readSnaps()[key] || null;
+    },
+
+    /** そのレースの記録数を、出所タグごとに数える。 */
+    countByTag: function (key) {
+      var c = {};
+      readAll().forEach(function (r) {
+        if (r.key !== key) return;
+        var t = r.tag || "";
+        c[t] = (c[t] || 0) + 1;
+      });
+      return c;
+    },
+
     /** 1件消す。消せたら true。 */
     remove: function (id) {
       var all = readAll();
-      var next = all.filter(function (r) { return r.id !== id; });
-      if (next.length === all.length) return false;
-      return writeAll(next);
+      var gone = null;
+      var next = all.filter(function (r) {
+        if (r.id === id) { gone = r; return false; }
+        return true;
+      });
+      if (!gone) return false;
+      if (!writeAll(next)) return false;
+      // そのレースの記録が全部消えたら、スナップショットも一緒に片付ける。
+      // 参照する記録が無いのに約2.2KBが残り続けるのを防ぐ。
+      var stillUsed = next.some(function (r) { return r.key === gone.key; });
+      if (!stillUsed) {
+        var snaps = readSnaps();
+        if (snaps[gone.key]) { delete snaps[gone.key]; writeSnaps(snaps); }
+      }
+      return true;
     },
 
     MAX_RESULT_PT: MAX_RESULT_PT,
