@@ -119,6 +119,24 @@ body{background:var(--bg); color:var(--ink);
 .al-act{flex:0 0 auto; display:flex; gap:10px;}
 
 /* ---- 検証ノート ---- */
+/* ---- 読み採点の記録一覧。検証ノート(.nt-)と同じ骨格に揃えている ---- */
+.ym-row{padding:10px 0; border-top:1px dashed var(--line2);}
+.ym-row:first-of-type{border-top:none; padding-top:2px;}
+.ym-head{margin:0; font-size:11px; color:var(--muted);
+  font-variant-numeric:tabular-nums lining-nums;}
+.ym-bet{margin:2px 0 0; font-size:13px; color:var(--ink); display:flex;
+  align-items:center; gap:8px; flex-wrap:wrap;}
+.ym-ken{font-size:11.5px; color:var(--muted);}
+.ym-lanes{font-weight:700; font-variant-numeric:tabular-nums lining-nums;}
+.ym-tag{font-size:11px; padding:1px 7px; border-radius:9px;
+  border:1px solid var(--line); color:var(--muted);}
+.ym-amt{font-size:12px; color:var(--muted); margin-left:auto;
+  font-variant-numeric:tabular-nums lining-nums;}
+/* 採点はP1-3で入る。今は列だけ用意して空にしておく
+   (あとから場所を作るより、最初から居場所を決めておくほうが崩れない)。 */
+.ym-score{margin:3px 0 0; font-size:12px; color:var(--muted); min-height:1em;}
+.ym-act{margin:5px 0 0; display:flex; justify-content:flex-end;}
+
 .nt-row{padding:12px 0; border-top:1px dashed var(--line2);}
 .nt-row:first-of-type{border-top:none; padding-top:2px;}
 .nt-date{margin:0; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums lining-nums;}
@@ -165,6 +183,9 @@ body{background:var(--bg); color:var(--ink);
   <p class="sec-label">📝 検証ノート</p>
   <div id="notesBox"></div>
 
+  <p class="sec-label" id="yomiLabel">🚤 読み採点</p>
+  <div id="yomiBox"></div>
+
   <p class="sec-label">使い方</p>
   <div class="authbox"><a href="guide-premium.html">プレミアムの使い方を見る →</a></div>
 
@@ -182,6 +203,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="billing.js"></script>
 <script src="alerts.js"></script>
 <script src="notes.js"></script>
+<script src="yomi.js"></script>
 <script>
 (function(){
 "use strict";
@@ -639,6 +661,51 @@ function renderNotesBox(){
     if(inner) inner.textContent = "検証ノートを読み込めませんでした。";
   });
 }
+
+// ===== 読み採点(締切前に記録した買い目の見返し) =====
+// 端末内(localStorage)にしか無いので、ログイン状態には左右されない。
+// 採点欄はP1-3で埋まる。今は場所だけ空けてある。
+function renderYomiBox(){
+  const box = document.getElementById("yomiBox");
+  const label = document.getElementById("yomiLabel");
+  if(!box) return;
+  if(!window.TeiyomiYomi){ box.innerHTML = ""; return; }
+
+  const rows = TeiyomiYomi.list();
+  if(label) label.textContent = rows.length ? `🚤 読み採点（記録${rows.length}件）` : "🚤 読み採点";
+
+  if(!rows.length){
+    box.innerHTML = `<div class="authbox">レースページの「予想を記録」から、締切前の買い目を残せます。
+      翌朝、結果が出たあとに採点します。
+      <p class="authbox-notice" style="margin-top:8px;"><a href="index.html">本日のレースを見る</a></p></div>`;
+    return;
+  }
+
+  box.innerHTML = `<div class="authbox">` + rows.map(r=>{
+    // key は "YYYY-MM-DD:会場:R"。表示は日付と会場Rに分ける。
+    const p = r.key.split(":");
+    return `<div class="ym-row" data-id="${esc(r.id)}">
+      <p class="ym-head">${esc(p[0])}　${esc(p[1])} ${esc(p[2])}R</p>
+      <p class="ym-bet"><span class="ym-ken">${esc(r.ken)}</span>
+        <span class="ym-lanes">${esc(TeiyomiYomi.betText(r.ken, r.lanes))}</span>
+        ${r.tag ? `<span class="ym-tag">${esc(r.tag)}</span>` : ""}
+        <span class="ym-amt">${r.amount}円</span></p>
+      <p class="ym-score"></p>
+      <p class="ym-act"><button type="button" class="authbox-btn ym-del">削除</button></p>
+    </div>`;
+  }).join("") +
+    `<p class="authbox-notice">記録はこの端末の中だけに保存され、外には送られません。</p></div>`;
+
+  box.querySelectorAll(".ym-row").forEach(row=>{
+    const id = row.getAttribute("data-id");
+    row.querySelector(".ym-del").addEventListener("click", function(){
+      if(!window.confirm("この記録を削除しますか？")) return;
+      TeiyomiYomi.remove(id);
+      renderYomiBox();
+    });
+  });
+}
+renderYomiBox();
 
 if(window.TeiyomiMembership){
   TeiyomiMembership.onChange(state=>{
