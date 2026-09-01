@@ -127,20 +127,37 @@
   /**
    * 締切を過ぎているか。data.js の締切予定("HH:MM")と、その開催日で判定する。
    *
-   * 端末の時計を信じる。ここは不正防止の仕組みではなく、
+   * 【JSTで判定する理由】
+   * 締切予定は日本の競走の時刻なので、常に日本時間で読む。端末のタイムゾーン
+   * (new Date(...).setHours 等が使うローカル時刻)で判定すると、端末を海外時間に
+   * していたり旅行中だったりするだけで判定がずれる。UTCの端末なら9時間ぶん
+   * 早く「締切後」になり、記録できるはずのレースが記録できなくなる。
+   *
+   * 日本は1951年以降サマータイムが無いので、JSTは年間を通して UTC+9 で固定。
+   * Date.UTC で「その日のJSTの締切時刻」を世界共通の時刻に直し、
+   * 端末のタイムゾーンに一切依存しない形で今と比べる。
+   *
+   * 時計そのものは端末のものを信じる。ここは不正防止の仕組みではなく、
    * 「結果を見てから記録しても意味がない」ことを本人に伝えるためのもの。
    * 時計を狂わせてまで自分の採点を良く見せたい人を止める必要はない。
    *
    * 締切予定が取れないレースは、判定しようがないので記録を許す
    * (弾いて記録できなくするより、記録できるほうがましと考える)。
    */
-  function isClosed(dateIso, deadline, now) {
+  var JST_OFFSET_HOURS = 9;
+
+  function isClosed(dateIso, deadline, nowMs) {
     if (!deadline || !/^\d{1,2}:\d{2}$/.test(deadline)) return false;
-    var parts = deadline.split(":");
-    var d = new Date(dateIso + "T00:00:00");
-    if (isNaN(d.getTime())) return false;
-    d.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
-    return (now || new Date()).getTime() > d.getTime();
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateIso));
+    if (!m) return false;
+    var hm = deadline.split(":");
+    var closeMs = Date.UTC(
+      Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+      Number(hm[0]) - JST_OFFSET_HOURS, Number(hm[1]), 0, 0
+    );
+    if (isNaN(closeMs)) return false;
+    var now = (typeof nowMs === "number") ? nowMs : Date.now();
+    return now > closeMs;
   }
 
   // ---------------------------------------------------------------- 公開API
