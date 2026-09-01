@@ -75,6 +75,57 @@ def build_race_css():
         # 「艇読み」固定の短い文字列のため元々nowrapが無くても困らないが、
         # レースページ側だけの安全策としてここに追加する)。
         '.topbar .brand h1{white-space:nowrap;}\n'
+        # ---- 予想の記録(読み採点 P1-1) ----
+        # 色・角丸・枠線はすべて theme.css のトークンを使い、お気に入り機能と
+        # 同じ見た目に揃える。ここで新しい色を持ち込まない。
+        '.ybox{background:var(--surface); border:1px solid var(--line);'
+        ' border-radius:var(--radius); margin-top:14px; padding:14px;}\n'
+        '.yhead{font-size:13.5px; display:flex; align-items:center; gap:8px;}\n'
+        '.ycount{font-size:11.5px; color:var(--muted);}\n'
+        '.yclosed{font-size:12.5px; color:var(--muted); margin:8px 0 0;}\n'
+        '.yopen{margin-top:10px; width:100%; padding:11px; font-size:14px; font-weight:700;'
+        ' color:var(--on-accent); background:var(--accent); border:none;'
+        ' border-radius:10px; cursor:pointer;}\n'
+        '.yrow{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}\n'
+        '.ychip{padding:7px 10px; font-size:12.5px; background:var(--bg);'
+        ' color:var(--ink); border:1px solid var(--line); border-radius:8px; cursor:pointer;}\n'
+        '.ychip.on{background:var(--accent); color:var(--on-accent); border-color:var(--accent);'
+        ' font-weight:700;}\n'
+        # 艇番は号艇色をそのまま使う(出走表と同じ手掛かりで押せるように)。
+        '.ylanes{display:grid; grid-template-columns:repeat(6,1fr); gap:6px;}\n'
+        '.ylane{position:relative; padding:12px 0; font-size:15px; font-weight:700;'
+        ' border:2px solid var(--line); border-radius:8px; cursor:pointer;'
+        ' background:var(--bg); color:var(--ink);}\n'
+        '.ylane.on{border-color:var(--accent); box-shadow:inset 0 0 0 2px var(--accent);}\n'
+        '.ylane i{position:absolute; top:-7px; right:-5px; font-style:normal; font-size:10.5px;'
+        ' min-width:17px; padding:1px 3px; border-radius:9px; background:var(--accent);'
+        ' color:var(--on-accent); font-weight:700;}\n'
+        '.ylane.l1{background:#ffffff; color:#111;} .ylane.l2{background:#2b2b2b; color:#fff;}\n'
+        '.ylane.l3{background:#d83a36; color:#fff;} .ylane.l4{background:#2f6fd0; color:#fff;}\n'
+        '.ylane.l5{background:#f2c200; color:#111;} .ylane.l6{background:#1f9e54; color:#fff;}\n'
+        '.yhint{margin-top:8px; font-size:12.5px; color:var(--muted);}\n'
+        '.yhint.ok{color:var(--accent); font-weight:700;}\n'
+        '.ytagin{flex:1; min-width:0; padding:9px; font-size:13px; border-radius:8px;'
+        ' border:1px solid var(--line); background:var(--bg); color:var(--ink);}\n'
+        '.yamtin{width:88px; padding:9px; font-size:13px; text-align:right; border-radius:8px;'
+        ' border:1px solid var(--line); background:var(--bg); color:var(--ink);}\n'
+        '.yyen{align-self:center; font-size:12.5px; color:var(--muted);}\n'
+        '.ysave{flex:1; padding:11px; font-size:14px; font-weight:700; color:var(--on-accent);'
+        ' background:var(--accent); border:none; border-radius:10px; cursor:pointer;}\n'
+        '.ysave:disabled{opacity:.45; cursor:default;}\n'
+        '.ycancel{padding:11px 14px; font-size:13px; background:var(--bg); color:var(--ink);'
+        ' border:1px solid var(--line); border-radius:10px; cursor:pointer;}\n'
+        '.ymsg{margin:8px 0 0; font-size:12.5px; min-height:1em;}\n'
+        '.ymsg.ng{color:#d83a36;}\n'
+        '.ylist{list-style:none; margin:10px 0 0; padding:0; font-size:12.5px;}\n'
+        '.ylist li{display:flex; align-items:center; gap:8px; padding:7px 0;'
+        ' border-top:1px solid var(--line);}\n'
+        '.yken{color:var(--muted);} .ybet{font-weight:700;}\n'
+        '.ytag{font-size:11px; padding:1px 6px; border-radius:9px; background:var(--bg);'
+        ' border:1px solid var(--line); color:var(--muted);}\n'
+        '.yamt{margin-left:auto; color:var(--muted);}\n'
+        '.ydel{background:none; border:none; color:var(--muted); font-size:16px;'
+        ' cursor:pointer; padding:0 2px;}\n'
     )
     with open(CSS_PATH, "w", encoding="utf-8") as f:
         f.write(css + extra)
@@ -395,6 +446,25 @@ def render_race_card(venue_name, race, motors, players, player_pages):
             f'</div>{cmp_html}{rows}</div>')
 
 
+def race_snapshot(date_iso, venue_name, race):
+    """記録用のスナップショットをページに埋め込む。
+
+    data.jsのレース要素をそのまま入れる(締切予定dl・種別kind・距離dist・
+    出走6艇の事実boatsが既に全部入っている)。採点する日に組み立て直さず、
+    「本人が見ていた数字」をそのまま残すのがこの機能の芯なので、
+    ここで間引いたり丸めたりしない。
+
+    keyは結果データの重複排除キーと同じ規約(date:会場:レース番号)。
+    これで記録と結果が突き合わせられる。
+
+    JSONは<script type="application/json">に置く。選手名などに記号が入っても
+    スクリプトとして解釈されないようにするため(</ だけは念のため潰しておく)。"""
+    doc = {"key": f'{date_iso}:{venue_name}:{race["no"]}', "date": date_iso, "venue": venue_name}
+    doc.update(race)
+    text = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return f'<script type="application/json" id="raceSnapshot">{text}</script>'
+
+
 def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, players, player_pages, stats):
     title = f"{venue_name}{race['no']}R {date_jp}の出走表・データ｜艇読み"
     description = (f"{date_jp}・{venue_name}{race['no']}Rの出走表。出走選手の全国勝率・当地勝率・モーター2連率・"
@@ -403,6 +473,7 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
     url = f"{SITE}/race/{date_iso}/{venue_romaji}/{race['no']}R.html"
     card_html = render_race_card(venue_name, race, motors, players, player_pages)
     trend_html = trend_panel(stats, venue_name)
+    snapshot_html = race_snapshot(date_iso, venue_name, race)
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -447,9 +518,13 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
   </header>
   <p class="back"><a href="/index.html">← トップ（今日の出走表）に戻る</a></p>
   {card_html}
+  <section class="ybox" id="yomiBox"></section>
   {trend_html}
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
+{snapshot_html}
+<script src="/yomi.js"></script>
+<script src="/yomi-race.js"></script>
 </body>
 </html>"""
 
