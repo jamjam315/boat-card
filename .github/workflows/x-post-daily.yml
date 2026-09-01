@@ -47,14 +47,43 @@ jobs:
         with:
           ref: main
 
+      # GitHubのcronは混雑すると数時間遅れて発火することがあり、実際に深夜3時台の
+      # 投稿が起きた。本番の起動は外部キッカー(workflow_dispatch)に移してあるので、
+      # scheduleは「キッカーが止まった日の保険」として残しつつ、人が見ている
+      # 19:00〜23:59 JST の外で発火したら投稿も状態更新もせず緑で終わらせる。
+      # 手動起動(workflow_dispatch)は時刻に関係なく通す。
+      - name: 投稿してよい時間帯か確かめる
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # cronのUTC換算に頼らず、実行時のJSTの「時」で判定する。
+          JST_HOUR=$(TZ=Asia/Tokyo date +%H)
+          JST_TIME=$(TZ=Asia/Tokyo date +%H:%M)
+          if [ "${EVENT_NAME}" != "schedule" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # date +%H は 00〜23 なので、19以上だけ見れば 23:59 までを拾える。
+          # 10# は 08/09 を8進数と誤解釈させないため。
+          if [ "$((10#$JST_HOUR))" -ge 19 ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "window guard: skipped (JST ${JST_TIME}, event=schedule)"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'true'
         with:
           python-version: '3.12'
 
       - name: 依存を入れる
+        if: steps.gate.outputs.go == 'true'
         run: pip install requests requests-oauthlib
 
       - name: 変化を見て、あれば投稿する
+        if: steps.gate.outputs.go == 'true'
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
@@ -81,6 +110,7 @@ jobs:
       # 状態が古いままなので、翌日もう一度同じ変化が拾われて投稿される
       # (成功していないのに「投稿済み」を記録しないほうが安全)。
       - name: 状態ファイルをコミット
+        if: steps.gate.outputs.go == 'true'
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
