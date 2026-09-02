@@ -43,7 +43,7 @@ jobs:
       # 後続は前の実行が書いた last_posted_date を含まない古い状態を読み、
       # 同じ内容をもう一度投稿してしまう。実測で前の実行は33秒でコミットまで
       # 終わるので、この窓は約30秒。1日1回でも1年動かせば踏む。
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
 
@@ -73,7 +73,7 @@ jobs:
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.gate.outputs.go == 'true'
         with:
           python-version: '3.12'

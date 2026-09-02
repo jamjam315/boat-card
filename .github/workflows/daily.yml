@@ -58,7 +58,7 @@ jobs:
     outputs:
       skip: ${{ steps.fresh.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           sparse-checkout: data.js
           sparse-checkout-cone-mode: false
@@ -95,10 +95,10 @@ jobs:
     if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: データ本体(dataブランチ)を _data に取り出す
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: data
           path: _data
@@ -115,7 +115,7 @@ jobs:
       - name: lzh解凍ツールを入れる
         run: sudo apt-get update && sudo apt-get install -y lhasa
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
