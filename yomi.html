@@ -71,6 +71,13 @@ body{background:var(--bg); color:var(--ink);
 .bets .hit{color:var(--accent); font-weight:700;}
 .bets .miss{color:var(--muted);}
 
+/* 講評。点には影響しない欄なので、点の表とは見た目を変えて区別する。 */
+.rev{list-style:none; margin:0; padding:0; font-size:12.5px; line-height:1.8;}
+.rev li{padding:7px 0 7px 12px; border-left:2px solid var(--line2); margin-top:8px;}
+.rev li:first-child{margin-top:0;}
+.rev li.note{border-left-color:transparent; color:var(--muted); font-size:11.5px;
+  padding-left:0; margin-top:10px;}
+
 .note{font-size:11.5px; color:var(--muted); margin:8px 0 0;}
 .empty{font-size:13px; color:var(--ink2);}
 .foot{font-size:11px; color:var(--muted); margin:22px 2px 0; line-height:1.8;}
@@ -90,6 +97,8 @@ body{background:var(--bg); color:var(--ink);
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>この採点は、記録した時点の番組表の数字と、確定した結果だけで機械的に付けています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。<br><a href="/about.html">運営者情報</a></p>
 </div>
 
+<!-- 二つ名は講評でだけ使う。読めなくても他の行は出るので、空にして進む。 -->
+<script src="/players_list.js" onerror="window.PLAYER_LIST=[]"></script>
 <script src="/yomi.js"></script>
 <script>
 (function(){
@@ -108,7 +117,15 @@ body{background:var(--bg); color:var(--ink);
   }
 
   if(!window.TeiyomiYomi){ empty("読み込みに失敗しました。"); return; }
-  var p = TeiyomiYomi.paper(key, tag);
+
+  // 二つ名(講評でだけ使う)。読めなくても講評の他の行は出るので、
+  // onerror で空にして先へ進む。
+  var catches = {};
+  (window.PLAYER_LIST || []).forEach(function (x) {
+    if (x && x.t && x.catch) catches[x.t] = x.catch;
+  });
+
+  var p = TeiyomiYomi.paper(key, tag, catches);
   if(!p){ empty("この端末に記録がありません。"); return; }
 
   var part = p.key.split(":");
@@ -177,6 +194,26 @@ body{background:var(--bg); color:var(--ink);
   if(res.status === "hit" || res.status === "miss"){
     html += '<p class="note nums">投入 ' + res.bet.toLocaleString() + '円 ／ 払戻 ' +
       res.yen.toLocaleString() + '円 ／ 収支 ' + yen(res.profit) + '円 ／ 回収率 ' + res.roi + '%</p>';
+  }
+  html += '</div>';
+
+  // ---- 講評 ----
+  // 点には一切影響しない。何が見えていたかを並べ直すだけの欄。
+  // 「買うべきだった」とは書かないし、正解の買い目も示さない。
+  var rev = (p.comment || []).filter(function(l){ return l.kind !== "note"; });
+  var note = (p.comment || []).filter(function(l){ return l.kind === "note"; });
+  html += '<p class="sec-label">講評</p><div class="card">';
+  if(!rev.length){
+    html += '<p class="empty">特記事項なし</p>';
+  } else {
+    html += '<ul class="rev">' + rev.map(function(l){
+      return '<li>' + esc(l.text) + '</li>';
+    }).join("") + '</ul>';
+  }
+  if(note.length){
+    html += '<ul class="rev">' + note.map(function(l){
+      return '<li class="note">' + esc(l.text) + '</li>';
+    }).join("") + '</ul>';
   }
   html += '</div>';
 

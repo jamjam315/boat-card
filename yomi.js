@@ -518,6 +518,131 @@
     };
   }
 
+  // ---------------------------------------------------------------- 講評
+
+  // 1コースの1着が、どの決まり手で出るか(10年・波高帯別)。条件の一行に使う。
+  // 波が荒れるほど「逃げ」が減って「抜き」が増える。
+  var NIGE_BY_WAVE = { "0-1cm": 96.0, "2-3cm": 95.1, "4-5cm": 93.9, "6cm+": 91.8 };
+  // 2連対のリフト(10年)。押さえの一行に使う。1着率ではなく2連対で見るのは、
+  // 押さえは「2〜3着に来てくれれば当たり」の買い方だから。
+  var LIFT_P2 = {
+    st: [{ max: 0.14, lift: "+11.6pt", band: "0.14未満" },
+         { max: 0.16, lift: "+7.1pt", band: "0.14〜0.16" }],
+    last3: [{ max: 2.0, lift: "+11.2pt", band: "平均2.0着以内" },
+            { max: 3.0, lift: "+4.7pt", band: "平均2.0〜3.0着" }]
+  };
+  var PERIOD_10Y = "10年・334万走";
+  var DISCLAIMER = "採点はレース時点の気象（競走成績）で行っています。" +
+    "締切前に見た直前情報とはズレることがあります。";
+
+  function firstBand(list, v) {
+    for (var i = 0; i < list.length; i++) if (v < list[i].max) return list[i];
+    return null;
+  }
+
+  /**
+   * 講評(赤ペンの言葉)を組み立てる。点には一切影響しない。
+   *
+   * 【書かないと決めていること】
+   * 「買うべきだった」とは書かない。正解の買い目も示さない。採点は済んだ話で、
+   * ここは何が見えていたかを並べ直すだけの欄にする。触れていない事実を挙げる
+   * ときも、必ず「点は引いていません」と添える。
+   *
+   * catches は登番→二つ名の対応(players_list.js から作る)。無くても動く。
+   */
+  function comment(records, snap, wave, catches) {
+    if (!snap || !snap.boats) return [];
+    var pick = pickAxis(records);
+    if (!pick) return [];
+    var picked = {};
+    records.forEach(function (r) { r.lanes.forEach(function (n) { picked[n] = true; }); });
+    var byLane = {};
+    snap.boats.forEach(function (b) { byLane[b.n] = b; });
+    var lines = [];
+
+    // 1. 触れていない事実(最大2件)。プラスの帯に居るのに買い目に入っていない艇。
+    var missed = [];
+    snap.boats.forEach(function (b) {
+      if (picked[b.n]) return;
+      var ks = fromKs(b.ks);
+      var cands = [];
+      if (typeof b.nw === "number" && b.nw >= 5.5) {
+        var a = bandOf("A", b.nw);
+        if (a.pt > 0) cands.push({ pt: a.pt, t: "全国勝率" + b.nw.toFixed(2), band: a.band, lift: a.lift, period: YOMI_TABLE.A.period });
+      }
+      if (ks.st != null) {
+        var s = bandOf("B", ks.st);
+        if (s.pt > 0) cands.push({ pt: s.pt, t: "平均ST" + ks.st.toFixed(3), band: s.band, lift: s.lift, period: PERIOD_10Y });
+      }
+      if (ks.last3 != null) {
+        var c = bandOf("C", ks.last3);
+        if (c.pt > 0) cands.push({ pt: c.pt, t: "直近3走の平均" + ks.last3.toFixed(1) + "着", band: c.band, lift: c.lift, period: PERIOD_10Y });
+      }
+      if (!cands.length) return;
+      cands.sort(function (x, y) { return y.pt - x.pt; });
+      missed.push({ n: b.n, pt: cands[0].pt, c: cands[0] });
+    });
+    missed.sort(function (x, y) { return y.pt - x.pt; });
+    missed.slice(0, 2).forEach(function (m) {
+      lines.push({ kind: "missed", text: m.n + "号艇: " + m.c.t + "（" + m.c.band +
+        "・1着率" + m.c.lift + " / " + m.c.period + "）は買い目に入っていません（点は引いていません）。" });
+    });
+
+    // 2. 点にしていない事実(最大2件)。軸と押さえについて、目立つ値を理由ごと。
+    var notes = [];
+    [pick.axis].concat(pick.backs).forEach(function (n) {
+      var b = byLane[n];
+      if (!b) return;
+      var who = n === pick.axis ? "軸の" + n + "号艇" : "押さえの" + n + "号艇";
+      if (typeof b.mo === "number" && b.mo >= 40) {
+        notes.push(who + "はモーター2率" + b.mo.toFixed(1) +
+          "%。良好ですが、実測+2.7ptで配点の目安（+3pt）に届かないため点にしていません。");
+      }
+      var cat = catches && catches[b.t];
+      if (cat && /巧者|の主/.test(cat)) {
+        notes.push(who + "は二つ名「" + cat +
+          "」ですが、当地の強さは1着率を動かさない（全帯±0.6pt以内）ため点にしていません。");
+      } else if (typeof b.lw === "number" && typeof b.nw === "number" &&
+                 b.lw > 0 && b.lw - b.nw >= 1.0) {
+        notes.push(who + "は当地勝率が全国より+" + (b.lw - b.nw).toFixed(2) +
+          "。ただし当地の強さは1着率を動かさない（全帯±0.6pt以内）ため点にしていません。");
+      }
+      if (b.k === "A1") {
+        notes.push(who + "はA1。級別は+9.0ptありますが、全国勝率と同じものを" +
+          "測っているので、二重に数えないよう点にしていません。");
+      }
+    });
+    notes.slice(0, 2).forEach(function (t) { lines.push({ kind: "unscored", text: t }); });
+
+    // 3. 押さえの読み(1行)。2連対のプラス帯に居るなら、根拠がある買い方だと言う。
+    for (var i = 0; i < pick.backs.length; i++) {
+      var bb = byLane[pick.backs[i]];
+      if (!bb) continue;
+      var k = fromKs(bb.ks);
+      var hit = (k.st != null && firstBand(LIFT_P2.st, k.st)) ||
+                (k.last3 != null && firstBand(LIFT_P2.last3, k.last3));
+      if (!hit) continue;
+      var what = (k.st != null && firstBand(LIFT_P2.st, k.st))
+        ? "平均ST" + k.st.toFixed(3) : "直近3走の平均" + k.last3.toFixed(1) + "着";
+      lines.push({ kind: "back", text: "押さえの" + pick.backs[i] + "号艇: " + what +
+        "は2連対" + hit.lift + "の帯（" + PERIOD_10Y + "）。押さえとして根拠があります。" });
+      break;
+    }
+
+    // 4. 条件のこと(1行)。荒れた日だけ。穏やかな日は書くことがない。
+    var wi = waveBandIndex(wave);
+    if (wi != null && wi >= 2) {
+      var wb = YOMI_TABLE.D.waveBands[wi];
+      lines.push({ kind: "cond", text: "波高" + wave + "cm。この波高帯の1コース逃げ率は" +
+        NIGE_BY_WAVE[wb].toFixed(1) + "%（穏やかな日は" + NIGE_BY_WAVE["0-1cm"].toFixed(1) +
+        "%）。荒れるほど逃げ切りが減り、抜きが増えます。" });
+    }
+
+    // 5. 締めの免責(固定)。
+    lines.push({ kind: "note", text: DISCLAIMER });
+    return lines;
+  }
+
   /**
    * 1答案(同じレース×同じ出所タグの買い目の束)の結果点。
    * 的中が1つでもあれば的中、回収率は束全体の払戻÷投入で計算し直す。
@@ -686,6 +811,7 @@
     YOMI_TABLE: YOMI_TABLE,
     pickAxis: pickAxis,
     yomiScore: yomiScore,
+    comment: comment,
     groupResult: groupResult,
 
     /**
@@ -705,7 +831,7 @@
     },
 
     /** 1答案だけ取り出す。答案ページが ?key=&tag= から引くのに使う。 */
-    paper: function (key, tag) {
+    paper: function (key, tag, catches) {
       var recs = readAll().filter(function (r) {
         return r.key === key && (r.tag || "") === (tag || "");
       });
@@ -717,7 +843,8 @@
       var snap = readSnaps()[key] || null;
       return {
         key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
-        result: groupResult(recs), yomi: yomiScore(recs, snap, wave)
+        result: groupResult(recs), yomi: yomiScore(recs, snap, wave),
+        comment: comment(recs, snap, wave, catches)
       };
     },
 
