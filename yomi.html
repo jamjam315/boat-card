@@ -134,20 +134,38 @@ body{background:var(--bg); color:var(--ink);
   var yen = function(n){ return (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString(); };
 
   // ---- 合計 ----
+  // 結果が出るまでは点を出さない。レース前に点を出すと、それは買い目への
+  // 評価＝予想になってしまう。採点は「済んだことを振り返る」ためのもの。
+  var html = '<div class="card">' +
+    '<p class="head">' + esc(part[0]) + '　' + esc(part[1]) + ' ' + esc(part[2]) + 'R' +
+      (p.tag ? '　／　' + esc(p.tag) : '') + '</p>';
+
+  if(!p.settled){
+    html += '<div class="total"><b>採点待ち</b></div>' +
+      '<p class="note">レースの結果が確定してから採点します（翌朝までに埋まります）。' +
+      '結果が出る前に点や講評を出すと、買い目への評価＝予想になってしまうため、' +
+      'ここでは何も出していません。</p></div>';
+    html += '<p class="sec-label">記録した買い目（' + p.records.length + '点）</p>' +
+      '<div class="card"><ul class="bets">' + p.records.map(function(r){
+        return '<li><span class="ken">' + esc(r.ken) + '</span>' +
+          '<span class="lanes nums">' + esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</span>' +
+          '<span class="amt nums">' + r.amount + '円</span></li>';
+      }).join("") + '</ul>' +
+      '<p class="note nums">投入 ' +
+        p.records.reduce(function(s,r){ return s + r.amount; }, 0).toLocaleString() + '円</p></div>';
+    box.innerHTML = html;
+    return;
+  }
+
   var yp = yomi ? yomi.pt : null;
   var rp = (res && res.pt != null) ? res.pt : null;
   var total = (yp == null && rp == null) ? null : (yp || 0) + (rp || 0);
-  var html = '<div class="card">' +
-    '<p class="head">' + esc(part[0]) + '　' + esc(part[1]) + ' ' + esc(part[2]) + 'R' +
-      (p.tag ? '　／　' + esc(p.tag) : '') + '</p>' +
-    '<div class="total"><b class="nums">' + (total == null ? "—" : total) + '</b>' +
+  html += '<div class="total"><b class="nums">' + (total == null ? "—" : total) + '</b>' +
       '<span class="of">/ 100点</span>' +
       '<span class="parts nums">読み ' + (yp == null ? "—" : yp) + '/' + TeiyomiYomi.MAX_YOMI_PT +
       '　結果 ' + (rp == null ? "—" : rp) + '/' + TeiyomiYomi.MAX_RESULT_PT + '</span></div>';
 
-  if(res.status === "pending"){
-    html += '<p class="note">結果はまだ出ていません（翌朝に採点されます）。</p>';
-  } else if(res.status === "void"){
+  if(res.status === "void"){
     html += '<p class="note">不成立（返還）のため、結果点は付きません。</p>';
   }
   if(yomi){

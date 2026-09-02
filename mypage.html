@@ -779,10 +779,13 @@ function renderYomiBox(){
     `<div class="authbox">` + papers.map(pp=>{
     // key は "YYYY-MM-DD:会場:R"。表示は日付と会場Rに分ける。
     const p = pp.key.split(":");
-    const res = TeiyomiYomi.groupResult(pp.records);
-    const yomi = pp.yomi || TeiyomiYomi.yomiScore(pp.records, TeiyomiYomi.snapshot(pp.key), waveOf(pp.records));
+    // 点の出し入れは yomi.js の paper() が決める。結果が出る前に読み点を出すと
+    // 買い目への評価＝予想になってしまうので、画面側では計算しない。
+    const paper = TeiyomiYomi.paper(pp.key, pp.tag);
+    const res = paper.result;
+    const yomi = paper.yomi;
     const url = `yomi.html?key=${encodeURIComponent(pp.key)}&tag=${encodeURIComponent(pp.tag)}`;
-    const pts = (yomi || res.pt != null)
+    const pts = paper.settled
       ? `<span class="ym-pt nums">読み ${yomi ? yomi.pt : "—"}／結果 ${res.pt == null ? "—" : res.pt}</span>`
       : "";
     return `<div class="ym-row" data-key="${esc(pp.key)}" data-tag="${esc(pp.tag)}">
@@ -807,12 +810,6 @@ function renderYomiBox(){
       renderYomiBox();
     });
   });
-}
-
-/** 答案の中で最初に見つかった波高（採点済みの記録が持っている）。 */
-function waveOf(records){
-  for(const r of records){ if(r.score && r.score.wave != null) return r.score.wave; }
-  return null;
 }
 
 /** 答案1件ぶんの結果表示。買い目ごとの内訳は答案ページに任せる。 */

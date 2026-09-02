@@ -841,10 +841,21 @@
         if (r.score && r.score.wave != null) wave = r.score.wave;
       });
       var snap = readSnaps()[key] || null;
+      var result = groupResult(recs);
+      // 【結果が出るまでは採点も講評も出さない】
+      // 読み点は記録した時点の事実だけで計算できてしまうので、放っておくと
+      // レース前に「あなたの読みは54点」と出る。それは買い目への評価=予想に
+      // なってしまい、艇読みが予想印を出さないと決めていることと矛盾する。
+      // 講評も同じで、レース前に「3号艇の全国勝率7.49に触れていない」と出せば、
+      // それは買い足しの示唆になる。判定はここ1か所に置き、画面側が
+      // うっかり出せないようにしてある。
+      var settled = result.status === "hit" || result.status === "miss" ||
+        result.status === "void";
       return {
         key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
-        result: groupResult(recs), yomi: yomiScore(recs, snap, wave),
-        comment: comment(recs, snap, wave, catches)
+        result: result, settled: settled,
+        yomi: settled ? yomiScore(recs, snap, wave) : null,
+        comment: settled ? comment(recs, snap, wave, catches) : []
       };
     },
 
