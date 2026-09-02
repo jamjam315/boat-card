@@ -31,8 +31,10 @@ body{background:var(--bg); color:var(--ink);
 
 .topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius);
   padding:16px 18px; display:flex; align-items:center; gap:11px;}
-.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px;}
-.lanes i{display:block; border-radius:2px;}
+/* ヘッダーの6色バーだけに効かせる。買い目の .lanes(艇番)にも当たってしまい、
+   width:16px で「1-2-3」が縦に折れていた。 */
+.topbar .lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px;}
+.topbar .lanes i{display:block; border-radius:2px;}
 .topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em;}
 .topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub);}
 .back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
@@ -105,7 +107,7 @@ body{background:var(--bg); color:var(--ink);
      URLで結びつけて、必ず対になったものが読まれるようにする。
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="/yomi.js?v=2"></script>
+<script src="/yomi.js?v=3"></script>
 <script>
 (function(){
   "use strict";
@@ -179,7 +181,10 @@ body{background:var(--bg); color:var(--ink);
       (yomi.backs.length ? '　押さえ: ' + yomi.backs.map(function(n){ return n + "号艇"; }).join("・") : '') +
       '</p><p class="note">軸と押さえは買い目から推定しています（' +
       (yomi.byFirst ? "1着に置いた回数がいちばん多い艇を軸" : "買い目に出てくる回数がいちばん多い艇を軸") +
-      '、同数なら艇番の小さいほう）。読み点は軸の艇について付けています。</p>';
+      '、同数なら艇番の小さいほう）。読み点は軸の艇について付けています。</p>' +
+      '<p class="note">読み点は「どの枠を選んだか」ではなく' +
+      '「軸にした艇に実測の材料があったか」を測ります。' +
+      'コースの有利不利は計測の時点で差し引いてあります。</p>';
   }
   html += '</div>';
 

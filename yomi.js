@@ -564,40 +564,118 @@
   /**
    * 講評(赤ペンの言葉)を組み立てる。点には一切影響しない。
    *
+   * 【文章にする理由(v2)】
+   * v1は事実を並べるだけだったので、読んでも「で、自分の読みは何だったのか」が
+   * 残らなかった。総評→あなたの選択→事実→学び、の順に組み替える。
+   * 文はすべて定型で、数値・帯・リフトを差し込むだけ(生成AIは使わない)。
+   *
    * 【書かないと決めていること】
-   * 「買うべきだった」とは書かない。正解の買い目も示さない。採点は済んだ話で、
-   * ここは何が見えていたかを並べ直すだけの欄にする。触れていない事実を挙げる
-   * ときも、必ず「点は引いていません」と添える。
+   * 「買うべきだった」とは書かない。正解の買い目も示さない。特定の買い目を
+   * すすめない。次は当たる、といった未来の断定もしない。低い評価のときも
+   * 事実の提示で止め、人格には触れない。
+   * 防御句(点に入れていません等)は最後の1行に集約し、本文には混ぜない。
    *
    * catches は登番→二つ名の対応(players_list.js から作る)。無くても動く。
    */
-  function comment(records, snap, wave, catches) {
-    if (!snap || !snap.boats) return [];
-    var pick = pickAxis(records);
-    if (!pick) return [];
+  var MAX_COMMENT_LINES = 7;
+
+  var HINTS = {
+    form: "次に読むときは、勝率とSTの上位2艇が枠のどこにいるかを先に確認すると、" +
+      "押さえの選択肢が広がります。",
+    cond: "直近3走の平均着は、番組表の勝率では見えない「今」を写す数字です。",
+    wave: "波高4cm以上の日は、1号艇を疑うところから読みが始まります。"
+  };
+
+  function comment(records, snap, wave, catches, yomi, result) {
+    if (!snap || !snap.boats || !yomi) return [];
+    var axis = yomi.axis;
     var picked = {};
     records.forEach(function (r) { r.lanes.forEach(function (n) { picked[n] = true; }); });
     var byLane = {};
     snap.boats.forEach(function (b) { byLane[b.n] = b; });
+    var row = {};
+    yomi.rows.forEach(function (r) { row[r.cat] = r; });
     var lines = [];
 
-    // 1. 触れていない事実(最大2件)。プラスの帯に居るのに買い目に入っていない艇。
+    // ---- ① 総評 ----
+    // 読み点の帯で決め、結果が出ている答案は組み合わせで差し替える。
+    // 「読みは良かったが外れた」を、外れとしてではなく続けてよい読み方として書く。
+    var pt = yomi.pt;
+    var band = pt >= 50 ? "high" : pt >= 30 ? "mid" : "low";
+    var st = result && result.status;
+    var head;
+    if (st === "hit" && band === "high") {
+      head = "読みと結果が噛み合った答案です。";
+    } else if (st === "miss" && band === "high") {
+      head = "読みは立っていました。結果がついてこなかっただけで、続けていい読み方です。";
+    } else if (st === "hit" && band === "low") {
+      head = "的中しましたが、再現の根拠は薄い答案です。数字より運が働いた日かもしれません。";
+    } else if (band === "high") {
+      head = "軸の選び方に根拠のある答案です。";
+    } else if (band === "mid") {
+      head = "読みの軸は立っていますが、拾える材料がまだ残っています。";
+    } else {
+      head = "今回は、番組表の事実と買い目がまだ結びついていない答案です。";
+    }
+    lines.push({ kind: "head", text: head });
+
+    // ---- ② 軸の評価 ----
+    // 選手の力を表すA(全国勝率)とB(平均ST)の合計で見る。
+    // C(調子)とD(波高)はその日の事情なので、軸の選び方の評価には入れない。
+    var ab = (row.A ? row.A.pt : 0) + (row.B ? row.B.pt : 0);
+    if (ab >= 30) {
+      lines.push({ kind: "axis", text: "軸に" + axis + "号艇を選んだのは良い読みです。" +
+        row.A.fact + "、" + row.B.fact + "と、軸に置く条件が実測で揃っていました。" });
+    } else if (ab >= 15) {
+      var best = yomi.rows.slice().sort(function (a, b) { return b.pt - a.pt; })[0];
+      var flat = yomi.rows.filter(function (r) { return r.pt === 0; })
+        .map(function (r) { return r.label; });
+      lines.push({ kind: "axis", text: "軸の" + axis + "号艇には" + best.fact +
+        "という材料があります。" +
+        (flat.length ? "一方、" + flat.join("・") + "は並でした。" : "") });
+    } else {
+      var b0 = byLane[axis] || {};
+      var ks0 = fromKs(b0.ks);
+      lines.push({ kind: "axis", text: "軸の" + axis +
+        "号艇は、1着率を押し上げる実測の材料が見当たりませんでした（全国勝率" +
+        (typeof b0.nw === "number" ? b0.nw.toFixed(2) : "—") + "・平均ST" +
+        (ks0.st != null ? ks0.st.toFixed(3) : "—") + "）。" });
+    }
+
+    // ---- ③ 押さえの評価(最大1行) ----
+    // 押さえは2〜3着に来てくれれば当たりなので、1着率ではなく2連対で見る。
+    for (var i = 0; i < yomi.backs.length; i++) {
+      var bb = byLane[yomi.backs[i]];
+      if (!bb) continue;
+      var k = fromKs(bb.ks);
+      var hs = k.st != null ? firstBand(LIFT_P2.st, k.st) : null;
+      var hf = k.last3 != null ? firstBand(LIFT_P2.last3, k.last3) : null;
+      if (!hs && !hf) continue;
+      var what = hs ? "平均ST" + k.st.toFixed(3)
+        : "直近" + k.formN + "走の平均" + k.last3.toFixed(1) + "着";
+      var lift = (hs || hf).lift;
+      lines.push({ kind: "back", text: "押さえの" + yomi.backs[i] + "号艇も根拠があります。" +
+        what + "は2連対" + lift + "の帯で、上位に食い込む型です。" });
+      break;
+    }
+
+    // ---- ④ 見送った材料(最大2件)+学びのヒント ----
     var missed = [];
     snap.boats.forEach(function (b) {
       if (picked[b.n]) return;
       var ks = fromKs(b.ks);
       var cands = [];
-      if (typeof b.nw === "number" && b.nw >= 5.5) {
+      if (typeof b.nw === "number" && b.nw > 0) {
         var a = bandOf("A", b.nw);
-        if (a.pt > 0) cands.push({ pt: a.pt, t: "全国勝率" + b.nw.toFixed(2), band: a.band, lift: a.lift, period: YOMI_TABLE.A.period });
+        if (a.pt > 0) cands.push({ pt: a.pt, cat: "form", t: "全国勝率" + b.nw.toFixed(2), lift: a.lift });
       }
       if (ks.st != null) {
         var s = bandOf("B", ks.st);
-        if (s.pt > 0) cands.push({ pt: s.pt, t: "平均ST" + ks.st.toFixed(3), band: s.band, lift: s.lift, period: PERIOD_10Y });
+        if (s.pt > 0) cands.push({ pt: s.pt, cat: "form", t: "平均ST" + ks.st.toFixed(3), lift: s.lift });
       }
       if (ks.last3 != null) {
         var c = bandOf("C", ks.last3);
-        if (c.pt > 0) cands.push({ pt: c.pt, t: "直近" + ks.formN + "走の平均" + ks.last3.toFixed(1) + "着", band: c.band, lift: c.lift, period: PERIOD_10Y });
+        if (c.pt > 0) cands.push({ pt: c.pt, cat: "cond", t: "直近" + ks.formN + "走の平均" + ks.last3.toFixed(1) + "着", lift: c.lift });
       }
       if (!cands.length) return;
       cands.sort(function (x, y) { return y.pt - x.pt; });
@@ -605,52 +683,14 @@
     });
     missed.sort(function (x, y) { return y.pt - x.pt; });
     missed.slice(0, 2).forEach(function (m) {
-      lines.push({ kind: "missed", text: m.n + "号艇: " + m.c.t + "（" + m.c.band +
-        "・1着率" + m.c.lift + " / " + m.c.period + "）は買い目に入っていません（点は引いていません）。" });
+      lines.push({ kind: "missed", text: "一方で、" + m.n + "号艇（" + m.c.t + "・1着率" +
+        m.c.lift + "）にも同格の材料がありましたが、今回の買い目には入っていません。" });
     });
+    var hintCat = missed.length ? missed[0].c.cat
+      : (waveBandIndex(wave) != null && waveBandIndex(wave) >= 2 ? "wave" : null);
+    if (hintCat) lines.push({ kind: "hint", text: HINTS[hintCat] });
 
-    // 2. 点にしていない事実(最大2件)。軸と押さえについて、目立つ値を理由ごと。
-    var notes = [];
-    [pick.axis].concat(pick.backs).forEach(function (n) {
-      var b = byLane[n];
-      if (!b) return;
-      var who = n === pick.axis ? "軸の" + n + "号艇" : "押さえの" + n + "号艇";
-      if (typeof b.mo === "number" && b.mo >= 40) {
-        notes.push(who + "はモーター2率" + b.mo.toFixed(1) +
-          "%。良好ですが、実測+2.7ptで配点の目安（+3pt）に届かないため点にしていません。");
-      }
-      var cat = catches && catches[b.t];
-      if (cat && /巧者|の主/.test(cat)) {
-        notes.push(who + "は二つ名「" + cat +
-          "」ですが、当地の強さは1着率を動かさない（全帯±0.6pt以内）ため点にしていません。");
-      } else if (typeof b.lw === "number" && typeof b.nw === "number" &&
-                 b.lw > 0 && b.lw - b.nw >= 1.0) {
-        notes.push(who + "は当地勝率が全国より+" + (b.lw - b.nw).toFixed(2) +
-          "。ただし当地の強さは1着率を動かさない（全帯±0.6pt以内）ため点にしていません。");
-      }
-      if (b.k === "A1") {
-        notes.push(who + "はA1。級別は+9.0ptありますが、全国勝率と同じものを" +
-          "測っているので、二重に数えないよう点にしていません。");
-      }
-    });
-    notes.slice(0, 2).forEach(function (t) { lines.push({ kind: "unscored", text: t }); });
-
-    // 3. 押さえの読み(1行)。2連対のプラス帯に居るなら、根拠がある買い方だと言う。
-    for (var i = 0; i < pick.backs.length; i++) {
-      var bb = byLane[pick.backs[i]];
-      if (!bb) continue;
-      var k = fromKs(bb.ks);
-      var hit = (k.st != null && firstBand(LIFT_P2.st, k.st)) ||
-                (k.last3 != null && firstBand(LIFT_P2.last3, k.last3));
-      if (!hit) continue;
-      var what = (k.st != null && firstBand(LIFT_P2.st, k.st))
-        ? "平均ST" + k.st.toFixed(3) : "直近" + k.formN + "走の平均" + k.last3.toFixed(1) + "着";
-      lines.push({ kind: "back", text: "押さえの" + pick.backs[i] + "号艇: " + what +
-        "は2連対" + hit.lift + "の帯（" + PERIOD_10Y + "）。押さえとして根拠があります。" });
-      break;
-    }
-
-    // 4. 条件のこと(1行)。荒れた日だけ。穏やかな日は書くことがない。
+    // ---- ⑤ 条件(荒れた日だけ) ----
     var wi = waveBandIndex(wave);
     if (wi != null && wi >= 2) {
       var wb = YOMI_TABLE.D.waveBands[wi];
@@ -659,8 +699,34 @@
         "%）。荒れるほど逃げ切りが減り、抜きが増えます。" });
     }
 
-    // 5. 締めの免責(固定)。
-    lines.push({ kind: "note", text: DISCLAIMER });
+    // 7行に収める。溢れたら見送った材料の2件目から落とす
+    // (総評・軸・押さえ・学び・条件のほうが、答案として残るものが多い)。
+    while (lines.length >= MAX_COMMENT_LINES) {
+      var idx = -1;
+      for (var j = lines.length - 1; j >= 0; j--) if (lines[j].kind === "missed") { idx = j; break; }
+      if (idx < 0) break;
+      lines.splice(idx, 1);
+    }
+
+    // ---- ⑥ ※点外の事実と免責(1行に集約) ----
+    // 防御句はここに1回だけ。本文には混ぜない。
+    var out = {};
+    [axis].concat(yomi.backs).forEach(function (n) {
+      var b = byLane[n];
+      if (!b) return;
+      if (typeof b.mo === "number" && b.mo >= 40) out["モーター2率"] = true;
+      var cat = catches && catches[b.t];
+      if ((cat && /巧者|の主/.test(cat)) ||
+          (typeof b.lw === "number" && typeof b.nw === "number" && b.lw > 0 && b.lw - b.nw >= 1.0)) {
+        out["当地の強さ"] = true;
+      }
+      if (b.k === "A1" || b.k === "A2") out["級別"] = true;
+    });
+    var names = Object.keys(out);
+    lines.push({ kind: "note", text: "※" +
+      (names.length ? names.join("・") + "は、実測で1着率を動かさない（または基準未満の）ため" +
+        "点に入れていません。" : "") +
+      "採点はレース時点の気象で行っています。" });
     return lines;
   }
 
@@ -872,11 +938,12 @@
       // うっかり出せないようにしてある。
       var settled = result.status === "hit" || result.status === "miss" ||
         result.status === "void";
+      var yomiOut = settled ? yomiScore(recs, snap, wave) : null;
       return {
         key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
         result: result, settled: settled,
-        yomi: settled ? yomiScore(recs, snap, wave) : null,
-        comment: settled ? comment(recs, snap, wave, catches) : []
+        yomi: yomiOut,
+        comment: settled ? comment(recs, snap, wave, catches, yomiOut, result) : []
       };
     },
 
