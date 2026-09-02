@@ -99,7 +99,13 @@ body{background:var(--bg); color:var(--ink);
 
 <!-- 二つ名は講評でだけ使う。読めなくても他の行は出るので、空にして進む。 -->
 <script src="/players_list.js" onerror="window.PLAYER_LIST=[]"></script>
-<script src="/yomi.js"></script>
+<!-- ?v= は yomi.js / yomi-race.js のキャッシュ避け。GitHub Pages は
+     max-age=600 を返すので、HTMLだけ新しくJSが古い、という食い違いが
+     10分間起こりうる(実機で講評が出なかったのがこれ)。HTMLとJSの版を
+     URLで結びつけて、必ず対になったものが読まれるようにする。
+     ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
+       (yomi.html / mypage.html / build_race_pages.py) -->
+<script src="/yomi.js?v=2"></script>
 <script>
 (function(){
   "use strict";

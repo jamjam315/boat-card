@@ -523,8 +523,8 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
 {snapshot_html}
-<script src="/yomi.js"></script>
-<script src="/yomi-race.js"></script>
+<script src="/yomi.js?v=2"></script>
+<script src="/yomi-race.js?v=2"></script>
 </body>
 </html>"""
 

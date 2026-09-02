@@ -224,7 +224,13 @@ body{background:var(--bg); color:var(--ink);
 <script src="billing.js"></script>
 <script src="alerts.js"></script>
 <script src="notes.js"></script>
-<script src="yomi.js"></script>
+<!-- ?v= は yomi.js / yomi-race.js のキャッシュ避け。GitHub Pages は
+     max-age=600 を返すので、HTMLだけ新しくJSが古い、という食い違いが
+     10分間起こりうる(実機で講評が出なかったのがこれ)。HTMLとJSの版を
+     URLで結びつけて、必ず対になったものが読まれるようにする。
+     ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
+       (yomi.html / mypage.html / build_race_pages.py) -->
+<script src="yomi.js?v=2"></script>
 <script>
 (function(){
 "use strict";
