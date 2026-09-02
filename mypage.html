@@ -141,7 +141,9 @@ body{background:var(--bg); color:var(--ink);
 .ym-plus{color:var(--accent); font-weight:700;}
 .ym-minus{color:var(--ink2);}
 .ym-pt{margin-left:auto; font-size:11.5px; color:var(--muted);}
-.ym-act{margin:5px 0 0; display:flex; justify-content:flex-end;}
+.ym-act{margin:5px 0 0; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.ym-open{font-size:12.5px; color:var(--accent); text-decoration:underline;
+  text-decoration-color:var(--line2);}
 
 /* ---- 直近30日の集計 ---- */
 .ym-sum{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:2px 0 0;}
@@ -770,30 +772,58 @@ function renderYomiBox(){
     return;
   }
 
+  // 読み点は「レース×出所タグ」で1つなので、一覧もその単位(答案)で並べる。
+  // 買い目そのものは答案ページで見られるので、ここでは点と入口だけを出す。
+  const papers = TeiyomiYomi.papers();
   box.innerHTML = yomiSummaryHtml(TeiyomiYomi.summary(30)) +
-    `<div class="authbox">` + rows.map(r=>{
+    `<div class="authbox">` + papers.map(pp=>{
     // key は "YYYY-MM-DD:会場:R"。表示は日付と会場Rに分ける。
-    const p = r.key.split(":");
-    return `<div class="ym-row" data-id="${esc(r.id)}">
-      <p class="ym-head">${esc(p[0])}　${esc(p[1])} ${esc(p[2])}R</p>
-      <p class="ym-bet"><span class="ym-ken">${esc(r.ken)}</span>
-        <span class="ym-lanes">${esc(TeiyomiYomi.betText(r.ken, r.lanes))}</span>
-        ${r.tag ? `<span class="ym-tag">${esc(r.tag)}</span>` : ""}
-        <span class="ym-amt">${r.amount}円</span></p>
-      <p class="ym-score">${yomiScoreHtml(r)}</p>
-      <p class="ym-act"><button type="button" class="authbox-btn ym-del">削除</button></p>
+    const p = pp.key.split(":");
+    const res = TeiyomiYomi.groupResult(pp.records);
+    const yomi = pp.yomi || TeiyomiYomi.yomiScore(pp.records, TeiyomiYomi.snapshot(pp.key), waveOf(pp.records));
+    const url = `yomi.html?key=${encodeURIComponent(pp.key)}&tag=${encodeURIComponent(pp.tag)}`;
+    const pts = (yomi || res.pt != null)
+      ? `<span class="ym-pt nums">読み ${yomi ? yomi.pt : "—"}／結果 ${res.pt == null ? "—" : res.pt}</span>`
+      : "";
+    return `<div class="ym-row" data-key="${esc(pp.key)}" data-tag="${esc(pp.tag)}">
+      <p class="ym-head">${esc(p[0])}　${esc(p[1])} ${esc(p[2])}R
+        ${pp.tag ? `<span class="ym-tag">${esc(pp.tag)}</span>` : ""}
+        <span class="ym-amt">${pp.records.length}点</span></p>
+      <p class="ym-score">${yomiPaperHtml(res)}${pts}</p>
+      <p class="ym-act"><a class="ym-open" href="${url}">答案を見る →</a>
+        <button type="button" class="authbox-btn ym-del">削除</button></p>
     </div>`;
   }).join("") +
     `<p class="authbox-notice">記録はこの端末の中だけに保存され、外には送られません。</p></div>`;
 
   box.querySelectorAll(".ym-row").forEach(row=>{
-    const id = row.getAttribute("data-id");
+    const key = row.getAttribute("data-key");
+    const tag = row.getAttribute("data-tag");
     row.querySelector(".ym-del").addEventListener("click", function(){
-      if(!window.confirm("この記録を削除しますか？")) return;
-      TeiyomiYomi.remove(id);
+      if(!window.confirm("この答案（この出所の買い目すべて）を削除しますか？")) return;
+      TeiyomiYomi.listByRace(key)
+        .filter(r => (r.tag || "") === tag)
+        .forEach(r => TeiyomiYomi.remove(r.id));
       renderYomiBox();
     });
   });
+}
+
+/** 答案の中で最初に見つかった波高（採点済みの記録が持っている）。 */
+function waveOf(records){
+  for(const r of records){ if(r.score && r.score.wave != null) return r.score.wave; }
+  return null;
+}
+
+/** 答案1件ぶんの結果表示。買い目ごとの内訳は答案ページに任せる。 */
+function yomiPaperHtml(res){
+  if(res.status === "pending") return `<span class="ym-wait">採点待ち（翌朝に結果が出ます）</span>`;
+  if(res.status === "void") return `<span class="ym-void">不成立（返還）</span>`;
+  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
+  return res.status === "hit"
+    ? `<span class="ym-hit">的中</span><span>払戻 ${res.yen.toLocaleString()}円</span>
+       <span class="ym-plus">${yen(res.profit)}円</span>`
+    : `<span class="ym-miss">不的中</span><span class="ym-minus">${yen(res.profit)}円</span>`;
 }
 renderYomiBox();
 fetchYomiScores();
