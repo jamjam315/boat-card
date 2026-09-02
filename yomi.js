@@ -440,19 +440,32 @@
     return t.bands[t.bands.length - 1];
   }
 
-  /** ks(今節/直近の流れ)から平均STと直近3走の平均着を出す。 */
+  /**
+   * ks(今節/直近の流れ)から平均STと直近の平均着を出す。
+   *
+   * 【3走に満たないことがある】
+   * ks は「今節が2走以上あれば今節、無ければ直近30日」という作りなので、
+   * 節の2日目だと今節2走ぶんしか入らない。実際に2026-09-02の大村12Rで
+   * 1号艇が r=[4,3] の2件しか無く、3走を要求していたために「不明」になっていた。
+   * 少ないなりに直近の調子は分かるので、あるだけで平均を取り、
+   * 何走ぶんかを一緒に返す(画面はそれを添えて出す)。
+   * 1走だけだと調子ではなく1回の着順でしかないので、その時は判定しない。
+   */
+  var MIN_FORM_RACES = 2;
+
   function fromKs(ks) {
-    var st = null, last3 = null;
+    var st = null, form = null, formN = 0;
     if (ks) {
       var s = (ks.s || []).filter(function (x) { return typeof x === "number"; });
       if (s.length) st = s.reduce(function (a, b) { return a + b; }, 0) / s.length;
       var r = (ks.r || []).filter(function (x) { return typeof x === "number"; });
-      if (r.length >= 3) {
+      if (r.length >= MIN_FORM_RACES) {
         var t = r.slice(-3);
-        last3 = (t[0] + t[1] + t[2]) / 3;
+        formN = t.length;
+        form = t.reduce(function (a, b) { return a + b; }, 0) / t.length;
       }
     }
-    return { st: st, last3: last3 };
+    return { st: st, last3: form, formN: formN };
   }
 
   /**
@@ -496,9 +509,17 @@
     // C 直近3走
     if (ks.last3 != null) {
       var c = bandOf("C", ks.last3);
-      push("C", c.pt, "直近3走の平均 " + ks.last3.toFixed(1) + "着", c.band, c.lift);
+      // 何走ぶんで見たかを必ず添える。3走揃っていない日があるため、
+      // 「直近3走」と書いてしまうと事実と違う。
+      push("C", c.pt, "直近" + ks.formN + "走の平均 " + ks.last3.toFixed(1) + "着",
+           c.band, c.lift,
+           ks.formN < 3 ? null : undefined);
+      if (ks.formN < 3) {
+        rows[rows.length - 1].line += "（今節" + ks.formN + "走ぶんで判定）";
+      }
     } else {
-      push("C", 0, "直近3走 不明", null, null, "この項目は判定できませんでした");
+      push("C", 0, "直近の成績が不足", null, null,
+           "今節が始まったばかりで、判定に使える走行がありません");
     }
     // D 波高×コース
     var wi = waveBandIndex(wave);
@@ -576,7 +597,7 @@
       }
       if (ks.last3 != null) {
         var c = bandOf("C", ks.last3);
-        if (c.pt > 0) cands.push({ pt: c.pt, t: "直近3走の平均" + ks.last3.toFixed(1) + "着", band: c.band, lift: c.lift, period: PERIOD_10Y });
+        if (c.pt > 0) cands.push({ pt: c.pt, t: "直近" + ks.formN + "走の平均" + ks.last3.toFixed(1) + "着", band: c.band, lift: c.lift, period: PERIOD_10Y });
       }
       if (!cands.length) return;
       cands.sort(function (x, y) { return y.pt - x.pt; });
@@ -623,7 +644,7 @@
                 (k.last3 != null && firstBand(LIFT_P2.last3, k.last3));
       if (!hit) continue;
       var what = (k.st != null && firstBand(LIFT_P2.st, k.st))
-        ? "平均ST" + k.st.toFixed(3) : "直近3走の平均" + k.last3.toFixed(1) + "着";
+        ? "平均ST" + k.st.toFixed(3) : "直近" + k.formN + "走の平均" + k.last3.toFixed(1) + "着";
       lines.push({ kind: "back", text: "押さえの" + pick.backs[i] + "号艇: " + what +
         "は2連対" + hit.lift + "の帯（" + PERIOD_10Y + "）。押さえとして根拠があります。" });
       break;
