@@ -296,11 +296,244 @@
       st: row ? "hit" : "miss",
       top3: top3(race.order),
       kimarite: race.kimarite || null,
+      // 読み点の「波高とコース」に要る。記録の時点では分からない値なので、
+      // 採点のときに払戻JSONから拾って一緒に残す。
+      wave: race.wx ? race.wx["波高"] : null,
       yen: yen,
       profit: yen - rec.amount,
       roi: roi,
       pop: row && row.p != null ? row.p : null,
       pt: resultPoints(!!row, roi)
+    };
+  }
+
+  // ---------------------------------------------------------------- 読み点
+
+  // 配点表 v1。点は感覚で決めず、2026-09-02に実データで測った「リフト」
+  // (同じ会場×同じコースの平均1着率と比べて何pt動くか)から機械的に割り振った。
+  //
+  // 【配分の決め方】各項目の観測リフトの幅(最大−最小)で70点を按分し、
+  // 帯ごとの点は幅の中の位置に比例させた。恣意的な重み付けはしていない。
+  //   全国勝率   +12.6〜−6.2pt (幅18.8) → 26点
+  //   平均ST      +8.5〜−4.7pt (幅13.2) → 18点
+  //   直近3走     +7.3〜−4.3pt (幅11.6) → 16点
+  //   波高×コース +2.6〜−5.0pt (幅 7.6) → 10点
+  //
+  // 【測ったが入れなかった事実】
+  //   当地−全国の勝率差 … 全帯で±0.6pt以内。単調ですらなく、1着率を動かさない
+  //   決まり手の型適合   … 強く合う層ほど2連対が下がる(−1.2pt)。指標として逆効果
+  //   級別               … A1で+9.0ptだが、全国勝率と同じものを測っている(二重計上)
+  //   モーター2連率      … 単調だが最大+2.7ptで、採用の目安(+3pt)に届かない
+  // これらは講評(P2-2)に回す。
+  //
+  // 【期間が項目で違う理由】
+  // 全国勝率は番組表(program/)にしか無く、貯め始めが2026-07-26なので39日分しか
+  // 測れない。他はresultsから10年分測れる。単調性は明確だが、全国勝率の帯の値は
+  // programが貯まったら測り直すこと。
+  var YOMI_VERSION = "v1 2026-09";
+  var MAX_YOMI_PT = 70;
+
+  var YOMI_TABLE = {
+    A: {
+      label: "全国勝率", max: 26, period: "39日・35,404走",
+      bands: [
+        { min: 7.0, pt: 26, lift: "+12.6pt", band: "7.0以上" },
+        { min: 6.5, pt: 19, lift: "+7.7pt", band: "6.5〜7.0" },
+        { min: 6.0, pt: 14, lift: "+4.0pt", band: "6.0〜6.5" },
+        { min: 5.5, pt: 11, lift: "+1.9pt", band: "5.5〜6.0" },
+        { min: 5.0, pt: 6, lift: "−1.6pt", band: "5.0〜5.5" },
+        { min: -1, pt: 0, lift: "−6.2pt", band: "5.0未満" }
+      ]
+    },
+    B: {
+      label: "平均ST", max: 18, period: "10年・334万走",
+      // STは小さいほど良いので、帯は上から「速い順」に見る。
+      bands: [
+        { max: 0.14, pt: 18, lift: "+8.5pt", band: "0.14未満" },
+        { max: 0.16, pt: 13, lift: "+4.6pt", band: "0.14〜0.16" },
+        { max: 0.18, pt: 6, lift: "−0.2pt", band: "0.16〜0.18" },
+        { max: 99, pt: 0, lift: "−4.7pt", band: "0.18以上" }
+      ]
+    },
+    C: {
+      label: "直近3走の調子", max: 16, period: "10年・334万走",
+      bands: [
+        { max: 2.0, pt: 16, lift: "+7.3pt", band: "平均2.0着以内" },
+        { max: 3.0, pt: 10, lift: "+2.7pt", band: "平均2.0〜3.0着" },
+        { max: 4.0, pt: 5, lift: "−1.0pt", band: "平均3.0〜4.0着" },
+        { max: 99, pt: 0, lift: "−4.3pt", band: "平均4.0着より下" }
+      ]
+    },
+    D: {
+      label: "波高とコース", max: 10, period: "10年・334万走",
+      // [艇番][波高帯] = [点, リフト]。艇番をコースの代わりに使う。
+      // 進入コースはレース後にしか分からず、記録した時点では枠しか無いため
+      // (枠なり進入は約90%なので近似として使える)。
+      // 効くのは1号艇だけで、荒れるほど落ちる。外は波高でほとんど動かない。
+      waveBands: ["0-1cm", "2-3cm", "4-5cm", "6cm+"],
+      lane: {
+        1: [[10, "+2.6pt"], [6, "−0.4pt"], [3, "−3.0pt"], [0, "−5.0pt"]],
+        2: [[6, "−0.5pt"], [7, "+0.1pt"], [7, "+0.4pt"], [8, "+1.3pt"]],
+        3: [[6, "−0.8pt"], [7, "+0.1pt"], [8, "+1.1pt"], [8, "+0.9pt"]],
+        4: [[6, "−0.8pt"], [7, "+0.1pt"], [8, "+0.9pt"], [9, "+1.6pt"]],
+        5: [[6, "−0.4pt"], [7, "+0.1pt"], [7, "+0.4pt"], [7, "+0.6pt"]],
+        6: [[6, "−0.2pt"], [7, "+0.0pt"], [7, "+0.1pt"], [7, "+0.6pt"]]
+      }
+    }
+  };
+
+  function waveBandIndex(cm) {
+    if (cm == null) return null;
+    return cm <= 1 ? 0 : cm <= 3 ? 1 : cm <= 5 ? 2 : 3;
+  }
+
+  /**
+   * 買い目の群から「軸」と「押さえ」を推定する。
+   *
+   * 【規則】
+   * 順序のある券種(単勝・2連単・3連単)が1つでもあれば、
+   *   軸   = 1着の位置にいちばん多く置かれた艇
+   *   押さえ = それ以外で、買い目全体への登場回数が多い2艇
+   * 順不同だけの群(複勝・2連複・3連複・拡連複)は、
+   *   軸   = 登場回数がいちばん多い艇
+   *   押さえ = 次に多い2艇
+   *
+   * 同数で並んだときは艇番の小さいほうを上にする。内側のコースほど1着率が
+   * 高いので「軸」として自然で、かつ機械的に決まる(こちらの好みが入らない)。
+   *
+   * あくまで買い目からの推定なので、答案には「推定」と明記して出す。
+   */
+  function pickAxis(records) {
+    var first = {}, all = {};
+    var ordered = false;
+    records.forEach(function (r) {
+      var s = KEN_BY_ID[r.ken];
+      if (!s) return;
+      if (s.ordered || s.n === 1) ordered = true;
+      r.lanes.forEach(function (n, i) {
+        all[n] = (all[n] || 0) + 1;
+        if (i === 0) first[n] = (first[n] || 0) + 1;
+      });
+    });
+    function rank(counts) {
+      return Object.keys(counts).map(Number).sort(function (a, b) {
+        return counts[b] - counts[a] || a - b;   // 同数なら艇番の小さい順
+      });
+    }
+    var axis = ordered && Object.keys(first).length ? rank(first)[0] : rank(all)[0];
+    if (axis == null) return null;
+    var backs = rank(all).filter(function (n) { return n !== axis; }).slice(0, 2);
+    return { axis: axis, backs: backs, byFirst: ordered };
+  }
+
+  function bandOf(cat, value) {
+    var t = YOMI_TABLE[cat];
+    for (var i = 0; i < t.bands.length; i++) {
+      var b = t.bands[i];
+      if (b.min !== undefined ? value >= b.min : value < b.max) return b;
+    }
+    return t.bands[t.bands.length - 1];
+  }
+
+  /** ks(今節/直近の流れ)から平均STと直近3走の平均着を出す。 */
+  function fromKs(ks) {
+    var st = null, last3 = null;
+    if (ks) {
+      var s = (ks.s || []).filter(function (x) { return typeof x === "number"; });
+      if (s.length) st = s.reduce(function (a, b) { return a + b; }, 0) / s.length;
+      var r = (ks.r || []).filter(function (x) { return typeof x === "number"; });
+      if (r.length >= 3) {
+        var t = r.slice(-3);
+        last3 = (t[0] + t[1] + t[2]) / 3;
+      }
+    }
+    return { st: st, last3: last3 };
+  }
+
+  /**
+   * 読み点を出す。返り値の rows はそのまま画面に並べられる形にしてある。
+   * 1行 = 「+19: 全国勝率6.72（6.5〜7.0の帯は1着率+7.7pt / 39日・35,404走）」
+   */
+  function yomiScore(records, snap, wave) {
+    var pick = pickAxis(records);
+    if (!pick || !snap) return null;
+    var boat = null;
+    (snap.boats || []).forEach(function (b) { if (b.n === pick.axis) boat = b; });
+    if (!boat) return null;
+
+    var ks = fromKs(boat.ks);
+    var rows = [];
+    function push(cat, pt, fact, band, lift, note) {
+      var t = YOMI_TABLE[cat];
+      rows.push({
+        cat: cat, label: t.label, pt: pt, max: t.max,
+        fact: fact, band: band, lift: lift, period: t.period, note: note || null,
+        line: (pt >= 0 ? "+" : "") + pt + ": " + fact +
+          (note ? "（" + note + "）"
+                : "（" + band + "は1着率" + lift + " / " + t.period + "）")
+      });
+    }
+
+    // A 全国勝率
+    if (typeof boat.nw === "number" && boat.nw > 0) {
+      var a = bandOf("A", boat.nw);
+      push("A", a.pt, "全国勝率 " + boat.nw.toFixed(2), a.band, a.lift);
+    } else {
+      push("A", 0, "全国勝率 不明", null, null, "この項目は判定できませんでした");
+    }
+    // B 平均ST
+    if (ks.st != null) {
+      var b = bandOf("B", ks.st);
+      push("B", b.pt, "平均ST " + ks.st.toFixed(3), b.band, b.lift);
+    } else {
+      push("B", 0, "平均ST 不明", null, null, "この項目は判定できませんでした");
+    }
+    // C 直近3走
+    if (ks.last3 != null) {
+      var c = bandOf("C", ks.last3);
+      push("C", c.pt, "直近3走の平均 " + ks.last3.toFixed(1) + "着", c.band, c.lift);
+    } else {
+      push("C", 0, "直近3走 不明", null, null, "この項目は判定できませんでした");
+    }
+    // D 波高×コース
+    var wi = waveBandIndex(wave);
+    var lane = YOMI_TABLE.D.lane[pick.axis];
+    if (wi != null && lane) {
+      var d = lane[wi];
+      push("D", d[0], "波高 " + wave + "cm・" + pick.axis + "号艇",
+           pick.axis + "号艇×" + YOMI_TABLE.D.waveBands[wi], d[1]);
+    } else {
+      push("D", 0, "波高 不明", null, null, "この項目は判定できませんでした");
+    }
+
+    var total = rows.reduce(function (s, r) { return s + r.pt; }, 0);
+    return {
+      version: YOMI_VERSION, axis: pick.axis, backs: pick.backs,
+      byFirst: pick.byFirst, rows: rows, pt: total, max: MAX_YOMI_PT
+    };
+  }
+
+  /**
+   * 1答案(同じレース×同じ出所タグの買い目の束)の結果点。
+   * 的中が1つでもあれば的中、回収率は束全体の払戻÷投入で計算し直す。
+   */
+  function groupResult(records) {
+    var bet = 0, yen = 0, hit = false, judged = 0, voided = 0, pending = 0;
+    records.forEach(function (r) {
+      var s = r.score;
+      if (!s) { pending++; return; }
+      if (s.st === "void") { voided++; return; }
+      if (s.st === "nodata") { pending++; return; }
+      judged++;
+      bet += r.amount; yen += s.yen;
+      if (s.st === "hit") hit = true;
+    });
+    if (!judged) return { status: voided && !pending ? "void" : "pending" };
+    var roi = bet > 0 ? Math.round(yen / bet * 1000) / 10 : 0;
+    return {
+      status: hit ? "hit" : "miss", bet: bet, yen: yen,
+      profit: yen - bet, roi: roi, pt: resultPoints(hit, roi),
+      max: MAX_RESULT_PT, voided: voided, pending: pending
     };
   }
 
@@ -443,15 +676,64 @@
     },
 
     MAX_RESULT_PT: MAX_RESULT_PT,
+    MAX_YOMI_PT: MAX_YOMI_PT,
+    YOMI_VERSION: YOMI_VERSION,
+    YOMI_TABLE: YOMI_TABLE,
+    pickAxis: pickAxis,
+    yomiScore: yomiScore,
+    groupResult: groupResult,
+
+    /**
+     * 答案(レース×出所タグ)の一覧。新しい順。
+     * 読み点はこの単位で1つなので、画面もこの単位で並べる。
+     */
+    papers: function () {
+      var by = {};
+      readAll().forEach(function (r) {
+        var id = r.key + "\t" + (r.tag || "");
+        if (!by[id]) by[id] = { key: r.key, tag: r.tag || "", at: r.at, records: [] };
+        by[id].records.push(r);
+        if (r.at > by[id].at) by[id].at = r.at;
+      });
+      return Object.keys(by).map(function (k) { return by[k]; })
+        .sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
+    },
+
+    /** 1答案だけ取り出す。答案ページが ?key=&tag= から引くのに使う。 */
+    paper: function (key, tag) {
+      var recs = readAll().filter(function (r) {
+        return r.key === key && (r.tag || "") === (tag || "");
+      });
+      if (!recs.length) return null;
+      var wave = null;
+      recs.forEach(function (r) {
+        if (r.score && r.score.wave != null) wave = r.score.wave;
+      });
+      var snap = readSnaps()[key] || null;
+      return {
+        key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
+        result: groupResult(recs), yomi: yomiScore(recs, snap, wave)
+      };
+    },
+
     todayJst: todayJst,
     scoreOne: scoreOne,
     matchPay: matchPay,
 
     /** まだ採点していない記録の、レース開催日の一覧(古い順・重複なし)。 */
+    /**
+     * 払戻JSONを取りに行くべき日付の一覧(古い順・重複なし)。
+     *
+     * まだ採点していないものに加え、採点済みでも波高を持っていないものを含める。
+     * 波高は読み点(D)に要るが、P1-3の採点では拾っていなかった。取り直して
+     * 書き直せば、以前の記録にも遡って読み点が付く。
+     */
     unscoredDates: function () {
       var seen = {};
       readAll().forEach(function (r) {
-        if (!r.score) seen[r.key.split(":")[0]] = true;
+        var s = r.score;
+        var needWave = s && (s.st === "hit" || s.st === "miss") && s.wave === undefined;
+        if (!s || needWave) seen[r.key.split(":")[0]] = true;
       });
       return Object.keys(seen).sort();
     },
@@ -485,8 +767,12 @@
       var all = readAll();
       var n = 0;
       all.forEach(function (r) {
-        if (r.score) return;
         if (r.key.split(":")[0] !== dateIso) return;
+        // 採点済みでも、波高を持っていないものは採点し直す(読み点Dに要るため)。
+        // 結果は変わらないので上書きして問題ない。
+        var stale = r.score && (r.score.st === "hit" || r.score.st === "miss") &&
+          r.score.wave === undefined;
+        if (r.score && !stale) return;
         var s = scoreOne(r, races[r.key]);
         if (s) { r.score = s; n++; }
       });
