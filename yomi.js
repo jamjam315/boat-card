@@ -889,6 +889,25 @@
       return writeAll(all);
     },
 
+    /**
+     * その答案のAI講評を「報告済み」にする。保存できたら true。
+     *
+     * 連打防止のための印。サーバー側にも報告は残るが、そちらは自分の行しか
+     * 読めないうえ、画面を開くたびに問い合わせるほどのものでもない。
+     * 端末に印を置けば、開き直しても報告済みのまま出せる。
+     */
+    setAiReported: function (key, tag) {
+      var all = readAll();
+      for (var i = 0; i < all.length; i++) {
+        var r = all[i];
+        if (r.key !== key || (r.tag || "") !== (tag || "")) continue;
+        if (!r.score || !r.score.ai) continue;
+        r.score.ai.reported = true;
+        return writeAll(all);
+      }
+      return false;
+    },
+
     /** そのレースのスナップショット(記録時点の data.js のレース要素)。 */
     snapshot: function (key) {
       return readSnaps()[key] || null;

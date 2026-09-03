@@ -131,8 +131,18 @@
     blocked: "講評を生成できませんでした。回数は消費していません。",
     ai_unavailable: "いまAI講評を使えません。時間をおいて試してください。",
     bad_request: "この答案の形では送れませんでした。",
-    network: "通信できませんでした。電波の良いところで試してください。"
+    network: "通信できませんでした。電波の良いところで試してください。",
+    report_ok: "報告を受け付けました。",
+    report_ng: "報告を送れませんでした。時間をおいて試してください。",
+    report_limit: "報告の上限に達しています。"
   };
+
+  // 報告のカテゴリ。値はDBのCHECK制約と対で、片方だけ増やすと落ちる。
+  var CATEGORIES = [
+    { v: "wrong", label: "事実と違う" },
+    { v: "inappropriate", label: "不適切な表現" },
+    { v: "other", label: "その他" }
+  ];
 
   window.TeiyomiYomiAi = {
     PROVIDER_NAME: AI_PROVIDER_NAME,
@@ -183,6 +193,68 @@
       }).catch(function () {
         return { ok: false, message: MSG.network };
       });
+    },
+
+    CATEGORIES: CATEGORIES,
+
+    /**
+     * この講評を報告する。
+     * 返り値(Promise): {ok:true} / {ok:false, message}
+     *
+     * **yomi-review は呼ばない。** 別テーブルへの素のINSERTなので、報告の操作が
+     * 回数カウンタに触れる経路がそもそも無い。生成の同意とも無関係
+     * (報告先はAI事業者ではなく艇読みのサーバー)。
+     */
+    report: function (opt) {
+      opt = opt || {};
+      var auth = window.TeiyomiAuth;
+      var client = auth && auth.getClient && auth.getClient();
+      var user = auth && auth.getUser && auth.getUser();
+      if (!client || !user) return Promise.resolve({ ok: false, message: MSG.report_ng });
+
+      var cat = String(opt.category || "");
+      var known = CATEGORIES.some(function (c) { return c.v === cat; });
+      if (!known) return Promise.resolve({ ok: false, message: MSG.report_ng });
+      var text = String(opt.text || "").slice(0, 4000);
+      if (!text) return Promise.resolve({ ok: false, message: MSG.report_ng });
+
+      var comment = String(opt.comment || "").slice(0, 500);
+      return client.from("yomi_ai_reports").insert({
+        user_id: user.id,
+        category: cat,
+        text: text,
+        model: String(opt.model || "").slice(0, 60) || null,
+        generated_at: opt.generatedAt || null,
+        comment: comment || null
+      }).then(function (r) {
+        if (!r.error) return { ok: true };
+        // 上限のトリガーは check_violation で返る。それだけは理由を伝える
+        // (「送れませんでした」だけだと、何度でも押し直してしまう)。
+        var msg = String((r.error && r.error.message) || "");
+        return {
+          ok: false,
+          message: msg.indexOf("20件") >= 0 ? MSG.report_limit : MSG.report_ng
+        };
+      }, function () {
+        return { ok: false, message: MSG.report_ng };
+      });
+    },
+
+    /** 報告フォーム。押した講評ボックスの中に開く(画面を離れない)。 */
+    reportFormHtml: function () {
+      return '<div class="ai-report">' +
+        '<p class="ai-rp-ttl">この講評を報告する</p>' +
+        '<p class="ai-rp-cats">' + CATEGORIES.map(function (c, i) {
+          return '<label><input type="radio" name="aiRpCat" value="' + c.v + '"' +
+            (i === 0 ? '' : '') + '> ' + esc(c.label) + '</label>';
+        }).join("") + '</p>' +
+        '<textarea class="ai-rp-memo" rows="3" maxlength="500" ' +
+          'placeholder="気になった点（任意・500字まで）"></textarea>' +
+        '<p class="ai-rp-note">報告すると、この講評の本文が艇読みのサーバーに保存されます' +
+        '（本文には買い目の組番が含まれることがあります）。金額とメモは含まれません。</p>' +
+        '<p class="ai-rp-act"><button type="button" class="ai-rp-send" disabled>報告する</button>' +
+        '<button type="button" class="ai-rp-cancel">やめる</button></p>' +
+        '</div>';
     },
 
     /** 同意画面の本文。何を送り、何を送らないかを、この1か所で書く。 */
