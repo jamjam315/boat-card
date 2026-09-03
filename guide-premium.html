@@ -12,7 +12,7 @@
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>プレミアムの使い方｜艇読み</title>
-<meta name="description" content="艇読みプレミアムの使い方。勝ち方分析の見方、選手バックテスト、条件アラート、検証ノート、朝の通知について、実際の画面に沿って説明します。">
+<meta name="description" content="艇読みプレミアムの使い方。勝ち方分析の見方、選手バックテスト、条件アラート、検証ノート、朝の通知、AI講評について、実際の画面に沿って説明します。">
 <!-- 公開前のため検索には載せない。公開当日に解除する。 -->
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="/manifest.json">
@@ -274,6 +274,35 @@ body{background:var(--bg); color:var(--ink);
       <h3>届く時刻</h3>
       毎朝、出走表ができ次第お送りします。通知をタップするとマイページが開きます。
       <div class="linktip">メールのリンクでログインするとうまく反映されないことがあります（アプリ内のブラウザと、ホーム画面から開いた艇読みが別々に扱われるため）。その場合はメールに書いてある<b>6桁のコード</b>を艇読みの画面に入力してください。</div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">AI講評の使い方</span></div>
+    <div class="step-body">
+      読み採点（無料）で結果が確定した答案に、AIが文章の講評を書く機能です。定型の赤ペン講評とは別に付きます。
+
+      <h3>できること・しないこと</h3>
+      <ul>
+        <li>答案の買い目・読み点の内訳と、全国の実測データ（決着の型ごとの2着コース分布、進入の癖）を突き合わせて講評します</li>
+        <li>選手名は書きません。艇は「3号艇」のように呼びます</li>
+        <li>買い目の推奨と、次のレースの予想はしません</li>
+        <li>使う数字は実測の集計だけです。母数を必ず添え、例が少ない条件は「例が少ない」と書きます</li>
+      </ul>
+
+      <h3>使い方</h3>
+      結果が確定した答案を開くと「AI講評を読む」が出ます。締切前・結果待ちの答案には出ません（結果が出る前に講評すると、予想になってしまうためです）。
+      <p>初回だけ同意画面が開きます。何を送って何を送らないかをそこで確認できます。<b>送るのは答案の内容だけで、選手名・金額・メモは送りません。サーバーにも保存しません。</b></p>
+
+      <h3>回数と保存</h3>
+      <ul>
+        <li><b>プレミアム</b>：1日3答案まで</li>
+        <li><b>無料</b>：お試しとして通算5回まで</li>
+        <li>生成した講評はこの端末に保存されます。同じ答案を読み直しても回数は減りません</li>
+      </ul>
+
+      <h3>注意</h3>
+      文章はAIが書くため、同じ答案でも表現は毎回少し変わります。事実と違う・不適切だと感じた講評があれば、講評の下の「⚑ 報告」からお知らせください。
     </div>
   </section>
 

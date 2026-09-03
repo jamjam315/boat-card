@@ -61,6 +61,9 @@ body{background:var(--bg); color:var(--ink);
 .step-body ul{margin:8px 0 0; padding-left:20px;}
 .step-body li{margin-top:5px;}
 .step-body p+p{margin-top:10px;}
+/* 生成AIの節だけ、中で2つに分かれる(生成と報告で扱いが違うため)。 */
+.step-body h3{font-size:14px; margin:16px 0 0;}
+.step-body h3:first-child{margin-top:0;}
 .step-body a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
@@ -79,7 +82,7 @@ body{background:var(--bg); color:var(--ink);
   <a class="back" href="index.html">← トップに戻る</a>
 
   <section class="intro">
-    <p class="updated">最終更新日：2026年7月28日</p>
+    <p class="updated">最終更新日：2026年9月4日</p>
     <p>艇読み（以下「本サイト」）は、利用者のプライバシーを尊重し、個人情報の取り扱いについて以下の方針を定めます。</p>
   </section>
 
@@ -129,21 +132,51 @@ body{background:var(--bg); color:var(--ink);
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">アクセスログについて</span></div>
+    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">生成AIの利用について</span></div>
+    <div class="step-body">
+      <h3>1. AI講評の生成</h3>
+      <p>「読み採点」のAI講評をご利用になったときに限り、その答案の内容を生成AIの提供元である <b>OpenAI, L.L.C.（米国）</b> に送信します。送信するのは次のものです。</p>
+      <ul>
+        <li>レース場名</li>
+        <li>出走各艇の成績数値（勝率・平均ST・モーター2連率等）</li>
+        <li>レースの結果（着順・決まり手・波高）</li>
+        <li>お客様が記録した買い目の組番</li>
+        <li>読み点の内訳</li>
+      </ul>
+      <p><b>選手名、金額、お客様が入力したメモ（出所タグ）は送信しません。</b></p>
+      <p>送信は講評の生成のみに用います。<b>当サイトのサーバーには、答案も生成された講評も保存しません</b>（保存するのはご利用回数のみです）。生成された講評はお客様の端末内にのみ保存されます。</p>
+      <p>AI講評をご利用になる前に、アプリ内で送信内容の確認と同意をお願いしています。同意されない限り送信は行いません。送信先の事業者を変更する場合は、あらためて同意画面を表示します。</p>
+      <p>OpenAI社における情報の取り扱いについては、同社の<a href="https://openai.com/policies/row-privacy-policy/" target="_blank" rel="noopener">プライバシーポリシー</a>をご確認ください。</p>
+
+      <h3>2. AI講評の報告</h3>
+      <p>生成された講評に問題があった場合、講評の下にある「報告」からお知らせいただけます。<b>報告をお送りいただいたときに限り</b>、次のものを当サイトのサーバーに保存します。</p>
+      <ul>
+        <li>報告対象の講評の本文（<b>買い目の組番が含まれることがあります</b>）</li>
+        <li>生成に用いたAIモデル名と生成日時</li>
+        <li>報告の種類（事実と違う／不適切な表現／その他）</li>
+        <li>お客様が任意で入力されたコメント</li>
+      </ul>
+      <p>講評の本文には、レース場名・着順・買い目の組番など、対象のレースに関わる記述が含まれることがあります。金額と出所タグ（メモ）は保存しません。</p>
+      <p>保存した内容は、AI講評の品質改善と不適切な出力の抑止のためにのみ利用し、第三者へ提供しません。報告は生成AIの提供元へは送信されません。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">アクセスログについて</span></div>
     <div class="step-body">
       本サイトは、GitHub Pages（GitHub, Inc. が提供するホスティングサービス）を利用して配信されています。一般的なウェブサイトと同様に、配信を行う過程で、IPアドレス・ブラウザの種類・アクセス日時などの標準的なアクセス情報が、配信事業者側で自動的に記録される場合があります。これらは配信の仕組み上生じるもので、本サイトの運営者がこれらの生の記録を直接閲覧することはできません。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">アクセス解析について（将来的な利用の可能性）</span></div>
+    <div class="step-head"><span class="step-num">7</span><span class="step-ttl">アクセス解析について（将来的な利用の可能性）</span></div>
     <div class="step-body">
       本サイトでは、サービス改善のために、将来的にアクセス解析ツール（利用者がどのページをご覧になったか等を統計的に把握するための仕組み）を導入する場合があります。導入する際は、本ポリシーを更新してその内容をお知らせします。アクセス解析を導入する場合も、個人を特定する目的では利用せず、サイトの利用状況を把握し、より読みやすいサイトにするための統計的な分析のみに用います。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">7</span><span class="step-ttl">外部サイトへのリンクについて</span></div>
+    <div class="step-head"><span class="step-num">8</span><span class="step-ttl">外部サイトへのリンクについて</span></div>
     <div class="step-body">
       本サイトには、以下のような外部サイトへのリンクが含まれています。
       <ul>
@@ -155,7 +188,7 @@ body{background:var(--bg); color:var(--ink);
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">8</span><span class="step-ttl">退会・データの削除について</span></div>
+    <div class="step-head"><span class="step-num">9</span><span class="step-ttl">退会・データの削除について</span></div>
     <div class="step-body">
       <p>ログアウトは、トップページのログイン欄からいつでも行えます。</p>
       <p><b>通知をオフにすると、通知の送信先情報はその場で削除されます。</b>トップページの「出走のお知らせ」からいつでも切り替えられます。（ご利用のブラウザの設定で通知をブロックした場合など、こちらから削除できないまま残ることがありますが、その送信先はお届けできない状態になった時点で自動的に削除されます。）</p>
@@ -164,21 +197,21 @@ body{background:var(--bg); color:var(--ink);
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">9</span><span class="step-ttl">免責事項</span></div>
+    <div class="step-head"><span class="step-num">10</span><span class="step-ttl">免責事項</span></div>
     <div class="step-body">
       本サイトは、ボートレースの公式データをもとに情報を提供していますが、その正確性・完全性を保証するものではありません。また、本サイトは予想印（◎○▲等）を提供するものではなく、舟券の購入その他の判断は利用者ご自身の責任において行っていただくようお願いします。舟券の購入は20歳になってから、のめり込みに注意し、余裕資金の範囲でお楽しみください。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">10</span><span class="step-ttl">本ポリシーの変更</span></div>
+    <div class="step-head"><span class="step-num">11</span><span class="step-ttl">本ポリシーの変更</span></div>
     <div class="step-body">
       本サイトは、必要に応じて本ポリシーを変更することがあります。変更した場合は、本ページにて最新の内容を掲載します。
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">11</span><span class="step-ttl">お問い合わせ先</span></div>
+    <div class="step-head"><span class="step-num">12</span><span class="step-ttl">お問い合わせ先</span></div>
     <div class="step-body">
       本サイトおよび本ポリシーに関するお問い合わせは、以下までご連絡ください。
       <ul>

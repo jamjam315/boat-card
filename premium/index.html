@@ -26,7 +26,7 @@
      他へ購入ボタンを足すときは、そのページのCSPにも同じ許可が要る。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://play.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>プレミアム｜艇読み</title>
-<meta name="description" content="艇読みのプレミアムプラン。条件を指定してのバックテスト（会場・期間・券種・買い目の自由指定）が使えます。">
+<meta name="description" content="艇読みのプレミアムプラン。条件を指定してのバックテスト（会場・期間・券種・買い目の自由指定）と、答案へのAI講評が使えます。">
 <!-- 課金が実際に動くまでの仮公開のためnoindex。サイト共通ナビからのリンクもまだ張らない。
      本番切替時にこの1行を外し、build_race_pages.pyのrefresh_sitemap()にURLを追加する。 -->
 <meta name="robots" content="noindex">
@@ -77,6 +77,9 @@ body{background:var(--bg); color:var(--ink);
 .btn[disabled]{opacity:.45; cursor:not-allowed;}
 .btn.sub{background:var(--surface); color:var(--accent); border:1px solid var(--line2); font-weight:600; font-size:13.5px;}
 .btn-note{font-size:11.5px; color:var(--muted); margin:8px 0 0; line-height:1.7;}
+/* 箇条書きの前に置くリード文。AI講評のカードだけが、何をする機能かを
+   先に1文で言う必要がある(他のカードは見出しだけで通じる)。 */
+.card-lead{font-size:13.5px; color:var(--ink2); margin:0 0 10px; line-height:1.75;}
 /* 購入手続きの結果を伝える1行。何も無いときは空のまま(場所は取らない)。 */
 .btn-msg{font-size:12px; color:var(--warn-ink); margin:8px 0 0; line-height:1.7;}
 .btn-msg:empty{margin:0;}
@@ -133,6 +136,18 @@ body{background:var(--bg); color:var(--ink);
       <li><b>検証ノート 📝</b>：検証した結果をメモつきで記録できます。あとで開くと同じ条件で計算し直し、<b>記録したときの数字と並べて</b>表示します（データは毎晩増えるので、数字は動きます）</li>
     </ul>
     <p class="btn-note">条件アラートで使えるのは「朝の時点で分かる条件」だけです。決まり手や実際の進入など、レースが終わるまで分からない条件は判定に使えません（保存する画面で、どれが使われるかを毎回お知らせします）。</p>
+  </section>
+
+  <section class="card">
+    <p class="card-ttl">答案へのAI講評</p>
+    <p class="card-lead">読み採点（無料）で採点された答案に、AIがもう1段深い講評を書きます。</p>
+    <ul class="feat">
+      <li>答案の買い目と、全国の実測データ（決着の型ごとの2着コース分布・進入の癖）を突き合わせて、7〜10行の文章にします</li>
+      <li>選手名は書きません（「3号艇」のように呼びます）。買い目の推奨も、次のレースの予想もしません。艇読みは予想印を出さない道具なので、AIにも出させません</li>
+      <li>使う数字は実測の集計だけで、母数を必ず添えます</li>
+      <li>プレミアムでは1日3答案まで。無料でもお試しとして通算5回使えます</li>
+    </ul>
+    <p class="btn-note">文章の生成には外部のAI（OpenAI, L.L.C.（米国））を使います。送るのは答案の内容だけで、選手名・金額・メモは送りません。サーバーにも保存しません（初回に同意画面が出ます）。</p>
   </section>
 
   <section class="card">
