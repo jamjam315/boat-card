@@ -226,6 +226,19 @@ body{background:var(--bg); color:var(--ink);
   }
   html += '</div>';
 
+  // ---- 当日の気象 ----
+  var s0 = p.records[0].score;
+  html += '<p class="sec-label">当日のようす</p><div class="card">';
+  if(s0 && s0.wave != null){
+    html += '<p class="head nums">波高 ' + s0.wave + 'cm' +
+      (s0.top3 ? '　／　着順 ' + s0.top3.join("-") : '') +
+      (s0.kimarite ? '　／　' + esc(s0.kimarite) : '') + '</p>' +
+      '<p class="note">記録した時に見えていた直前情報とのズレは、次の段階（講評）で扱います。</p>';
+  } else {
+    html += '<p class="empty">結果がまだ出ていません。</p>';
+  }
+  html += '</div>';
+
   // ---- 講評 ----
   // 点には一切影響しない。何が見えていたかを並べ直すだけの欄。
   // 「買うべきだった」とは書かないし、正解の買い目も示さない。
@@ -243,19 +256,6 @@ body{background:var(--bg); color:var(--ink);
     html += '<ul class="rev">' + note.map(function(l){
       return '<li class="note">' + esc(l.text) + '</li>';
     }).join("") + '</ul>';
-  }
-  html += '</div>';
-
-  // ---- 当日の気象 ----
-  var s0 = p.records[0].score;
-  html += '<p class="sec-label">当日のようす</p><div class="card">';
-  if(s0 && s0.wave != null){
-    html += '<p class="head nums">波高 ' + s0.wave + 'cm' +
-      (s0.top3 ? '　／　着順 ' + s0.top3.join("-") : '') +
-      (s0.kimarite ? '　／　' + esc(s0.kimarite) : '') + '</p>' +
-      '<p class="note">記録した時に見えていた直前情報とのズレは、次の段階（講評）で扱います。</p>';
-  } else {
-    html += '<p class="empty">結果がまだ出ていません。</p>';
   }
   html += '</div>';
 
