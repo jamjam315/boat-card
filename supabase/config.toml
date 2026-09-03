@@ -450,3 +450,11 @@ enabled = true
 # (既定のtrue)を維持する。誰が呼んだかが確実に分かるので、書き込む先も
 # 必ずその本人の行だけになる。
 entrypoint = "./functions/verify-purchase/index.ts"
+
+[functions.yomi-review]
+enabled = true
+# 読み採点の答案にAI講評を1本書かせる。auth: 'user'(JWT必須)で実装している
+# ため、プラットフォーム側のJWT検証(既定のtrue)を維持する。誰が呼んだかが
+# 確実に分かるので、プレミアム判定(is_premium)も回数カウンタも、必ずその
+# 本人の行だけを見ることになる。
+entrypoint = "./functions/yomi-review/index.ts"
