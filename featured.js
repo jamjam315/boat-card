@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-03", "toban": "4852", "name": "川原祐明", "k": "A1", "age": 31, "br": "香川", "catch": "津の差し込み屋", "basis": "津で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "津", "races": [5, 10], "reason": "home"};
+window.FEATURED = {"date": "2026-09-04", "toban": "4063", "name": "市橋卓士", "k": "A1", "age": 46, "br": "徳島", "catch": "大村のイン逃げ屋", "basis": "大村で際立って好成績、かつ「逃げ」が持ち味のため（詳しくは下の「当地」欄）", "venue": "大村", "races": [11], "reason": "home"};
