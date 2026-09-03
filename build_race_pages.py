@@ -570,7 +570,7 @@ def refresh_sitemap():
             "https://teiyomi.com/about.html", "https://teiyomi.com/delete-account.html",
             "https://teiyomi.com/players/",
             "https://teiyomi.com/backtest.html", "https://teiyomi.com/backtest-custom.html",
-            "https://teiyomi.com/mypage.html"]
+            "https://teiyomi.com/mypage.html", "https://teiyomi.com/yomi-guide.html"]
     try:
         player_pages = load_js("players_index.js", "PLAYER_PAGES")
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]

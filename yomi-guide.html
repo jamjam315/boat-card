@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     ※ このページは説明だけで、外部への通信もログインもしない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>読み採点とは｜艇読み</title>
+<meta name="description" content="艇読みの「読み採点」の使い方。締切前に自分の買い目を記録しておくと、翌朝レースの結果が出たあとに、番組表の数字と結果だけで機械的に採点します。予想印は出しません。">
+<link rel="canonical" href="https://teiyomi.com/yomi-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="読み採点とは｜艇読み">
+<meta property="og:description" content="締切前に買い目を記録しておくと、翌朝それが1枚の答案になって返ってきます。予想は出さず、済んだレースだけを振り返る機能です。">
+<meta property="og:url" content="https://teiyomi.com/yomi-guide.html">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
+<style>
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+.nums{font-variant-numeric:tabular-nums lining-nums;}
+
+.topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub); letter-spacing:.02em; position:relative; z-index:1;}
+
+.backnav{display:flex; gap:18px; flex-wrap:wrap; margin:10px 2px 0;}
+.back{display:block; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.intro p{margin:0; font-size:15px; font-weight:600; color:var(--ink); line-height:1.75;}
+.intro p + p{margin-top:8px; font-size:13.5px; font-weight:400; color:var(--ink2);}
+
+.step{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.step-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.step-num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--on-accent);
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.step-ttl{font-size:15.5px; font-weight:700;}
+.step-body{font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.step-body b{color:var(--ink);}
+.step-body p{margin:10px 0 0;}
+.step-body ul{margin:6px 0 0; padding-left:1.3em;}
+.step-body li{margin-top:4px;}
+/* 画面に出ているボタンの名前をそのまま引用するところ */
+.ui{display:inline-block; border:1px solid var(--line2); border-radius:6px;
+  padding:0 6px; font-size:12.5px; color:var(--ink); background:var(--bg); white-space:nowrap;}
+
+.cta{display:block; margin-top:14px; padding:14px 18px; border-radius:var(--radius);
+  background:var(--accent); color:var(--on-accent); text-decoration:none;
+  font-size:14.5px; font-weight:700; text-align:center;}
+.cta.sub{background:var(--surface); color:var(--accent); border:1px solid var(--accent);}
+
+.foot{font-size:11px; color:var(--muted); margin:22px 2px 0; line-height:1.8;}
+.foot a{color:var(--muted);}
+
+/* ---------------- 答案の見本 ----------------
+   yomi.html の紙面を縮めたもの。あちらと同じく色を .demo-paper に閉じ込めて
+   いるので、ダークモードでも紙は紙のまま出る。
+   スクリーンショット画像にしないのは、紙面を直すたびに画像が古くなるため。
+   中身は固定の見本で、実データではない。 */
+.demo-wrap{margin-top:14px;}
+.demo-cap{font-size:11.5px; color:var(--muted); margin-bottom:6px;}
+.demo-paper{
+  --paper:#F5F2E8; --paper-line:#D8D2C4; --pink:#1E1E1C; --pmuted:#8A857A; --akapen:#C8202E;
+  background:var(--paper); color:var(--pink); border-radius:2px; overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.18); font-size:12.5px;}
+.demo-paper .nums{font-variant-numeric:tabular-nums lining-nums;}
+.dp-head{background:var(--water); color:var(--on-water);
+  padding:9px 12px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+.dp-head b{font-size:12.5px; letter-spacing:.04em;}
+.dp-head span{font-size:10.5px; color:var(--on-water-sub);}
+.dp-head .when{margin-left:auto;}
+.dp-total{display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  padding:12px; border-bottom:1px solid var(--paper-line);}
+.dp-bars{flex:1 1 170px; min-width:0;}
+.dp-bar{margin-top:8px;}
+.dp-bar:first-child{margin-top:0;}
+.dp-lb{display:flex; justify-content:space-between; font-size:11px; color:var(--pmuted);}
+.dp-lb b{color:var(--pink); font-size:12px;}
+.dp-track{height:6px; margin-top:3px; background:#E7E2D4;}
+.dp-fill{height:6px; background:var(--akapen);}
+.dp-big{flex:0 0 auto; padding:8px 12px; text-align:center;
+  background:repeating-linear-gradient(0deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px),
+             repeating-linear-gradient(90deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px);}
+.dp-big .n{display:block; font-size:46px; line-height:1; font-weight:800; color:var(--akapen);
+  border-bottom:3px solid var(--akapen); padding-bottom:4px;}
+.dp-big .of{display:block; margin-top:4px; font-size:10px; color:var(--pmuted);}
+.dp-axis{padding:10px 12px; border-bottom:1px solid var(--paper-line);}
+.dp-axis .hon{color:var(--akapen); font-weight:800;}
+.dp-row{display:flex; gap:9px; align-items:flex-start;
+  padding:8px 12px; border-bottom:1px solid var(--paper-line);}
+.dp-pt{flex:0 0 34px; height:34px; border-radius:50%; background:var(--akapen); color:#fff;
+  font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center;}
+.dp-rname{font-size:10.5px; color:var(--pmuted);}
+.dp-rfact{font-size:12.5px; font-weight:700;}
+.dp-rwhy{font-size:10.5px; color:var(--pmuted);}
+/* 講評。yomi.html と同じく、行送りと罫の間隔を1つの値から作る。 */
+.dp-rev{--kohyo-line:26px; margin:12px; border:1px solid var(--akapen); position:relative;}
+.dp-rev .by{position:absolute; top:-8px; right:8px; background:var(--paper);
+  padding:0 5px; font-size:9.5px; color:var(--akapen);}
+.dp-rev-head{margin:0; padding:11px 11px 0; font-size:12px; line-height:1.7;
+  color:var(--akapen); font-weight:700;}
+.dp-rev-body{list-style:none; margin:10px 0 0; padding:0 11px 12px;
+  background:repeating-linear-gradient(180deg, transparent 0 calc(var(--kohyo-line) - 1px),
+    rgba(200,32,46,.13) calc(var(--kohyo-line) - 1px) var(--kohyo-line));
+  background-clip:content-box;}
+.dp-rev-body li{font-size:12px; line-height:var(--kohyo-line); margin:0;}
+.dp-foot{padding:8px 12px 10px; border-top:1px solid var(--paper-line);
+  font-size:9.5px; color:var(--pmuted); line-height:1.7;}
+
+/* 思想のところ。ここは赤ペンではなく艇読みのトーンで書く */
+.creed{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.creed h2{font-size:15.5px; margin:0 0 10px;}
+.creed p{margin:10px 0 0; font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.creed p:first-of-type{margin-top:0;}
+.creed b{color:var(--ink);}
+.creed .lead{font-size:14.5px; font-weight:700; color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>読み採点とは</p></div>
+  </header>
+  <nav class="backnav">
+    <a class="back" href="index.html">← トップに戻る</a>
+    <a class="back" href="mypage.html">⭐ マイページ</a>
+    <a class="back" href="guide.html">📖 読み方ガイド</a>
+  </nav>
+
+  <section class="intro">
+    <p>締切前に自分の買い目を記録しておくと、翌朝、それが1枚の答案になって返ってきます。</p>
+    <p>採点に使うのは、記録した時点の番組表の数字と、確定した結果だけです。当たったかどうかとは別に、<b>その読みに根拠があったか</b>を見ます。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><span class="step-ttl">締切前に、買い目を記録する</span></div>
+    <div class="step-body">
+      レースのページをいちばん下まで開くと <span class="ui">＋ 予想を記録</span> があります。券種・買い目・金額を入れて記録します。
+      <p>「出所タグ」は任意です。<b>自分の読み方に名前を付けておくと、あとで読み方ごとに振り返れます</b>（例:「1号艇軸」「STだけで買う」）。同じレースでもタグが違えば別の答案になります。</p>
+      <p>記録できるのは<b>締切前だけ</b>です。結果を見てから足せてしまうと、採点の意味がなくなるためです。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">翌朝、自動で採点される</span></div>
+    <div class="step-body">
+      レースの結果と払戻が出たあと、アプリを開けば自動で採点されます。こちらで何かする必要はありません。
+      <p><b>結果が出るまでは、点も講評も出しません。</b>レース前に点を出すと、それは買い目への評価＝予想になってしまうためです。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">答案を読む</span></div>
+    <div class="step-body">
+      <a href="mypage.html">マイページ</a>の「読み採点」に答案が並びます。開くと100点満点の内訳が出ます。
+      <ul>
+        <li><b>読み点（70点）</b>…… 軸に選んだ艇に、実測の材料があったか</li>
+        <li><b>結果点（30点）</b>…… 当たったか、回収できたか</li>
+      </ul>
+      <p>読み点の配点は感覚で決めていません。<b>実データで「その材料があると1着率が何pt動くか」を測り、その幅で70点を按分しています。</b>コースの有利不利は測る時点で差し引いてあるので、「1号艇を買えば高得点」にはなりません。</p>
+      <p>その下に赤ペンの<b>講評</b>が付きます。軸の選び方・押さえの根拠・買い目に入っていなかった材料までを、事実として書きます。</p>
+    </div>
+  </section>
+
+  <div class="demo-wrap">
+    <p class="demo-cap">答案の見本（実際のデータではありません）</p>
+    <div class="demo-paper">
+      <div class="dp-head"><b>読み採点</b><span>答案 — 添削済</span>
+        <span class="when nums">2026-08-28　尼崎 12R　/　1号艇軸</span></div>
+      <div class="dp-total">
+        <div class="dp-bars">
+          <div class="dp-bar"><div class="dp-lb"><span>読み</span><b class="nums">44 / 70</b></div>
+            <div class="dp-track"><div class="dp-fill" style="width:63%"></div></div></div>
+          <div class="dp-bar"><div class="dp-lb"><span>結果</span><b class="nums">0 / 30</b></div>
+            <div class="dp-track"><div class="dp-fill" style="width:0%"></div></div></div>
+        </div>
+        <div class="dp-big"><span class="n nums">44</span><span class="of">100点満点</span></div>
+      </div>
+      <div class="dp-axis">軸 <span class="hon">1号艇</span>（推定）　押さえ 4号艇</div>
+      <div class="dp-row"><span class="dp-pt nums">+18</span><span>
+        <span class="dp-rname">A　全国勝率 <span class="nums">18/26</span></span>
+        <div class="dp-rfact">1号艇の全国勝率 6.42</div>
+        <div class="dp-rwhy">6.0以上7.0未満 +6.9pt</div></span></div>
+      <div class="dp-row"><span class="dp-pt nums">+18</span><span>
+        <span class="dp-rname">B　平均ST <span class="nums">18/18</span></span>
+        <div class="dp-rfact">今節の平均ST 0.13</div>
+        <div class="dp-rwhy">0.14未満 +8.5pt</div></span></div>
+      <div class="dp-row"><span class="dp-pt nums">+8</span><span>
+        <span class="dp-rname">C　今節の調子 <span class="nums">8/16</span></span>
+        <div class="dp-rfact">今節2走の平均 2.5着</div>
+        <div class="dp-rwhy">2.0以上3.0未満 +2.1pt</div></span></div>
+      <div class="dp-rev"><span class="by">採点: 艇読み</span>
+        <p class="dp-rev-head">読みの軸は立っていますが、拾える材料がまだ残っています。</p>
+        <ul class="dp-rev-body">
+          <li>軸の1号艇には今節の平均ST 0.13という材料があります。</li>
+          <li>押さえの4号艇も根拠があります。平均ST0.12は2連対+5.1ptの帯で、上位に食い込む型です。</li>
+          <li>一方で、3号艇（全国勝率7.12・1着率+12.6pt）にも同格の材料がありましたが、今回の買い目には入っていません。</li>
+        </ul>
+      </div>
+      <div class="dp-foot">予想印は出していません。記録した時点の番組表の数字と、確定した結果だけで機械的に付けています。</div>
+    </div>
+  </div>
+
+  <section class="creed">
+    <h2>予想印は出しません</h2>
+    <p class="lead">艇読みは、これを買えとは言いません。読み採点も同じです。</p>
+    <p>この機能がするのは、<b>あなたが自分で決めた買い目を、済んだあとで振り返ること</b>だけです。レース前に点を付けることも、正解の買い目を示すことも、次はこう買えと勧めることもしません。◎○▲のような予想印も出しません。</p>
+    <p>講評に出てくるのは、番組表に載っていた数字と、確定した結果だけです。<b>「買うべきだった」とは書きません。</b>「こういう材料があった」「それは買い目に入っていなかった」までを事実として書き、そこからどう読むかはあなたに残します。</p>
+    <p>点が低い日も、読みが下手だという意味ではありません。<b>数字と買い目がまだ結びついていない</b>というだけです。逆に、当たっていても読み点が低ければそう書きます。運で当たった日を実力と取り違えないほうが、次につながるからです。</p>
+    <p>記録した買い目と金額は<b>この端末の中だけに残ります</b>。サーバーには送っていません。そのぶん、機種変更やブラウザのデータ消去では消えます。</p>
+  </section>
+
+  <a class="cta" href="index.html">本日のレースを見る →</a>
+  <a class="cta sub" href="mypage.html">記録した答案を見る（マイページ）</a>
+
+  <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
+</div>
+</body>
+</html>
