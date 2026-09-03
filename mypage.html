@@ -772,9 +772,12 @@ function renderYomiBox(){
   if(label) label.textContent = rows.length ? `🚤 読み採点（記録${rows.length}件）` : "🚤 読み採点";
 
   if(!rows.length){
+    // まだ1件も無い人には、先に「何をする機能か」を読んでもらう。
+    // ここから記録画面へ直行させても、いきなり券種と金額を聞かれるだけになる。
     box.innerHTML = `<div class="authbox">レースページの「予想を記録」から、締切前の買い目を残せます。
       翌朝、結果が出たあとに採点します。
-      <p class="authbox-notice" style="margin-top:8px;"><a href="index.html">本日のレースを見る</a></p></div>`;
+      <p class="authbox-notice" style="margin-top:8px;"><a href="yomi-guide.html">読み採点とは？（使い方と考え方）</a>
+      ／ <a href="index.html">本日のレースを見る</a></p></div>`;
     return;
   }
 
