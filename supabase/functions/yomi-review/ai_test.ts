@@ -36,8 +36,9 @@ Deno.test("モデルIDは枝番まで書いてある", () => {
   assert(model !== "gpt-5.6");
 });
 
-Deno.test("既定のトークン上限は1024(GPT-5世代は推論ぶんも食う)", () => {
-  assertEquals(AI_MAX_TOKENS, 1024);
+Deno.test("既定のトークン上限は2048(GPT-5世代は推論ぶんも同じ予算から食う)", () => {
+  // 1024では本番実測で8回中2回が本文空だった(2026-09-03)。
+  assertEquals(AI_MAX_TOKENS, 2048);
 });
 
 // ---------------------------------------------------------------- キー名の判定
@@ -83,7 +84,7 @@ Deno.test("Secretsが AI_API_KEY だけでも、既定でLunaを呼ぶ", () => {
   assertEquals(c.model, "gpt-5.6-luna");
   assertEquals(c.baseUrl, "https://api.openai.com/v1");
   assertEquals(c.maxTokensParam, "max_completion_tokens");
-  assertEquals(c.maxTokens, 1024);
+  assertEquals(c.maxTokens, 2048);
 });
 
 Deno.test("Anthropicへ戻すときは3つを書き戻せばよい", () => {
@@ -131,7 +132,7 @@ Deno.test("Lunaには max_completion_tokens だけを送る(max_tokensは送ら�
   assertEquals(out, "講評です。");
   assertEquals(cap.url, "https://api.openai.com/v1/chat/completions");
   assertEquals(cap.body.model, "gpt-5.6-luna");
-  assertEquals(cap.body.max_completion_tokens, 1024);
+  assertEquals(cap.body.max_completion_tokens, 2048);
   assert(!("max_tokens" in cap.body), "max_tokens を送ると HTTP 400 になる");
   // 規則は system に置く。答案と同じ位置に置くと、その中身で上書きされうる。
   assertEquals(cap.body.messages[0].role, "system");
@@ -159,7 +160,7 @@ Deno.test("Anthropic経路では max_tokens と system を送る", async () => {
   );
   assertEquals(await call("規則", "答案"), "講評です。");
   assertEquals(cap.url, "https://api.anthropic.com/v1/messages");
-  assertEquals(cap.body.max_tokens, 1024);
+  assertEquals(cap.body.max_tokens, 2048);
   assertEquals(cap.body.system, "規則");
 });
 

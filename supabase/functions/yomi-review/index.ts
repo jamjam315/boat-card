@@ -26,7 +26,7 @@
 //   supabase functions deploy yomi-review
 //   supabase secrets set AI_PROVIDER=openai AI_MODEL=gpt-5.6-luna
 //     AI_BASE_URL=https://api.openai.com/v1 AI_API_KEY=<OpenAIのAPIキー>
-//     AI_MAX_TOKENS=1024 --project-ref vynbhssakpxiikmseoja
+//     AI_MAX_TOKENS=2048 --project-ref vynbhssakpxiikmseoja
 //     (実際は1行で。上は読みやすさのために折り返している)
 //
 // AI_PROVIDER / AI_MODEL / AI_BASE_URL / AI_MAX_TOKENS は未設定でも ai.ts の
@@ -191,10 +191,14 @@ export default {
         const checked = filterOutput(text, sheet)
         if (!checked.ok) {
           console.log(`[yomi-review] blocked (${shortId(userId)}: ${checked.reason})`)
-          return new Response(JSON.stringify({ ok: false, code: 'blocked' }), {
-            status: 502,
-            headers: JSON_HEADERS,
-          })
+          // 種別(banned / invented / empty)までは返す。どの語・どの組番で
+          // 止まったかは返さない——それを返すと「何を避ければ通るか」を
+          // 教えることになる。種別だけなら、詰まっている場所を運用側が
+          // 掴めて、迂回の手がかりにはならない。
+          return new Response(
+            JSON.stringify({ ok: false, code: 'blocked', kind: checked.reason.split(':')[0] }),
+            { status: 502, headers: JSON_HEADERS },
+          )
         }
 
         // --- 7. 通ったので数える ---
