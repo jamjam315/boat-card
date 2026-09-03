@@ -140,8 +140,14 @@ export function parseSheet(raw: unknown): { sheet: Sheet } | { error: string } {
       pt: typeof o.pt === "number" ? o.pt : 0,
       max: typeof o.max === "number" ? o.max : 0,
       // 実測値は表示用の短い文字列。ここが自由入力の抜け道にならないよう、
-      // 数字・小数点・記号と単位だけに限る。
-      value: String(o.value ?? "").replace(/[^0-9.+\-着走秒%cm]/g, "").slice(0, 24),
+      // **読み点の4項目が実際に出す語だけ**に語彙を固定する。
+      //   「1号艇の全国勝率 6.42」「今節の平均ST 0.13」
+      //   「今節2走の平均 2.5着」「波高 3cm・1号艇」
+      // これ以外の文字は1字ずつ落ちるので、指示文を紛れ込ませても意味を
+      // なさない。許す語を足すときは、上の4つの実例を壊さないか確かめること。
+      value: String(o.value ?? "")
+        .replace(/[^0-9.+\-・ %cm号艇着走秒全国勝率平均今節波高のST]/g, "")
+        .slice(0, 24),
     });
   }
 

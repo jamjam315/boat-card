@@ -299,6 +299,10 @@
       // 読み点の「波高とコース」に要る。記録の時点では分からない値なので、
       // 採点のときに払戻JSONから拾って一緒に残す。
       wave: race.wx ? race.wx["波高"] : null,
+      // 進入コース(艇番順)。AI講評の展開連鎖は艇番ではなく進入コースで引く。
+      // 古い払戻JSONには入っていないので、その場合は null のままにする
+      // (「枠なりだった」と取り違えないため。艇番で代用もしない)。
+      inn: race["in"] || null,
       yen: yen,
       profit: yen - rec.amount,
       roi: roi,
@@ -856,6 +860,35 @@
       return { ok: true, record: rec };
     },
 
+    /**
+     * AI講評を、その答案に端末保存する。保存できたら true。
+     *
+     * 答案(レース×出所タグ)につき1つなので、その答案の最初の記録の score に
+     * 置く。記録ごとに持たせると同じ文章が何本も残る。
+     *
+     * 二度と送らないための印でもある。再表示はここから読むだけで、
+     * ネットワークにも回数にも触らない。
+     */
+    setAi: function (key, tag, ai) {
+      if (!ai || typeof ai.text !== "string" || !ai.text) return false;
+      var all = readAll();
+      var target = null;
+      for (var i = 0; i < all.length; i++) {
+        var r = all[i];
+        if (r.key !== key || (r.tag || "") !== (tag || "")) continue;
+        if (!r.score) continue;          // 未採点の答案には付けない
+        target = r;
+        break;
+      }
+      if (!target) return false;
+      target.score.ai = {
+        text: String(ai.text).slice(0, 4000),
+        model: String(ai.model || "").slice(0, 60),
+        at: new Date().toISOString()
+      };
+      return writeAll(all);
+    },
+
     /** そのレースのスナップショット(記録時点の data.js のレース要素)。 */
     snapshot: function (key) {
       return readSnaps()[key] || null;
@@ -939,10 +972,19 @@
       var settled = result.status === "hit" || result.status === "miss" ||
         result.status === "void";
       var yomiOut = settled ? yomiScore(recs, snap, wave) : null;
+      var ai = null;
+      recs.forEach(function (r) { if (!ai && r.score && r.score.ai) ai = r.score.ai; });
+      // 進入コースは採点のときに払戻から拾ってある。答案の中では1つなので、
+      // 見つかった最初のものを使う。
+      var inn = null;
+      recs.forEach(function (r) { if (!inn && r.score && r.score.inn) inn = r.score.inn; });
       return {
         key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
         result: result, settled: settled,
         yomi: yomiOut,
+        inn: inn,
+        // AI講評。生成済みなら端末に残っている(同じ答案を二度は送らない)。
+        ai: settled ? ai : null,
         comment: settled ? comment(recs, snap, wave, catches, yomiOut, result) : []
       };
     },
@@ -963,8 +1005,9 @@
       var seen = {};
       readAll().forEach(function (r) {
         var s = r.score;
-        var needWave = s && (s.st === "hit" || s.st === "miss") && s.wave === undefined;
-        if (!s || needWave) seen[r.key.split(":")[0]] = true;
+        var stale = s && (s.st === "hit" || s.st === "miss") &&
+          (s.wave === undefined || s.inn === undefined);
+        if (!s || stale) seen[r.key.split(":")[0]] = true;
       });
       return Object.keys(seen).sort();
     },
@@ -1002,7 +1045,7 @@
         // 採点済みでも、波高を持っていないものは採点し直す(読み点Dに要るため)。
         // 結果は変わらないので上書きして問題ない。
         var stale = r.score && (r.score.st === "hit" || r.score.st === "miss") &&
-          r.score.wave === undefined;
+          (r.score.wave === undefined || r.score.inn === undefined);
         if (r.score && !stale) return;
         var s = scoreOne(r, races[r.key]);
         if (s) { r.score = s; n++; }

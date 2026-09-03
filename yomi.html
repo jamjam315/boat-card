@@ -8,7 +8,10 @@
      つなげない・実行できないようにするための安全網。
      GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<!-- AI講評(P2-5)から、ログイン確認とEdge Functionの呼び出しでSupabaseに出る。
+     supabase-js は favorites.js が jsdelivr から読み込む。mypage.html と同じ許可。
+     ここを広げたのはAI講評のためだけで、それ以外の行き先は増やしていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>読み採点の答案｜艇読み</title>
 <meta name="description" content="締切前に記録した買い目の答案です。読み点と結果点の内訳を、根拠になった数字と実測リフトつきで表示します。">
 <!-- 記録は端末の中にしか無く、URLだけでは中身が決まらない(他の人が開いても
@@ -169,6 +172,32 @@ body{background:var(--bg); color:var(--ink);
   color:var(--ink-muted);}
 .p-rev .none{margin:0; padding:12px; font-size:12.5px; color:var(--ink-muted);}
 
+/* 7b. AI講評。赤ペン(講評)とは別物だと一目で分かるようにする。
+   枠線を赤ではなく紙の罫の色にして、ラベルを「AI講評」にする。
+   紙の様式は崩さない(角丸なし・同じ余白・同じ文字サイズ)。 */
+.p-ai{margin:0 14px 14px; border:1px solid var(--paper-line); position:relative;
+  background:rgba(30,30,28,.02);}
+.p-ai .by{position:absolute; top:-8px; right:8px; background:var(--paper);
+  padding:0 5px; font-size:9.5px; color:var(--ink-muted);}
+.p-ai-body{margin:0; padding:12px; font-size:12.5px; line-height:1.9; white-space:pre-wrap;}
+.p-ai-meta{margin:0; padding:0 12px 10px; font-size:9.5px; color:var(--ink-muted);}
+.p-ai-act{margin:0; padding:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.p-ai-btn{font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer;
+  background:var(--paper); color:var(--ink); border:1px solid var(--ink-muted); border-radius:2px;}
+.p-ai-btn:disabled{opacity:.5; cursor:default;}
+.p-ai-left{font-size:10.5px; color:var(--ink-muted);}
+.p-ai-msg{margin:0; padding:0 12px 12px; font-size:11.5px; color:var(--ink-muted); line-height:1.7;}
+
+/* 同意画面。紙の上に出すが、読み飛ばされないよう本文の文字サイズで書く。 */
+.ai-consent{padding:12px;}
+.ai-consent p{margin:8px 0 0; font-size:12px; line-height:1.8;}
+.ai-consent .ai-ttl{margin:0; font-size:13px; font-weight:700;}
+.ai-consent .ai-list{border-left:2px solid var(--paper-line); padding-left:9px;}
+.ai-consent .ai-act{display:flex; gap:8px; flex-wrap:wrap;}
+.ai-consent button{font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer;
+  border-radius:2px; border:1px solid var(--ink-muted); background:var(--paper); color:var(--ink);}
+.ai-consent .ai-ok{background:var(--akapen); border-color:var(--akapen); color:#fff; font-weight:700;}
+
 /* 8. 紙のフッター */
 .p-foot{padding:9px 14px 11px; border-top:1px solid var(--paper-line);
   font-size:9.5px; color:var(--ink-muted); line-height:1.7;
@@ -197,9 +226,18 @@ body{background:var(--bg); color:var(--ink);
      max-age=600 を返すので、HTMLだけ新しくJSが古い、という食い違いが
      10分間起こりうる(実機で講評が出なかったのがこれ)。HTMLとJSの版を
      URLで結びつけて、必ず対になったものが読まれるようにする。
-     ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
-       (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="/yomi.js?v=5"></script>
+     ★yomi.js / yomi-race.js / yomi-ai.js を変えたら、この数字を3か所すべて
+       上げること (yomi.html / mypage.html / build_race_pages.py)
+     ★一度使った番号は、たとえ公開前に取り消しても二度と使わない。
+       v=6 は作業中に一度当てて戻したため、その中身をキャッシュした
+       ブラウザが存在する。同じ番号で別の中身を配ると、そのブラウザには
+       いつまでも古いJSが読まれ続ける(実際に手元で起きた)。 -->
+<!-- favorites.js は TeiyomiAuth(Supabaseクライアントとログイン状態)を作る。
+     AI講評の権利確認に要る。読めなくてもAI講評の枠が出ないだけで、
+     採点と赤ペンの講評は端末の中だけで動き続ける。 -->
+<script src="/favorites.js"></script>
+<script src="/yomi.js?v=7"></script>
+<script src="/yomi-ai.js?v=7"></script>
 <script>
 (function(){
   "use strict";
@@ -381,8 +419,79 @@ body{background:var(--bg); color:var(--ink);
   }
   html += '</div>';
 
+  // ---- 7b. AI講評 ----
+  // 枠だけ先に置いて、中身は描画後に differ で入れる(同意・通信が絡むので、
+  // 文字列を組み立てるこの流れの中では扱わない)。
+  html += '<div class="p-ai" id="aiBox"><span class="by">AI講評</span></div>';
+
   html += paperFoot();
   box.innerHTML = html + '</article>';
+  renderAi(p);
+
+  // ---- AI講評の描画 ----
+  // 段は3つだけ。「生成済み(端末にある)」「これから生成できる」「使えない」。
+  // 生成済みなら二度と送らない。再表示は端末から読むだけで、回数も減らない。
+  function renderAi(p){
+    var box = document.getElementById("aiBox");
+    var AI = window.TeiyomiYomiAi;
+    if(!box) return;
+    if(!AI || !p.settled){ box.parentNode.removeChild(box); return; }
+
+    if(p.ai){ showAi(box, p.ai.text, p.ai.model, p.ai.at); return; }
+
+    var label = '<span class="p-ai-left">この答案の内容を' + esc(AI.PROVIDER_NAME) +
+      'に送って、赤ペンとは別の講評を1本書いてもらいます。</span>';
+    box.innerHTML = '<span class="by">AI講評</span><p class="p-ai-act">' +
+      '<button type="button" class="p-ai-btn" id="aiGo">🤖 AI講評を読む</button>' + label + '</p>';
+
+    document.getElementById("aiGo").addEventListener("click", function(){
+      if(!AI.hasConsent()){ askConsent(box, p); return; }
+      run(box, p);
+    });
+  }
+
+  function askConsent(box, p){
+    box.innerHTML = '<span class="by">AI講評</span>' + window.TeiyomiYomiAi.consentHtml();
+    box.querySelector(".ai-ok").addEventListener("click", function(){
+      window.TeiyomiYomiAi.setConsent();
+      run(box, p);
+    });
+    box.querySelector(".ai-no").addEventListener("click", function(){ renderAi(p); });
+  }
+
+  function run(box, p){
+    box.innerHTML = '<span class="by">AI講評</span>' +
+      '<p class="p-ai-act"><button type="button" class="p-ai-btn" disabled>生成中…</button>' +
+      '<span class="p-ai-left">15秒ほどかかります。</span></p>';
+    window.TeiyomiYomiAi.generate(p).then(function(res){
+      if(!res.ok){
+        box.innerHTML = '<span class="by">AI講評</span>' +
+          '<p class="p-ai-msg">' + esc(res.message) + '</p>' +
+          '<p class="p-ai-act"><button type="button" class="p-ai-btn" id="aiRetry">戻る</button></p>';
+        var b = document.getElementById("aiRetry");
+        if(b) b.addEventListener("click", function(){ renderAi(p); });
+        return;
+      }
+      // 端末に残す。保存できなくても、いま出ているものは消さない
+      // (次に開いたときに残っていないだけで、この画面では読める)。
+      TeiyomiYomi.setAi(p.key, p.tag, { text: res.text, model: res.model });
+      showAi(box, res.text, res.model, new Date().toISOString(), res.remaining);
+    });
+  }
+
+  function showAi(box, text, model, at, remaining){
+    var d = at ? new Date(at) : null;
+    var z = function(n){ return (n < 10 ? "0" : "") + n; };
+    var when = d && !isNaN(d.getTime())
+      ? d.getFullYear() + "/" + z(d.getMonth()+1) + "/" + z(d.getDate()) + " " +
+        z(d.getHours()) + ":" + z(d.getMinutes())
+      : "";
+    box.innerHTML = '<span class="by">AI講評</span>' +
+      '<p class="p-ai-body">' + esc(text) + '</p>' +
+      '<p class="p-ai-meta">' + esc(model) + (when ? '　' + esc(when) + ' 生成' : '') +
+      '　この答案の講評はこの端末に保存されています（読み直しても回数は減りません）。' +
+      (typeof remaining === "number" ? '　残り ' + remaining + ' 回' : '') + '</p>';
+  }
 
   // ---- 8. 紙のフッター ----
   function paperFoot(){
