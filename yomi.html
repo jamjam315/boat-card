@@ -20,8 +20,18 @@
 <link rel="stylesheet" href="/theme.css">
 <script src="/theme.js"></script>
 <style>
-/* 見た目の作り込みは後工程。ここでは theme.css のトークンだけを使い、
-   マイページ・レースページと同じ素材で素朴に組んでいる。 */
+/* 【この画面だけの考え方】
+   答案は「アプリの画面」ではなく「アプリの中に挟まった1枚の紙」。
+   だから艇読み本体の色に合わせにいかない。周囲(ヘッダー・戻りリンク・
+   フッター)はアプリの通常トーンのままで、その下に紙が置かれる構図にする。
+
+   紙とアプリの橋渡しは3つだけ:
+     ・紙のヘッダー帯は黒ではなく艇読みの既存ダークヘッダー色(--water)
+     ・フォントは既存スタックのまま(紙らしさは色と罫線で出す)
+     ・角丸は0〜2px(既存カードの丸みは使わない)
+
+   紙の中の色は .paper にスコープした変数で閉じる。theme.css には触らない。
+   ダークモードでも紙は紙のまま(周囲だけ暗くなる)。 */
 *{box-sizing:border-box} html,body{margin:0}
 body{background:var(--bg); color:var(--ink);
   font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
@@ -37,52 +47,121 @@ body{background:var(--bg); color:var(--ink);
 .topbar .lanes i{display:block; border-radius:2px;}
 .topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em;}
 .topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub);}
-.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back{display:block; margin:10px 2px 12px; font-size:12px; color:var(--muted); text-decoration:none;}
 .back:hover{color:var(--accent);}
-
-.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
-  padding:14px; margin-top:14px;}
-.sec-label{font-size:11.5px; color:var(--muted); margin:16px 2px 6px;}
-
-/* 合計 */
-.total{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
-.total b{font-size:30px; font-weight:700;}
-.total .of{font-size:13px; color:var(--muted);}
-.total .parts{font-size:12.5px; color:var(--ink2); margin-left:auto;}
-.head{font-size:13px; color:var(--muted); margin:0 0 6px;}
-.axis{margin:10px 0 0; font-size:12.5px; color:var(--ink2);}
-
-/* 内訳行 */
-.rows{list-style:none; margin:6px 0 0; padding:0;}
-.rows li{display:flex; gap:10px; padding:9px 0; border-top:1px solid var(--line); font-size:12.5px;}
-.rows li:first-child{border-top:none;}
-.rows .pt{flex:0 0 46px; text-align:right; font-weight:700;}
-.rows .pt.zero{color:var(--muted); font-weight:400;}
-.rows .body{flex:1; min-width:0;}
-.rows .name{color:var(--muted); font-size:11px;}
-.rows .fact{font-weight:600;}
-.rows .why{color:var(--muted); font-size:11.5px;}
-
-/* 買い目 */
-.bets{list-style:none; margin:6px 0 0; padding:0; font-size:12.5px;}
-.bets li{display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line);}
-.bets li:first-child{border-top:none;}
-.bets .ken{color:var(--muted); font-size:11.5px;}
-.bets .lanes{font-weight:700;}
-.bets .amt{margin-left:auto; color:var(--muted);}
-.bets .hit{color:var(--accent); font-weight:700;}
-.bets .miss{color:var(--muted);}
-
-/* 講評。点には影響しない欄なので、点の表とは見た目を変えて区別する。 */
-.rev{list-style:none; margin:0; padding:0; font-size:12.5px; line-height:1.8;}
-.rev li{padding:7px 0 7px 12px; border-left:2px solid var(--line2); margin-top:8px;}
-.rev li:first-child{margin-top:0;}
-.rev li.note{border-left-color:transparent; color:var(--muted); font-size:11.5px;
-  padding-left:0; margin-top:10px;}
-
-.note{font-size:11.5px; color:var(--muted); margin:8px 0 0;}
-.empty{font-size:13px; color:var(--ink2);}
 .foot{font-size:11px; color:var(--muted); margin:22px 2px 0; line-height:1.8;}
+.foot a{color:var(--muted);}
+
+/* ============================ ここから紙 ============================ */
+.paper{
+  --paper:#F5F2E8;          /* 紙地 */
+  --paper-line:#D8D2C4;     /* 罫線 */
+  --ink:#1E1E1C;            /* 本文(この中だけ上書き) */
+  --ink-muted:#8A857A;      /* 補足 */
+  --akapen:#C8202E;         /* 赤ペン */
+  background:var(--paper); color:var(--ink);
+  border-radius:2px; overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.18);
+}
+.paper .nums{font-variant-numeric:tabular-nums lining-nums;}
+
+/* 1. 紙のヘッダー帯 */
+.p-head{background:var(--water); color:var(--on-water);
+  padding:11px 14px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
+.p-head b{font-size:13px; font-weight:700; letter-spacing:.04em;}
+.p-head .sub{font-size:10.5px; color:var(--on-water-sub); letter-spacing:.04em;}
+.p-head .when{margin-left:auto; font-size:11.5px; color:var(--on-water-sub);}
+
+/* 2. 総合点 */
+.p-total{display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  padding:14px; border-bottom:1px solid var(--paper-line);}
+.p-bars{flex:1 1 190px; min-width:0;}
+.p-bar{margin-top:9px;}
+.p-bar:first-child{margin-top:0;}
+.p-bar .lb{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-muted);}
+.p-bar .lb b{color:var(--ink); font-weight:700; font-size:12px;}
+.p-bar .track{height:6px; margin-top:3px; background:#E7E2D4;}
+.p-bar .fill{height:6px; background:var(--akapen);}
+.p-meta{margin:10px 0 0; font-size:10.5px; color:var(--ink-muted);}
+.p-tag{display:inline-block; padding:1px 7px; margin-right:6px;
+  border:1px solid var(--paper-line); color:var(--ink-muted); font-size:10.5px;}
+/* 方眼の上に赤い大数字 */
+.p-big{flex:0 0 auto; padding:10px 14px; text-align:center;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px),
+    repeating-linear-gradient(90deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px);}
+.p-big .n{display:block; font-size:64px; line-height:1; font-weight:800; color:var(--akapen);
+  border-bottom:3px solid var(--akapen); padding-bottom:4px;}
+.p-big .of{display:block; margin-top:5px; font-size:10.5px; color:var(--ink-muted);}
+.p-big .wait{display:block; font-size:26px; line-height:1.2; font-weight:700; color:var(--ink-muted);
+  border-bottom:3px solid var(--paper-line); padding-bottom:4px;}
+
+/* 3. 軸・押さえ */
+.p-axis{padding:12px 14px; border-bottom:1px solid var(--paper-line);}
+.p-axis .line{font-size:13px;}
+.p-axis .hon{color:var(--akapen); font-weight:800;}
+.p-note{margin:6px 0 0; font-size:10.5px; color:var(--ink-muted); line-height:1.7;}
+
+/* 見出し */
+.p-sec{padding:10px 14px 0; font-size:10.5px; color:var(--ink-muted); letter-spacing:.06em;}
+
+/* 4. 読みの内訳 */
+.p-rows{list-style:none; margin:6px 0 0; padding:0;}
+.p-rows li{display:flex; gap:10px; align-items:flex-start;
+  padding:9px 14px; border-top:1px solid var(--paper-line);}
+.p-rows li:first-child{border-top:none;}
+.p-pt{flex:0 0 38px; height:38px; border-radius:50%; background:var(--akapen); color:#fff;
+  font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center;}
+.p-pt.zero{background:transparent; color:var(--ink-muted); border:1px solid var(--paper-line);
+  border-radius:2px; font-weight:400;}
+.p-rowbody{flex:1; min-width:0;}
+.p-rowname{font-size:10.5px; color:var(--ink-muted);}
+.p-rowfact{font-size:13px; font-weight:700; margin-top:1px;}
+.p-rowwhy{font-size:10.5px; color:var(--ink-muted); margin-top:2px;}
+
+/* 5. 買い目の表 */
+.p-tbl{width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;}
+.p-tbl th, .p-tbl td{padding:7px 6px; border-top:1px solid var(--paper-line); text-align:left;}
+.p-tbl th{font-size:10px; color:var(--ink-muted); font-weight:400; border-top:none;}
+.p-tbl th:first-child, .p-tbl td:first-child{padding-left:14px;}
+.p-tbl th:last-child, .p-tbl td:last-child{padding-right:14px; text-align:right;}
+.p-tbl .amt{text-align:right; color:var(--ink-muted);}
+.p-bet{font-weight:700; white-space:nowrap;}
+.p-bet.lose{text-decoration:line-through; color:var(--ink-muted); font-weight:400;}
+.p-badge{display:inline-block; padding:1px 7px; font-size:10.5px; font-weight:700;
+  background:var(--akapen); color:#fff; white-space:nowrap;}
+.p-badge.off{background:#E7E2D4; color:var(--ink-muted); font-weight:400;}
+.p-pay{color:var(--akapen); font-weight:700;}
+/* 投入・払戻・収支・回収率 */
+.p-sum{display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px 14px;}
+.p-cell{flex:1 1 74px; border:1px solid var(--paper-line); padding:6px 8px; text-align:center;}
+.p-cell span{display:block; font-size:9.5px; color:var(--ink-muted);}
+.p-cell b{display:block; font-size:13px; margin-top:1px;}
+.p-cell.roi{border-color:var(--akapen);}
+.p-cell.roi b{color:var(--akapen);}
+
+/* 6. 当日のようす */
+.p-day{padding:10px 14px; border-top:1px solid var(--paper-line); font-size:12.5px;}
+.p-day .k{color:var(--ink-muted); font-size:10.5px;}
+
+/* 7. 講評(赤枠+ノート風の薄赤横罫) */
+.p-rev{margin:12px 14px 14px; border:1px solid var(--akapen); position:relative;
+  background:repeating-linear-gradient(180deg, transparent 0 27px, rgba(200,32,46,.13) 27px 28px);
+  background-position:0 10px;}
+.p-rev .by{position:absolute; top:-8px; right:8px; background:var(--paper);
+  padding:0 5px; font-size:9.5px; color:var(--akapen);}
+.p-rev ul{list-style:none; margin:0; padding:12px 12px 10px;}
+.p-rev li{font-size:12.5px; line-height:28px; margin-top:6px;}
+.p-rev li:first-child{margin-top:0; color:var(--akapen); font-weight:700;}
+.p-rev li.dis{color:var(--ink-muted); font-size:10.5px; line-height:1.8; margin-top:10px;}
+.p-rev .none{margin:0; padding:12px; font-size:12.5px; color:var(--ink-muted);}
+
+/* 8. 紙のフッター */
+.p-foot{padding:9px 14px 11px; border-top:1px solid var(--paper-line);
+  font-size:9.5px; color:var(--ink-muted); line-height:1.7;
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+
+.p-empty{padding:14px; font-size:13px;}
 </style>
 </head>
 <body>
@@ -107,7 +186,7 @@ body{background:var(--bg); color:var(--ink);
      URLで結びつけて、必ず対になったものが読まれるようにする。
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="/yomi.js?v=3"></script>
+<script src="/yomi.js?v=4"></script>
 <script>
 (function(){
   "use strict";
@@ -140,126 +219,160 @@ body{background:var(--bg); color:var(--ink);
   var res = p.result;
   var yomi = p.yomi;
   var yen = function(n){ return (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString(); };
+  var MAXY = TeiyomiYomi.MAX_YOMI_PT, MAXR = TeiyomiYomi.MAX_RESULT_PT;
 
-  // ---- 合計 ----
+  // ---- 1. 紙のヘッダー帯 ----
+  var html = '<article class="paper">' +
+    '<div class="p-head"><b>読み採点</b><span class="sub">答案 — ' +
+      (p.settled ? '添削済' : '未添削') + '</span>' +
+      '<span class="when nums">' + esc(part[0]) + '　' + esc(part[1]) + ' ' + esc(part[2]) + 'R' +
+      (p.tag ? '　/　' + esc(p.tag) : '') + '</span></div>';
+
+  function bar(label, pt, max){
+    return '<div class="p-bar"><div class="lb"><span>' + label +
+      '</span><b class="nums">' + (pt == null ? "—" : pt) + ' / ' + max + '</b></div>' +
+      '<div class="track"><div class="fill" style="width:' +
+      (pt == null ? 0 : Math.round(pt / max * 100)) + '%"></div></div></div>';
+  }
+
+  // ---- 2. 総合点 ----
   // 結果が出るまでは点を出さない。レース前に点を出すと、それは買い目への
   // 評価＝予想になってしまう。採点は「済んだことを振り返る」ためのもの。
-  var html = '<div class="card">' +
-    '<p class="head">' + esc(part[0]) + '　' + esc(part[1]) + ' ' + esc(part[2]) + 'R' +
-      (p.tag ? '　／　' + esc(p.tag) : '') + '</p>';
-
   if(!p.settled){
-    html += '<div class="total"><b>採点待ち</b></div>' +
-      '<p class="note">レースの結果が確定してから採点します（翌朝までに埋まります）。' +
+    html += '<div class="p-total"><div class="p-bars">' +
+      '<p class="p-meta" style="margin:0">' +
+        (p.tag ? '<span class="p-tag">' + esc(p.tag) + '</span>' : '') +
+        '記録 ' + p.records.length + '点 ／ 投入 ' +
+        p.records.reduce(function(s,r){ return s + r.amount; }, 0).toLocaleString() + '円</p>' +
+      '<p class="p-note">レースの結果が確定してから採点します（翌朝までに埋まります）。' +
       '結果が出る前に点や講評を出すと、買い目への評価＝予想になってしまうため、' +
-      'ここでは何も出していません。</p></div>';
-    html += '<p class="sec-label">記録した買い目（' + p.records.length + '点）</p>' +
-      '<div class="card"><ul class="bets">' + p.records.map(function(r){
-        return '<li><span class="ken">' + esc(r.ken) + '</span>' +
-          '<span class="lanes nums">' + esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</span>' +
-          '<span class="amt nums">' + r.amount + '円</span></li>';
-      }).join("") + '</ul>' +
-      '<p class="note nums">投入 ' +
-        p.records.reduce(function(s,r){ return s + r.amount; }, 0).toLocaleString() + '円</p></div>';
-    box.innerHTML = html;
+      'ここでは何も出していません。</p></div>' +
+      '<div class="p-big"><span class="wait">採点待ち</span>' +
+      '<span class="of">結果確定後に採点</span></div></div>';
+    html += '<p class="p-sec">記録した買い目（' + p.records.length + '点）</p>' +
+      '<table class="p-tbl"><tr><th>券種</th><th>買い目</th><th>金額</th></tr>' +
+      p.records.map(function(r){
+        return '<tr><td>' + esc(r.ken) + '</td>' +
+          '<td class="p-bet nums">' + esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</td>' +
+          '<td class="amt nums">' + r.amount + '円</td></tr>';
+      }).join("") + '</table>';
+    html += paperFoot();
+    box.innerHTML = html + '</article>';
     return;
   }
 
   var yp = yomi ? yomi.pt : null;
   var rp = (res && res.pt != null) ? res.pt : null;
-  var total = (yp == null && rp == null) ? null : (yp || 0) + (rp || 0);
-  html += '<div class="total"><b class="nums">' + (total == null ? "—" : total) + '</b>' +
-      '<span class="of">/ 100点</span>' +
-      '<span class="parts nums">読み ' + (yp == null ? "—" : yp) + '/' + TeiyomiYomi.MAX_YOMI_PT +
-      '　結果 ' + (rp == null ? "—" : rp) + '/' + TeiyomiYomi.MAX_RESULT_PT + '</span></div>';
+  var total = (yp || 0) + (rp || 0);
+  html += '<div class="p-total"><div class="p-bars">' +
+    bar("読み", yp, MAXY) + bar("結果", rp, MAXR) +
+    '<p class="p-meta">' + (p.tag ? '<span class="p-tag">' + esc(p.tag) + '</span>' : '') +
+      '自動採点（' + esc(TeiyomiYomi.YOMI_VERSION) + '）</p></div>' +
+    '<div class="p-big"><span class="n nums">' + total + '</span>' +
+    '<span class="of">100点満点</span></div></div>';
 
   if(res.status === "void"){
-    html += '<p class="note">不成立（返還）のため、結果点は付きません。</p>';
+    html += '<p class="p-note" style="padding:0 14px">不成立（返還）のため、結果点は付きません。</p>';
   }
+
+  // ---- 3. 軸・押さえ ----
   if(yomi){
-    html += '<p class="axis">軸: <b>' + yomi.axis + '号艇</b>（推定）' +
-      (yomi.backs.length ? '　押さえ: ' + yomi.backs.map(function(n){ return n + "号艇"; }).join("・") : '') +
-      '</p><p class="note">軸と押さえは買い目から推定しています（' +
+    html += '<div class="p-axis"><p class="line" style="margin:0">軸 <span class="hon">' +
+      yomi.axis + '号艇</span>（推定）' +
+      (yomi.backs.length ? '　押さえ ' + yomi.backs.map(function(n){ return n + "号艇"; }).join("・") : '') +
+      '</p><p class="p-note">軸と押さえは買い目から推定しています（' +
       (yomi.byFirst ? "1着に置いた回数がいちばん多い艇を軸" : "買い目に出てくる回数がいちばん多い艇を軸") +
       '、同数なら艇番の小さいほう）。読み点は軸の艇について付けています。</p>' +
-      '<p class="note">読み点は「どの枠を選んだか」ではなく' +
+      '<p class="p-note">読み点は「どの枠を選んだか」ではなく' +
       '「軸にした艇に実測の材料があったか」を測ります。' +
-      'コースの有利不利は計測の時点で差し引いてあります。</p>';
+      'コースの有利不利は計測の時点で差し引いてあります。</p></div>';
   }
-  html += '</div>';
 
-  // ---- 読み点の内訳 ----
-  html += '<p class="sec-label">読みの内訳（' + esc(TeiyomiYomi.YOMI_VERSION) + '）</p><div class="card">';
+  // ---- 4. 読みの内訳 ----
+  html += '<p class="p-sec">読みの内訳</p>';
   if(!yomi){
-    html += '<p class="empty">記録した時点の出走表が残っていないため、読み点は付けられません。</p>';
+    html += '<p class="p-empty">記録した時点の出走表が残っていないため、読み点は付けられません。</p>';
   } else {
-    html += '<ul class="rows">' + yomi.rows.map(function(r){
-      return '<li><span class="pt nums' + (r.pt ? '' : ' zero') + '">' +
-        (r.pt > 0 ? "+" : "") + r.pt + '</span><span class="body">' +
-        '<span class="name">' + esc(r.cat) + '　' + esc(r.label) + ' <span class="nums">' +
-          r.pt + '/' + r.max + '</span></span><br>' +
-        '<span class="fact">' + esc(r.fact) + '</span><br>' +
-        '<span class="why">' + (r.note ? esc(r.note)
-          : esc(r.band) + 'は1着率' + esc(r.lift) + '　' + esc(r.period)) + '</span>' +
+    html += '<ul class="p-rows">' + yomi.rows.map(function(r){
+      // 根拠はコンパクトに1行。「7.0以上 +12.6pt・39日・35,404走」
+      var why = r.note ? esc(r.note)
+        : esc(r.band) + ' ' + esc(r.lift) + '・' + esc(r.period);
+      return '<li><span class="p-pt nums' + (r.pt ? '' : ' zero') + '">' +
+        (r.pt > 0 ? "+" : "") + r.pt + '</span><span class="p-rowbody">' +
+        '<span class="p-rowname">' + esc(r.cat) + '　' + esc(r.label) +
+          ' <span class="nums">' + r.pt + '/' + r.max + '</span></span>' +
+        '<div class="p-rowfact">' + esc(r.fact) + '</div>' +
+        '<div class="p-rowwhy">' + why + '</div>' +
         '</span></li>';
     }).join("") + '</ul>';
-    html += '<p class="note">かっこの中は、同じ会場・同じコースの平均と比べて1着率が何pt動くかを実データで測った値です。点はこの幅から機械的に割り振っており、1着率が上がらない帯（0pt以下）には点を付けません。</p>';
   }
-  html += '</div>';
 
-  // ---- 買い目 ----
-  html += '<p class="sec-label">記録した買い目（' + p.records.length + '点）</p><div class="card"><ul class="bets">' +
+  // ---- 5. 記録した買い目 ----
+  html += '<p class="p-sec">記録した買い目（' + p.records.length + '点）</p>' +
+    '<table class="p-tbl"><tr><th>券種</th><th>買い目・判定</th><th>金額</th><th>払戻</th></tr>' +
     p.records.map(function(r){
       var s = r.score;
-      var st = !s ? '<span class="miss">採点待ち</span>'
-        : s.st === "hit" ? '<span class="hit">的中 ' + s.yen.toLocaleString() + '円</span>'
-        : s.st === "void" ? '<span class="miss">不成立</span>'
-        : s.st === "nodata" ? '<span class="miss">結果なし</span>'
-        : '<span class="miss">不的中</span>';
-      return '<li><span class="ken">' + esc(r.ken) + '</span>' +
-        '<span class="lanes nums">' + esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</span>' +
-        st + '<span class="amt nums">' + r.amount + '円</span></li>';
-    }).join("") + '</ul>';
+      var hit = s && s.st === "hit";
+      var badge = !s ? '<span class="p-badge off">採点待ち</span>'
+        : hit ? '<span class="p-badge">的中</span>'
+        : s.st === "void" ? '<span class="p-badge off">不成立</span>'
+        : s.st === "nodata" ? '<span class="p-badge off">結果なし</span>'
+        : '<span class="p-badge off">不的中</span>';
+      return '<tr><td>' + esc(r.ken) + '</td>' +
+        '<td><span class="p-bet nums' + (s && !hit && s.st === "miss" ? ' lose' : '') + '">' +
+          esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</span> ' + badge + '</td>' +
+        '<td class="amt nums">' + r.amount + '円</td>' +
+        '<td class="nums' + (hit ? ' p-pay' : ' amt') + '">' +
+          (hit ? s.yen.toLocaleString() + '円' : '—') + '</td></tr>';
+    }).join("") + '</table>';
   if(res.status === "hit" || res.status === "miss"){
-    html += '<p class="note nums">投入 ' + res.bet.toLocaleString() + '円 ／ 払戻 ' +
-      res.yen.toLocaleString() + '円 ／ 収支 ' + yen(res.profit) + '円 ／ 回収率 ' + res.roi + '%</p>';
+    html += '<div class="p-sum">' +
+      '<div class="p-cell"><span>投入</span><b class="nums">' + res.bet.toLocaleString() + '</b></div>' +
+      '<div class="p-cell"><span>払戻</span><b class="nums">' + res.yen.toLocaleString() + '</b></div>' +
+      '<div class="p-cell"><span>収支</span><b class="nums">' + yen(res.profit) + '</b></div>' +
+      '<div class="p-cell roi"><span>回収率</span><b class="nums">' + res.roi + '%</b></div></div>';
   }
-  html += '</div>';
 
-  // ---- 当日の気象 ----
+  // ---- 6. 当日のようす ----
   var s0 = p.records[0].score;
-  html += '<p class="sec-label">当日のようす</p><div class="card">';
+  html += '<div class="p-day">';
   if(s0 && s0.wave != null){
-    html += '<p class="head nums">波高 ' + s0.wave + 'cm' +
-      (s0.top3 ? '　／　着順 ' + s0.top3.join("-") : '') +
-      (s0.kimarite ? '　／　' + esc(s0.kimarite) : '') + '</p>' +
-      '<p class="note">記録した時に見えていた直前情報とのズレは、次の段階（講評）で扱います。</p>';
+    html += '<span class="k">当日のようす</span>　<span class="nums">波高 ' + s0.wave + 'cm' +
+      (s0.top3 ? '　／　着順 ' + s0.top3.join("-") : '') + '</span>' +
+      (s0.kimarite ? '　／　' + esc(s0.kimarite) : '') +
+      '<p class="p-note">記録した時に見えていた直前情報とのズレは、次の段階（講評）で扱います。</p>';
   } else {
-    html += '<p class="empty">結果がまだ出ていません。</p>';
+    html += '<span class="k">当日のようす</span>　結果がまだ出ていません。';
   }
   html += '</div>';
 
-  // ---- 講評 ----
-  // 点には一切影響しない。何が見えていたかを並べ直すだけの欄。
-  // 「買うべきだった」とは書かないし、正解の買い目も示さない。
+  // ---- 7. 講評 ----
+  // 文面はエンジン(yomi.js)の出力をそのまま流す。ここでは並べるだけで、
+  // 文言を足したり言い換えたりしない。
   var rev = (p.comment || []).filter(function(l){ return l.kind !== "note"; });
   var note = (p.comment || []).filter(function(l){ return l.kind === "note"; });
-  html += '<p class="sec-label">講評</p><div class="card">';
-  if(!rev.length){
-    html += '<p class="empty">特記事項なし</p>';
+  html += '<div class="p-rev"><span class="by">採点: 艇読み</span>';
+  if(!rev.length && !note.length){
+    html += '<p class="none">特記事項なし</p>';
   } else {
-    html += '<ul class="rev">' + rev.map(function(l){
-      return '<li>' + esc(l.text) + '</li>';
-    }).join("") + '</ul>';
-  }
-  if(note.length){
-    html += '<ul class="rev">' + note.map(function(l){
-      return '<li class="note">' + esc(l.text) + '</li>';
-    }).join("") + '</ul>';
+    html += '<ul>' + rev.map(function(l){ return '<li>' + esc(l.text) + '</li>'; }).join("") +
+      note.map(function(l){ return '<li class="dis">' + esc(l.text) + '</li>'; }).join("") + '</ul>';
   }
   html += '</div>';
 
-  box.innerHTML = html;
+  html += paperFoot();
+  box.innerHTML = html + '</article>';
+
+  // ---- 8. 紙のフッター ----
+  function paperFoot(){
+    var d = new Date();
+    var z = function(n){ return (n < 10 ? "0" : "") + n; };
+    return '<div class="p-foot"><span>予想印は出していません。記録した時点の番組表の数字と、' +
+      '確定した結果だけで機械的に付けています。</span>' +
+      '<span class="nums">艇読み — 読み採点 ' + esc(TeiyomiYomi.YOMI_VERSION) + '　' +
+      d.getFullYear() + '/' + z(d.getMonth() + 1) + '/' + z(d.getDate()) + ' ' +
+      z(d.getHours()) + ':' + z(d.getMinutes()) + '</span></div>';
+  }
 })();
 </script>
 </body>
