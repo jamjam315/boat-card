@@ -144,16 +144,29 @@ body{background:var(--bg); color:var(--ink);
 .p-day{padding:10px 14px; border-top:1px solid var(--paper-line); font-size:12.5px;}
 .p-day .k{color:var(--ink-muted); font-size:10.5px;}
 
-/* 7. 講評(赤枠+ノート風の薄赤横罫) */
-.p-rev{margin:12px 14px 14px; border:1px solid var(--akapen); position:relative;
-  background:repeating-linear-gradient(180deg, transparent 0 27px, rgba(200,32,46,.13) 27px 28px);
-  background-position:0 10px;}
+/* 7. 講評(赤枠+ノート風の薄赤横罫)
+   【罫と行を必ず一致させる】
+   行送りと罫の間隔を --kohyo-line ひとつから作る。以前は行に margin-top:6px を
+   足し、免責だけ line-height を変えていたため、行が進むほど罫からズレていった。
+   ズレの起点になりやすいものは罫の外へ出す:
+     ・総評(赤太字・文字が大きい)  → 上の無地帯
+     ・免責(小さい灰文字)          → 下の無地帯
+   罫が乗るのは本文だけにして、そこは行送りを変えない。
+   罫の原点を1行目の行boxの上端に合わせるため、本文の padding は左右だけにする
+   (背景の原点は padding box の上端なので、padding-top を入れるとその分ズレる)。 */
+.p-rev{--kohyo-line:28px;
+  margin:12px 14px 14px; border:1px solid var(--akapen); position:relative;}
 .p-rev .by{position:absolute; top:-8px; right:8px; background:var(--paper);
   padding:0 5px; font-size:9.5px; color:var(--akapen);}
-.p-rev ul{list-style:none; margin:0; padding:12px 12px 10px;}
-.p-rev li{font-size:12.5px; line-height:28px; margin-top:6px;}
-.p-rev li:first-child{margin-top:0; color:var(--akapen); font-weight:700;}
-.p-rev li.dis{color:var(--ink-muted); font-size:10.5px; line-height:1.8; margin-top:10px;}
+.p-rev-head{margin:0; padding:12px 12px 0; font-size:12.5px; line-height:1.7;
+  color:var(--akapen); font-weight:700;}
+.p-rev-body{list-style:none; margin:12px 0 0; padding:0 12px;
+  background:repeating-linear-gradient(180deg,
+    transparent 0 calc(var(--kohyo-line) - 1px),
+    rgba(200,32,46,.13) calc(var(--kohyo-line) - 1px) var(--kohyo-line));}
+.p-rev-body li{font-size:12.5px; line-height:var(--kohyo-line); margin:0;}
+.p-rev-note{margin:0; padding:10px 12px 12px; font-size:10.5px; line-height:1.8;
+  color:var(--ink-muted);}
 .p-rev .none{margin:0; padding:12px; font-size:12.5px; color:var(--ink-muted);}
 
 /* 8. 紙のフッター */
@@ -186,7 +199,7 @@ body{background:var(--bg); color:var(--ink);
      URLで結びつけて、必ず対になったものが読まれるようにする。
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="/yomi.js?v=4"></script>
+<script src="/yomi.js?v=5"></script>
 <script>
 (function(){
   "use strict";
@@ -355,8 +368,16 @@ body{background:var(--bg); color:var(--ink);
   if(!rev.length && !note.length){
     html += '<p class="none">特記事項なし</p>';
   } else {
-    html += '<ul>' + rev.map(function(l){ return '<li>' + esc(l.text) + '</li>'; }).join("") +
-      note.map(function(l){ return '<li class="dis">' + esc(l.text) + '</li>'; }).join("") + '</ul>';
+    // 総評(1行目)と免責は罫の外に出す。文字の大きさが違うので、罫の上に
+    // 乗せるとその行から先がずれていくため。
+    if(rev.length) html += '<p class="p-rev-head">' + esc(rev[0].text) + '</p>';
+    var body = rev.slice(1);
+    if(body.length){
+      html += '<ul class="p-rev-body">' +
+        body.map(function(l){ return '<li>' + esc(l.text) + '</li>'; }).join("") + '</ul>';
+    }
+    html += note.map(function(l){
+      return '<p class="p-rev-note">' + esc(l.text) + '</p>'; }).join("");
   }
   html += '</div>';
 
