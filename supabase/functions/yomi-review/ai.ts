@@ -20,14 +20,23 @@ export const AI_TIMEOUT_MS = 15_000;
  * 1回の応答に許す最大トークン数。**暴走を止める天井**であって、文量の
  * 指定ではない(文量はシステムプロンプトの「7〜10行」で決まる)。
  *
- * レジャー帳の実測では、GPT-5世代が推論トークンをこの予算から食い、
- * 1%前後で本文が空になった。講評は日本語300〜500字ぶんなので、
- * 天井としては800を既定にしておく。
+ * 講評そのものは日本語300〜500字ぶんなので、本文だけなら800で足りる。
+ * 1024にしてあるのは**GPT-5世代が推論トークンをこの予算から食う**ため。
+ * レジャー帳の実測では、800相当の予算で1%前後(198回中2回を2セット)が
+ * 推論だけで使い切り、本文が空になった。本文が空はブロック扱いなので
+ * 回数は消費しないが、利用者から見れば「使えない」でしかない。
  */
-export const AI_MAX_TOKENS = 800;
+export const AI_MAX_TOKENS = 1024;
 
-export const DEFAULT_PROVIDER = "anthropic";
-export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+// 既定は**実際に使うもの**に合わせる。ここをAnthropicのままにして
+// Secretsで上書きする形にすると、AI_PROVIDER を入れ忘れたときに
+// OpenAIのキーを持ったままAnthropicのエンドポイントへ投げて失敗する。
+// 沈黙して落ちる経路を作らない。
+export const DEFAULT_PROVIDER = "openai";
+// ⚠️ **枝番まで書く。** 素の `gpt-5.6` は上位のSolへ回されて単価が変わり、
+// しかも**HTTP 200で成功する**ので請求が来るまで気づけない(レジャー帳で実測・
+// 2026-08-16)。/v1/models の一覧にも素の `gpt-5.6` は出てこない。
+export const DEFAULT_MODEL = "gpt-5.6-luna";
 export const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
@@ -46,11 +55,21 @@ export function resolveMaxTokens(value?: string): number {
   return Number.isInteger(n) && n > 0 ? n : AI_MAX_TOKENS;
 }
 
-/** GPT-5世代は max_completion_tokens しか受け付けない。 */
+/**
+ * OpenAI互換経路で使うトークン上限のキー名。
+ *
+ * **GPT-5世代は max_tokens を受け付けない**(HTTP 400
+ * `Unsupported parameter: 'max_tokens'`)。モデルIDから自動で決めるので、
+ * 通常 AI_MAX_TOKENS_PARAM を設定する必要はない。
+ *
+ * gpt-5世代だけを切り替える。grokもRunbookどおり AI_PROVIDER=openai で
+ * 動かすため、provider名ではOpenAI公式と区別できないが、grokは実測で
+ * どちらのキーでも通る(レジャー帳・2026-08-16)。
+ */
 export function resolveMaxTokensParam(model: string, override?: string): string {
   const v = override?.trim();
   if (v === "max_tokens" || v === "max_completion_tokens") return v;
-  return /^gpt-5/i.test(model) ? "max_completion_tokens" : "max_tokens";
+  return /^(gpt-5|o[1-9])/i.test(model) ? "max_completion_tokens" : "max_tokens";
 }
 
 export function readAiConfig(

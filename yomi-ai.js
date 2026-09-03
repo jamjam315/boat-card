@@ -17,8 +17,8 @@
   //      出直す。黙って送信先が変わることはない
   //   2. プライバシーポリシーの社名を直す
   //   3. サーバーの AI_PROVIDER / AI_MODEL / AI_BASE_URL を切り替える
-  var AI_PROVIDER_ID = "anthropic";
-  var AI_PROVIDER_NAME = "Anthropic PBC（米国）";
+  var AI_PROVIDER_ID = "openai";
+  var AI_PROVIDER_NAME = "OpenAI, L.L.C.（米国）";
 
   var CONSENT_KEY = "teiyomi_yomi_ai_consent_v1_" + AI_PROVIDER_ID;
   var FUNCTION_URL = "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/yomi-review";

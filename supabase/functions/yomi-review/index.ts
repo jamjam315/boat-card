@@ -24,8 +24,14 @@
 //
 // ## デプロイ
 //   supabase functions deploy yomi-review
-//   supabase secrets set AI_API_KEY=<APIキー>
-//   （AI_PROVIDER / AI_MODEL / AI_BASE_URL は未設定ならClaude Haiku）
+//   supabase secrets set AI_PROVIDER=openai AI_MODEL=gpt-5.6-luna
+//     AI_BASE_URL=https://api.openai.com/v1 AI_API_KEY=<OpenAIのAPIキー>
+//     AI_MAX_TOKENS=1024 --project-ref vynbhssakpxiikmseoja
+//     (実際は1行で。上は読みやすさのために折り返している)
+//
+// AI_PROVIDER / AI_MODEL / AI_BASE_URL / AI_MAX_TOKENS は未設定でも ai.ts の
+// 既定が同じ値なので同じように動く。それでもSecretsに明示しておくのは、
+// 何を使っているかがコードを読まずに分かるようにするため。
 // AI_API_KEY を設定するまで、この関数は常に ai_unavailable を返す。
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
