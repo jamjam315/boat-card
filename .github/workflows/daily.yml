@@ -142,6 +142,15 @@ jobs:
       - name: モーターの前回使用者を選んで motors.js を作る
         run: python build_motors.py
 
+      # AI講評に渡す素材。どちらも10年ぶんを舐めるが、中身が変わらない日は
+      # バイト単位で同じものが出るのでコミットは立たない(payoutsと同じ作法)。
+      # renren.jsonは展開連鎖(ほぼ動かない)、maezuke.jsonは直近1年窓なので
+      # 毎日少しずつ動く。
+      - name: AI講評の素材を作る(展開連鎖・前づけ)
+        run: |
+          python build_renren.py
+          python build_maezuke.py
+
       - name: レース単位の固有ページを生成(7日ローリング・sitemap再生成込み)
         run: python build_race_pages.py
 
@@ -150,6 +159,7 @@ jobs:
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
           git add data.js featured.js motors.js sitemap.xml race.css
+          git add renren.json maezuke.json
           git add -A race/
           git diff --staged --quiet || git commit -m "update data ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
