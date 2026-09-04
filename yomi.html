@@ -122,6 +122,21 @@ body{background:var(--bg); color:var(--ink);
 .p-rowfact{font-size:13px; font-weight:700; margin-top:1px;}
 .p-rowwhy{font-size:10.5px; color:var(--ink-muted); margin-top:2px;}
 
+/* 4b. 点に入れていない数字。トップの「用語解説」と同じ <details> の作法にして、
+   色だけ紙のトークンに載せ替える(JSは要らない)。
+   summaryに「もっと見る ▾」は付けない——タイトルの「タップで理由」と二重になる。 */
+.p-out{margin:10px 14px 0; border:1px solid var(--paper-line);}
+.p-out summary{cursor:pointer; padding:9px 26px 9px 11px; font-size:11.5px;
+  color:var(--ink-muted); list-style:none; position:relative;}
+.p-out summary::-webkit-details-marker{display:none;}
+.p-out summary::after{content:"▾"; position:absolute; right:11px; top:9px;}
+.p-out[open] summary::after{content:"▴";}
+.p-out-body{list-style:none; margin:0; padding:0 11px;}
+.p-out-body li{font-size:11.5px; color:var(--ink-muted); line-height:1.8; margin-top:9px;}
+.p-out-body li b{color:var(--ink); font-weight:700;}
+.p-out-note{margin:11px 0 0; padding:0 11px 11px; font-size:10.5px;
+  color:var(--ink-muted); line-height:1.7;}
+
 /* 5. 買い目の表 */
 .p-tbl{width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;}
 .p-tbl th, .p-tbl td{padding:7px 6px; border-top:1px solid var(--paper-line); text-align:left;}
@@ -258,8 +273,8 @@ body{background:var(--bg); color:var(--ink);
      AI講評の権利確認に要る。読めなくてもAI講評の枠が出ないだけで、
      採点と赤ペンの講評は端末の中だけで動き続ける。 -->
 <script src="/favorites.js"></script>
-<script src="/yomi.js?v=9"></script>
-<script src="/yomi-ai.js?v=9"></script>
+<script src="/yomi.js?v=10"></script>
+<script src="/yomi-ai.js?v=10"></script>
 <script>
 (function(){
   "use strict";
@@ -378,6 +393,39 @@ body{background:var(--bg); color:var(--ink);
         '<div class="p-rowwhy">' + why + '</div>' +
         '</span></li>';
     }).join("") + '</ul>';
+  }
+
+  // ---- 4b. 点に入れていない数字 ----
+  // 内訳と同じ条件(yomi があるとき=結果が確定したとき)でだけ出す。
+  // レース前に「この数字は点にしていません」と並べるのも、結局その答案の
+  // 材料の評価になってしまうため。
+  if(yomi){
+    var ab = null;
+    ((p.snapshot && p.snapshot.boats) || []).forEach(function(b){
+      if(b.n === yomi.axis) ab = b;
+    });
+    if(ab){
+      // 値が取れないものは行ごと出さない。空欄を置いても理由が伝わらない。
+      var out = [];
+      var lw = lwText(ab);
+      if(lw) out.push(['当地勝率 ' + lw,
+        '数字は事実ですが、全国勝率を見たあとで1着率を新しく動かす力は±0.6ptでした（334万走・方向も一定せず）']);
+      if(typeof ab.mo === "number") out.push(['モーター2率 ' + Math.round(ab.mo) + '%',
+        '+2.7ptで、点にする基準に届きませんでした']);
+      if(ab.k) out.push(['級別 ' + ab.k,
+        '勝率と同じ強さを二重に数えることになるため']);
+      if(typeof ab.nw2 === "number") out.push(['全国2連対率 ' + Number(ab.nw2).toFixed(1) + '%',
+        '全国勝率とほぼ同じ動きでした（相関0.97・3.6万走）']);
+      if(out.length){
+        html += '<details class="p-out">' +
+          '<summary>点に入れていない数字（タップで理由）</summary>' +
+          '<ul class="p-out-body">' + out.map(function(x){
+            return '<li><b>' + esc(x[0]) + '</b> —— ' + esc(x[1]) + '</li>';
+          }).join("") + '</ul>' +
+          '<p class="p-out-note">いずれも「軸が1着になるか」の実測です。' +
+          '2着（押さえ）の読みは別の話で、そこでは別に測っています。</p></details>';
+      }
+    }
   }
 
   // ---- 5. 記録した買い目 ----
@@ -567,6 +615,18 @@ body{background:var(--bg); color:var(--ink);
         showAi(box, text, model, at, remaining, p, true);
       });
     });
+  }
+
+  // 当地勝率の表記。**レースページの lwDisplay() と同じ見分け方にそろえる。**
+  // 当地を走っていない選手に「0.00」と出すと事実と違う(index.html の同名関数を参照)。
+  //   lwn = 当地(直近1年のK票)での出走数 / sn = 半年の全会場の出走回数
+  function lwText(b){
+    if(b.lw == null) return null;
+    if(b.lw === 0){
+      if(!b.lwn) return b.sn === 0 ? "当地初" : "当地データなし";
+      if(b.lwn < 10) return "0.00";   // 走ってはいるが薄い(参考程度)
+    }
+    return Number(b.lw).toFixed(2);
   }
 
   // ---- 8. 紙のフッター ----

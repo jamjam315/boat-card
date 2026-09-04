@@ -580,6 +580,8 @@
    * 防御句(点に入れていません等)は最後の1行に集約し、本文には混ぜない。
    *
    * catches は登番→二つ名の対応(players_list.js から作る)。無くても動く。
+   * ※点外の数字の列挙を答案側へ移したため、現在この関数の中では使っていない。
+   *   引数と players_list.js の読み込みの整理は別タスク。
    */
   var MAX_COMMENT_LINES = 7;
 
@@ -712,25 +714,17 @@
       lines.splice(idx, 1);
     }
 
-    // ---- ⑥ ※点外の事実と免責(1行に集約) ----
+    // ---- ⑥ 免責(1行) ----
     // 防御句はここに1回だけ。本文には混ぜない。
-    var out = {};
-    [axis].concat(yomi.backs).forEach(function (n) {
-      var b = byLane[n];
-      if (!b) return;
-      if (typeof b.mo === "number" && b.mo >= 40) out["モーター2率"] = true;
-      var cat = catches && catches[b.t];
-      if ((cat && /巧者|の主/.test(cat)) ||
-          (typeof b.lw === "number" && typeof b.nw === "number" && b.lw > 0 && b.lw - b.nw >= 1.0)) {
-        out["当地の強さ"] = true;
-      }
-      if (b.k === "A1" || b.k === "A2") out["級別"] = true;
-    });
-    var names = Object.keys(out);
-    lines.push({ kind: "note", text: "※" +
-      (names.length ? names.join("・") + "は、実測で1着率を動かさない（または基準未満の）ため" +
-        "点に入れていません。" : "") +
-      "採点はレース時点の気象で行っています。" });
+    //
+    // 【点に入れていない数字の列挙は、ここから答案の折りたたみブロックへ移した】
+    // ここでは名前を並べることしかできず(「当地の強さは点に入れていません」)、
+    // その答案の実数値も、なぜ入れていないのかの根拠も出せなかった。
+    // 答案側なら「当地勝率 6.14 —— ±0.6pt(334万走)」まで書ける。
+    //
+    // 気象の一文だけを残す。**これは点外の数字の話ではない別の開示**なので、
+    // 列挙と一緒に消さない。
+    lines.push({ kind: "note", text: "※採点はレース時点の気象で行っています。" });
     return lines;
   }
 
