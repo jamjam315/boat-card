@@ -592,6 +592,80 @@
     wave: "波高4cm以上の日は、1号艇を疑うところから読みが始まります。"
   };
 
+  /** 進入が枠なりでないか。古い払戻データには進入が無いので、その時は判定しない。 */
+  function notWakunari(inn) {
+    if (!inn || inn.length !== 6) return false;
+    for (var i = 0; i < 6; i++) if (inn[i] == null) return false;
+    for (var j = 0; j < 6; j++) if (inn[j] !== j + 1) return true;
+    return false;
+  }
+
+  /**
+   * 締めの一行を選ぶ。上から順に見て、最初に当たった1本だけを返す。
+   *
+   * 【分岐表にした理由】
+   * 以前は「見送った材料の最上位1件」だけで決めていた。配点が
+   * A全国勝率26 > B平均ST18 > C直近16 で、AとBはどちらも form に潰れるため、
+   * 実測792レース中91.5%(1号艇軸・相手2,3のとき)が同じ文になっていた。
+   * 答案の内容から選び直す。言い換えの乱数は使わない
+   * (同じ答案なら必ず同じ文、を保つため)。
+   *
+   * 【2〜7は結果が要る】
+   * 未確定・返還の答案では飛ばして8〜10に落ちる。
+   *
+   * 【6と7は「何が起きたか」ではなく「次に何を見るか」で書く】
+   * 決着と決まり手の指摘はAI講評の「展開の読み」がやる。同じ画面で二度言わない。
+   */
+  function closing(yomi, result, score, missed, wave, ab) {
+    var axis = yomi.axis;
+    var t3 = (score && score.top3) || [];
+
+    if (t3.length) {
+      // 1 満点(読み70+結果30)。ここで結果への言及は止める。
+      //   「通知に登録」等の導線は答案の外(つづきブロック)にあり、赤ペンは呼ばない。
+      if (result && result.pt != null &&
+          yomi.pt + result.pt === MAX_YOMI_PT + MAX_RESULT_PT) {
+        return "読みも結果も揃いました。この答案は、次に迷ったときの基準になります。";
+      }
+      var axisIn = t3.indexOf(axis) >= 0;
+      // 2 軸は着外。ただし材料は揃っていた。外れとしてではなく、続けていい読みとして書く。
+      if (!axisIn && ab >= 30) {
+        return "軸の材料は揃っていました。それでも着外になる日があることを、この一本が示しています。";
+      }
+      // 3 軸は着外で、材料も薄かった。
+      if (!axisIn && ab < 15) {
+        return "軸に実測の材料が薄いまま買うと、外れた理由が後から辿れません。まず軸の数字から読むところです。";
+      }
+      // 4 軸は来て、押さえだけが全滅。
+      var live = yomi.backs.filter(function (n) { return t3.indexOf(n) >= 0; });
+      if (axisIn && yomi.backs.length && !live.length) {
+        return "軸は来て、押さえだけが外れた形です。押さえは1着率ではなく2連対の帯で見ると絞り方が変わります。";
+      }
+      // 5 見送った材料の艇が実際に絡んだ。missed は材料の大きい順なので先頭が最上位1艇。
+      var came = missed.filter(function (m) { return t3.indexOf(m.n) >= 0; });
+      if (came.length) {
+        return "買い目に入れなかった" + came[0].n +
+          "号艇が実際に絡みました。同格の材料は、拾うかどうかを毎回決めるところです。";
+      }
+      // 6 1号艇を軸にして、逃げ以外で決まった日。
+      if (axis === 1 && score.kimarite && score.kimarite !== "逃げ") {
+        return "この日は逃げで決まりませんでした。1号艇を軸にするときは、" +
+          "その水面で逃げ以外がどれくらい出ているかを先に見ておくと守りが利きます。";
+      }
+      // 7 前づけのあった節。
+      if (notWakunari(score.inn)) {
+        return "進入が枠どおりではありませんでした。前づけのある節は、枠ではなくコースで読み直すところです。";
+      }
+    }
+
+    // 8 荒れた日。
+    var wi = waveBandIndex(wave);
+    if (wi != null && wi >= 2) return HINTS.wave;
+    // 9/10 見送った材料の種類(cond / form)。従来の締め。
+    if (missed.length) return HINTS[missed[0].c.cat];
+    return null;
+  }
+
   function comment(records, snap, wave, catches, yomi, result) {
     if (!snap || !snap.boats || !yomi) return [];
     var axis = yomi.axis;
@@ -692,9 +766,15 @@
       lines.push({ kind: "missed", text: "一方で、" + m.n + "号艇（" + m.c.t + "・1着率" +
         m.c.lift + "）にも同格の材料がありましたが、今回の買い目には入っていません。" });
     });
-    var hintCat = missed.length ? missed[0].c.cat
-      : (waveBandIndex(wave) != null && waveBandIndex(wave) >= 2 ? "wave" : null);
-    if (hintCat) lines.push({ kind: "hint", text: HINTS[hintCat] });
+    // 結果側の事実(着順・決まり手・進入)。答案は同じレースの買い目の束なので、
+    // 採点済みの1件から取れば足りる。返還(void)と未採点は結果として使わない。
+    var score = null;
+    for (var si = 0; si < records.length; si++) {
+      var sc = records[si].score;
+      if (sc && (sc.st === "hit" || sc.st === "miss")) { score = sc; break; }
+    }
+    var tail = closing(yomi, result, score, missed, wave, ab);
+    if (tail) lines.push({ kind: "hint", text: tail });
 
     // ---- ⑤ 条件(荒れた日だけ) ----
     var wi = waveBandIndex(wave);
