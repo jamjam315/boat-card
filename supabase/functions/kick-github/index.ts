@@ -30,14 +30,15 @@
 // Cron の登録も既存3件はそのまま。
 //
 // 【必要なSecret】
-//   CRON_SECRET             … 既存(朝の通知と共用)
-//   GITHUB_KICK_TOKEN       … 既存。Fine-grained PAT / Actions: Read and write
-//   GITHUB_KICK_TOKEN_XBOT  … mtpworks-x-bot 用。無ければ GITHUB_KICK_TOKEN で代用する
-// PATはリポジトリを選んで発行するので、boat-card だけを選んだ既存のPATでは
-// x-bot を叩けない(404 になる)。どちらかにすること:
-//   (a) 既存のPATの対象リポジトリに mtpworks-x-bot を足す → 追加のSecretは不要
-//   (b) x-bot だけを選んだPATを新しく作り、GITHUB_KICK_TOKEN_XBOT に入れる
-// (b) のほうが、片方が漏れても片方は無事という意味では安全。
+//   CRON_SECRET        … 既存(朝の通知と共用)
+//   GITHUB_KICK_TOKEN  … 既存。boat-card 用の Fine-grained PAT / Actions: Read and write
+//   XBOT_KICK_TOKEN    … mtpworks-x-bot 用。2026-09-05 に JAM が登録済み
+// PATはリポジトリを選んで発行するので、1本のPATで両方を叩くこともできるが、
+// リポジトリごとに分けてある。片方が漏れても片方は無事なため。
+// **鍵はリポジトリで切り替える。足りなければ他方で代用しない。**
+// 代用すると、対象リポジトリの入っていないPATで叩いて 404 が返り、
+// 「ワークフロー名が違うのか、鍵が違うのか」が切り分けられなくなる。
+// 既存の GITHUB_KICK_TOKEN には手を触れない。
 //
 // 【無音の失敗を作らない】
 // PATは最長でも1年で期限が切れる。切れたことに気づけないと、今回の
@@ -65,7 +66,7 @@ const REPOS: Record<
     owner: 'jamjam315',
     // 生成の便だけ。x-post-test.yml(実投稿するテスト)はここに入れない。
     workflows: new Set(['generate-daily.yml']),
-    tokenEnv: 'GITHUB_KICK_TOKEN_XBOT',
+    tokenEnv: 'XBOT_KICK_TOKEN',
   },
 }
 // repo を省いた本文は boat-card 宛。既存3便の互換のため必ずここを既定にする。
@@ -80,7 +81,7 @@ function reply(status: number, body: Record<string, unknown>): Response {
 /** GitHubの応答から、何が起きたのかを人が読める形にする。 */
 function explain(status: number): string {
   if (status === 204) return '起動しました'
-  if (status === 401) return 'PATが無効か期限切れです（GITHUB_KICK_TOKEN を作り直してください）'
+  if (status === 401) return 'PATが無効か期限切れです（ログに出ている鍵を作り直してください）'
   if (status === 403) return 'PATの権限が足りないか、レート制限です（Actions: Read and write が要ります）'
   if (status === 404) {
     // 複数リポジトリを叩くようになってから、いちばん出やすいのがこれ。
@@ -140,23 +141,24 @@ export default {
       ? body.inputs as Record<string, unknown>
       : undefined
 
-    // リポジトリ専用のPATがあればそれを使い、無ければ共用のものにする。
-    // どちらを使ったかは必ずログに出す。404 が出たときに「PATの対象に
-    // そのリポジトリが入っていない」を疑えるようにするため。
-    let token = Deno.env.get(target.tokenEnv)
-    let tokenUsed = target.tokenEnv
-    if (!token && target.tokenEnv !== 'GITHUB_KICK_TOKEN') {
-      token = Deno.env.get('GITHUB_KICK_TOKEN')
-      tokenUsed = 'GITHUB_KICK_TOKEN(代用)'
-    }
+    // 鍵はリポジトリで決まる。無くても他方で代用しない(上の【必要なSecret】)。
+    // 使った鍵の名前は必ずログに出す。404 のとき「PATの対象にそのリポジトリが
+    // 入っていない」を疑えるようにするため。値そのものは絶対に出さない。
+    const token = Deno.env.get(target.tokenEnv)
+    const tokenUsed = target.tokenEnv
     if (!token) {
       // Secretの入れ忘れをここで言い切る。黙って何もしないと、
       // 「なぜか毎晩起動しない」だけが残って原因に辿り着けない。
       console.error(
-        `[kick-github] ${target.tokenEnv} も GITHUB_KICK_TOKEN も未設定です。` +
-          'Supabaseの Edge Function Secrets に登録してください。',
+        `[kick-github] ${repoName} 用の ${target.tokenEnv} が未設定です。` +
+          'Supabaseの Edge Function Secrets に登録してください' +
+          '(他のリポジトリの鍵では代用しません)。',
       )
-      return reply(500, { ok: false, repo: repoName, reason: 'token not configured' })
+      return reply(500, {
+        ok: false,
+        repo: repoName,
+        reason: `token not configured (${target.tokenEnv})`,
+      })
     }
 
     const url = `https://api.github.com/repos/${target.owner}/${repoName}` +
