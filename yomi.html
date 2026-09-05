@@ -52,6 +52,18 @@ body{background:var(--bg); color:var(--ink);
 .topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub);}
 .back{display:block; margin:10px 2px 12px; font-size:12px; color:var(--muted); text-decoration:none;}
 .back:hover{color:var(--accent);}
+/* 「つづき」。紙の外なので、紙のトークンではなくアプリ側の色を使う。
+   答案は済んだことの記録、こちらはそこから次へ行くための場所。 */
+.next{margin-top:16px;}
+.next-ttl{font-size:11.5px; color:var(--muted); margin:0 2px 8px; letter-spacing:.04em;}
+.next-hit{margin:0 2px 8px; font-size:13px; font-weight:700; color:var(--accent);}
+.next-btn{display:block; width:100%; margin-top:8px; padding:14px 16px; border-radius:var(--radius);
+  border:1px solid var(--line2); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:14px; font-weight:600; text-align:left; text-decoration:none; cursor:pointer;}
+.next-btn:first-of-type{margin-top:0;}
+.next-btn small{display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--muted);}
+.next-btn.hit{border-color:var(--accent); background:var(--accent-soft);}
+
 .foot{font-size:11px; color:var(--muted); margin:22px 2px 0; line-height:1.8;}
 .foot a{color:var(--muted);}
 
@@ -254,6 +266,8 @@ body{background:var(--bg); color:var(--ink);
   </header>
   <a class="back" href="mypage.html">← マイページに戻る</a>
   <div id="paper"></div>
+  <!-- 紙面の外。答案は「1枚の紙」なので、次の行動へのボタンは紙に刷らない。 -->
+  <div id="next"></div>
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>この採点は、記録した時点の番組表の数字と、確定した結果だけで機械的に付けています。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。<br><a href="/about.html">運営者情報</a></p>
 </div>
 
@@ -272,9 +286,15 @@ body{background:var(--bg); color:var(--ink);
 <!-- favorites.js は TeiyomiAuth(Supabaseクライアントとログイン状態)を作る。
      AI講評の権利確認に要る。読めなくてもAI講評の枠が出ないだけで、
      採点と赤ペンの講評は端末の中だけで動き続ける。 -->
+<script src="/twa.js"></script>
 <script src="/favorites.js"></script>
-<script src="/yomi.js?v=10"></script>
-<script src="/yomi-ai.js?v=10"></script>
+<!-- 「この条件で通知に登録」は、二つ名からの登録と同じ TeiyomiAlerts.bellFlow() に
+     乗せる。プレミアムの判定に membership.js が要る(無いと会員でも非会員扱いに
+     なってしまう)。twa.js はアプリ内での文言の出し分け用。 -->
+<script src="/membership.js"></script>
+<script src="/alerts.js"></script>
+<script src="/yomi.js?v=11"></script>
+<script src="/yomi-ai.js?v=11"></script>
 <script>
 (function(){
   "use strict";
@@ -497,6 +517,7 @@ body{background:var(--bg); color:var(--ink);
   html += paperFoot();
   box.innerHTML = html + '</article>';
   renderAi(p);
+  renderNext(p);
 
   // ---- AI講評の描画 ----
   // 段は3つだけ。「生成済み(端末にある)」「これから生成できる」「使えない」。
@@ -570,6 +591,93 @@ body{background:var(--bg); color:var(--ink);
     var btn = document.getElementById("aiRp");
     if(btn && p) btn.addEventListener("click", function(){
       openReport(box, p, text, model, at, remaining);
+    });
+  }
+
+  // ---- つづき(紙の外) ----
+  // 答案は「済んだこと」の記録。ここはそこから次へ行くための場所なので、
+  // 紙には刷らずに外へ置く。出す条件は内訳・AI講評と同じ(結果が確定した答案)。
+  //
+  // 【バックテストは券種と軸だけを持っていく】
+  // 種別・距離・レース番号まで持っていくと母数が痩せて「例が少ない」画面に
+  // 着地する。絞り込みは着地後に既存のUIでできるので、入口では広く取る。
+  //
+  // 【相手は残り5艇の全流し】
+  // 答案の買い目の相手をそのまま10年引きずると「あの日の相手」を意味なく
+  // 写すことになる。軸の読みを検証したいので、相手は開いておく。
+  function renderNext(p){
+    // 定数は関数の中に置く。このファイルは「上から流れる本体」の途中で
+    // renderNext() を呼ぶので、外に var で置くと**まだ代入されていない**
+    // (関数宣言は巻き上がるが、varの代入は書いた場所で走る)。
+    var BET_KEY = {
+      "単勝": "t", "複勝": "f", "2連単": "2t", "2連複": "2f",
+      "3連単": "3t", "3連複": "3f"
+      // 拡連複はバックテストに無い券種。渡さずに遷移する(会場・軸・期間は活きる)。
+    };
+    var SINGLE_BETS = { t: true, f: true };
+
+    var box = document.getElementById("next");
+    if(!box) return;
+    box.innerHTML = "";
+    if(!p.settled || !p.yomi) return;
+
+    var axis = p.yomi.axis;
+    var venue = p.key.split(":")[1];
+    var ab = null;
+    ((p.snapshot && p.snapshot.boats) || []).forEach(function(b){ if(b.n === axis) ab = b; });
+
+    // 満点＝総合100点(読み70+結果30)。「読めて、当たった」ときだけ強調する。
+    var total = (p.yomi.pt || 0) + ((p.result && p.result.pt) || 0);
+    var perfect = total === (TeiyomiYomi.MAX_YOMI_PT + TeiyomiYomi.MAX_RESULT_PT);
+
+    var html = '<section class="next">';
+    if(perfect) html += '<p class="next-hit">この読みは満点でした。</p>';
+    html += '<p class="next-ttl">つづき</p>';
+
+    // --- ボタン1: バックテスト ---
+    var bet = BET_KEY[p.records[0].ken] || null;
+    var cond = { venue: venue, period: "10y" };
+    if(bet) cond.bet = bet;
+    if(bet && SINGLE_BETS[bet]){
+      cond.mode = "single";
+      cond.singleBoats = [axis];
+    } else {
+      cond.mode = "axis";
+      cond.axisBoat = axis;
+      cond.axisPos = 1;
+      cond.oppoBoats = [1,2,3,4,5,6].filter(function(n){ return n !== axis; });
+    }
+    html += '<a class="next-btn' + (perfect ? ' hit' : '') +
+      '" href="/backtest-custom.html?preset=' + encodeURIComponent(JSON.stringify(cond)) + '">' +
+      'この条件で10年買い続けたら' +
+      '<small>' + esc(venue) + '・' + axis + '号艇を軸（1着）' +
+      (bet ? '・' + esc(p.records[0].ken) : '') + '・過去10年</small></a>';
+
+    // --- ボタン2: 通知 ---
+    if(ab && ab.t){
+      html += '<button type="button" class="next-btn' + (perfect ? ' hit' : '') + '" id="nextAlert">' +
+        'この条件で通知に登録' +
+        '<small>' + esc(ab.name || ab.t) + '選手が' + axis + '枠に入る日</small></button>';
+    }
+    html += '</section>';
+    box.innerHTML = html;
+
+    var btn = document.getElementById("nextAlert");
+    if(btn) btn.addEventListener("click", function(){
+      if(!window.TeiyomiAlerts) return;
+      // 既存の bellFlow に乗せる。プレミアムの案内・重複チェック・購読の案内・
+      // エラー文言は、二つ名からの登録と同じものがそのまま出る。
+      TeiyomiAlerts.bellFlow({
+        toban: ab.t,
+        playerName: ab.name || ab.t,
+        preset: {
+          cond: { frames: [axis] },
+          line: axis + "枠に入る日に通知します。",
+          note: "波高と風は、朝の時点では分かりません。当日にご自身で読むところです。",
+          base: axis + "枠"
+        },
+        rawCond: { source: "yomi", frame: axis }
+      });
     });
   }
 

@@ -214,7 +214,12 @@
    */
   function bellFlow(opts) {
     ensureBellStyle();
-    var preset = titlePreset(opts.title, opts.venue);
+    // 二つ名からの登録は titlePreset で条件を組み立てるが、答案からの登録のように
+    // 呼び出し側が条件を決めている場合は opts.preset をそのまま使う。
+    // 形は titlePreset の返り値と同じ {cond, line, note, base}。
+    // ここを分けておけば、プレミアム判定・重複チェック・保存・購読の案内・
+    // エラー文言は1本のまま使い回せる(通知の壁を二重に作らない)。
+    var preset = opts.preset || titlePreset(opts.title, opts.venue);
     var name = opts.playerName || opts.toban;
 
     var ov = document.createElement("div");
@@ -266,7 +271,7 @@
           var label = name + "（" + preset.base + "）";
           return create({
             toban: opts.toban, cond: preset.cond,
-            raw_cond: { source: "title", title: preset.base },
+            raw_cond: opts.rawCond || { source: "title", title: preset.base },
             label: label.length > 80 ? label.slice(0, 79) + "…" : label
           });
         }).then(function () {

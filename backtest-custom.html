@@ -1731,6 +1731,36 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  /**
+   * 答案（読み採点）から ?preset= で渡された条件を当てて、そのまま実行する。
+   *
+   * 復元そのものは検証ノートの applyNoteCond() に相乗りする。同じことを
+   * するコードを2本持たない(片方だけ直して食い違うのを避ける)。
+   *
+   * 【会場は日本語名で受ける】
+   * セレクトの値はローマ字だが、会場名→ローマ字の対応表は index.html と
+   * build_race_pages.py の2か所にあり「一度決めたら固定」と注記されている。
+   * 送り手側にコピーを持つと3か所目になるので、**meta.venues を既に持っている
+   * こちらで引く**。表は増やさない。
+   *
+   * 壊れたpresetは黙って無視する。この画面は preset が無くても普通に使える。
+   */
+  function initPreset(){
+    var raw = new URLSearchParams(window.location.search).get("preset");
+    if(!raw) return;
+    var c;
+    try { c = JSON.parse(raw); } catch(e) { return; }
+    if(!c || typeof c !== "object") return;
+
+    if(c.venue){
+      var hit = null;
+      (meta.venues || []).forEach(function(v){ if(v.name === c.venue) hit = v.romaji; });
+      // 知らない会場名なら会場を絞らない(全国)。無効な値をセレクトに入れない。
+      c.venue = hit || "zenkoku";
+    }
+    applyNoteCond(c);
+  }
+
   function initNoteUi(){
     document.getElementById("noteOpenBtn").addEventListener("click", function(){
       renderNoteBox();
@@ -2037,6 +2067,7 @@ body{background:var(--bg); color:var(--ink);
     initPlayerStep();   // 選手の入力欄(?toban= があれば初期選択も)
     initAlertUi();      // 「この絞り込みで通知する」
     initNoteUi();       // 「この検証を記録する」(?note= があれば復元して自動実行)
+    initPreset();       // 答案から ?preset= で来た場合の条件プリセット
     document.getElementById("runBtn").addEventListener("click", runBacktest);
   }).catch(function(){
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",
