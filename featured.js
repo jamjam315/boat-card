@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-05", "toban": "4852", "name": "川原祐明", "k": "A1", "age": 31, "br": "香川", "catch": "津巧者", "basis": "津で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "津", "races": [3], "reason": "home"};
+window.FEATURED = {"date": "2026-09-06", "toban": "4033", "name": "伊藤将吉", "k": "A2", "age": 47, "br": "静岡", "catch": "桐生巧者", "basis": "桐生で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "桐生", "races": [3, 9], "reason": "home"};
