@@ -16,29 +16,60 @@
 // 【起動方法】
 //   POST https://<project>.supabase.co/functions/v1/kick-github
 //   ヘッダー: x-cron-secret: <CRON_SECRET>
-//   本文:     {"workflow": "daily.yml"}          … ref/inputs は省略可
+//   本文:     {"workflow": "daily.yml"}                       … boat-card
+//             {"repo": "mtpworks-x-bot",
+//              "workflow": "generate-daily.yml"}              … x-bot
+//   repo / ref / inputs は省略可。repo を省くと boat-card。
 // send-morning-push / send-delay-notice と同じ流儀。Cron は Supabase の
 // JWT を持たないので config.toml で verify_jwt = false にし、
 // 代わりにここで x-cron-secret を突き合わせる(鍵は既存のものを共用)。
 //
+// 【複数リポジトリ対応(2026-09-05)】
+// mtpworks-x-bot も同じ仕組みで起動する。既存の3便は本文に repo を
+// 入れていないので、省略時の既定を boat-card にして触らずに済ませてある。
+// Cron の登録も既存3件はそのまま。
+//
 // 【必要なSecret】
-//   CRON_SECRET        … 既存(朝の通知と共用)
-//   GITHUB_KICK_TOKEN  … 新規。Fine-grained PAT。boat-card のみ / Actions: Read and write
+//   CRON_SECRET             … 既存(朝の通知と共用)
+//   GITHUB_KICK_TOKEN       … 既存。Fine-grained PAT / Actions: Read and write
+//   GITHUB_KICK_TOKEN_XBOT  … mtpworks-x-bot 用。無ければ GITHUB_KICK_TOKEN で代用する
+// PATはリポジトリを選んで発行するので、boat-card だけを選んだ既存のPATでは
+// x-bot を叩けない(404 になる)。どちらかにすること:
+//   (a) 既存のPATの対象リポジトリに mtpworks-x-bot を足す → 追加のSecretは不要
+//   (b) x-bot だけを選んだPATを新しく作り、GITHUB_KICK_TOKEN_XBOT に入れる
+// (b) のほうが、片方が漏れても片方は無事という意味では安全。
 //
 // 【無音の失敗を作らない】
 // PATは最長でも1年で期限が切れる。切れたことに気づけないと、今回の
 // 「45日間ずっと失敗していたのにCIは緑」と同じ形になる。状態ごとに
 // 何が起きたかを断定してログに出す(401/403なら「PATが無効か権限不足」と書く)。
-// 起動しそこねた場合は、既存の send-delay-notice(10:15 JST)が
-// 「データが更新されていない」ことを検知して通知するので、通知経路は増やさない。
-const OWNER = 'jamjam315'
-const REPO = 'boat-card'
+// 起動しそこねた場合、boat-card は既存の send-delay-notice(10:15 JST)が
+// 「データが更新されていない」ことを検知して通知する。x-bot は投稿枠のあいだ
+// GitHub側のcron(15分間隔)が第一層として動いているので、キッカーが黙っても
+// 投稿は落ちない(逆にGitHubのcronが飛んだ日をキッカーが拾う)。
 const DEFAULT_REF = 'main'
 const TIMEOUT_MS = 20000
 
-// 叩いてよいワークフローを列挙する。ここに無い名前は受け付けない。
+// 叩いてよいリポジトリとワークフローを列挙する。ここに無い名前は受け付けない。
 // 万一 CRON_SECRET が漏れても、任意のワークフローを起動されないようにするため。
-const ALLOWED = new Set(['daily.yml', 'results.yml', 'x-post-daily.yml'])
+const REPOS: Record<
+  string,
+  { owner: string; workflows: Set<string>; tokenEnv: string }
+> = {
+  'boat-card': {
+    owner: 'jamjam315',
+    workflows: new Set(['daily.yml', 'results.yml', 'x-post-daily.yml']),
+    tokenEnv: 'GITHUB_KICK_TOKEN',
+  },
+  'mtpworks-x-bot': {
+    owner: 'jamjam315',
+    // 生成の便だけ。x-post-test.yml(実投稿するテスト)はここに入れない。
+    workflows: new Set(['generate-daily.yml']),
+    tokenEnv: 'GITHUB_KICK_TOKEN_XBOT',
+  },
+}
+// repo を省いた本文は boat-card 宛。既存3便の互換のため必ずここを既定にする。
+const DEFAULT_REPO = 'boat-card'
 
 const JSON_HEADERS = { 'content-type': 'application/json' }
 
@@ -52,7 +83,10 @@ function explain(status: number): string {
   if (status === 401) return 'PATが無効か期限切れです（GITHUB_KICK_TOKEN を作り直してください）'
   if (status === 403) return 'PATの権限が足りないか、レート制限です（Actions: Read and write が要ります）'
   if (status === 404) {
-    return 'ワークフローかリポジトリが見つかりません（ファイル名・PATのリポジトリ選択を確認）'
+    // 複数リポジトリを叩くようになってから、いちばん出やすいのがこれ。
+    // PATは対象リポジトリを選んで発行するので、選び忘れたリポジトリは
+    // 「存在しない」と同じ 404 になる（権限不足の 403 にはならない）。
+    return 'ワークフローかリポジトリが見つかりません（ファイル名と、PATの対象リポジトリにそのリポジトリが入っているかを確認）'
   }
   if (status === 422) return 'refかinputsが不正です（ブランチ名・入力の型を確認）'
   if (status === 429) return 'レート制限です'
@@ -79,13 +113,26 @@ export default {
       return reply(400, { ok: false, reason: 'invalid json' })
     }
 
-    const workflow = typeof body.workflow === 'string' ? body.workflow : ''
-    if (!ALLOWED.has(workflow)) {
+    const repoName = typeof body.repo === 'string' && body.repo
+      ? body.repo
+      : DEFAULT_REPO
+    const target = REPOS[repoName]
+    if (!target) {
       console.error(
-        `[kick-github] 知らないワークフローです: ${JSON.stringify(workflow)} ` +
-          `(許可: ${[...ALLOWED].join(', ')})`,
+        `[kick-github] 知らないリポジトリです: ${JSON.stringify(repoName)} ` +
+          `(許可: ${Object.keys(REPOS).join(', ')})`,
       )
-      return reply(400, { ok: false, reason: 'unknown workflow' })
+      return reply(400, { ok: false, reason: 'unknown repo' })
+    }
+
+    const workflow = typeof body.workflow === 'string' ? body.workflow : ''
+    if (!target.workflows.has(workflow)) {
+      console.error(
+        `[kick-github] ${repoName} で知らないワークフローです: ` +
+          `${JSON.stringify(workflow)} ` +
+          `(許可: ${[...target.workflows].join(', ')})`,
+      )
+      return reply(400, { ok: false, repo: repoName, reason: 'unknown workflow' })
     }
     const ref = typeof body.ref === 'string' && body.ref ? body.ref : DEFAULT_REF
     // inputs は省略可。省略すればワークフロー側の既定値が使われる。
@@ -93,18 +140,26 @@ export default {
       ? body.inputs as Record<string, unknown>
       : undefined
 
-    const token = Deno.env.get('GITHUB_KICK_TOKEN')
+    // リポジトリ専用のPATがあればそれを使い、無ければ共用のものにする。
+    // どちらを使ったかは必ずログに出す。404 が出たときに「PATの対象に
+    // そのリポジトリが入っていない」を疑えるようにするため。
+    let token = Deno.env.get(target.tokenEnv)
+    let tokenUsed = target.tokenEnv
+    if (!token && target.tokenEnv !== 'GITHUB_KICK_TOKEN') {
+      token = Deno.env.get('GITHUB_KICK_TOKEN')
+      tokenUsed = 'GITHUB_KICK_TOKEN(代用)'
+    }
     if (!token) {
       // Secretの入れ忘れをここで言い切る。黙って何もしないと、
       // 「なぜか毎晩起動しない」だけが残って原因に辿り着けない。
       console.error(
-        '[kick-github] GITHUB_KICK_TOKEN が未設定です。' +
+        `[kick-github] ${target.tokenEnv} も GITHUB_KICK_TOKEN も未設定です。` +
           'Supabaseの Edge Function Secrets に登録してください。',
       )
-      return reply(500, { ok: false, reason: 'token not configured' })
+      return reply(500, { ok: false, repo: repoName, reason: 'token not configured' })
     }
 
-    const url = `https://api.github.com/repos/${OWNER}/${REPO}` +
+    const url = `https://api.github.com/repos/${target.owner}/${repoName}` +
       `/actions/workflows/${encodeURIComponent(workflow)}/dispatches`
 
     let res: Response
@@ -125,8 +180,8 @@ export default {
     } catch (e) {
       // 起動できたかどうかは分からない。ここで投げ直さない
       // (二重起動そのものは各ワークフローが吸収するが、無駄な負荷は掛けない)。
-      console.error(`[kick-github] ${workflow} に届きませんでした: ${e}`)
-      return reply(502, { ok: false, workflow, reason: 'request failed' })
+      console.error(`[kick-github] ${repoName}/${workflow} に届きませんでした: ${e}`)
+      return reply(502, { ok: false, repo: repoName, workflow, reason: 'request failed' })
     }
 
     // 成功は 204 No Content。本文は空。
@@ -135,17 +190,20 @@ export default {
 
     if (res.status === 204) {
       console.log(
-        `[kick-github] ${workflow} (${ref}) を起動しました / 残りレート ${remaining}`,
+        `[kick-github] ${repoName}/${workflow} (${ref}) を起動しました` +
+          ` / 鍵 ${tokenUsed} / 残りレート ${remaining}`,
       )
-      return reply(200, { ok: true, workflow, ref })
+      return reply(200, { ok: true, repo: repoName, workflow, ref })
     }
 
     console.error(
-      `[kick-github] ${workflow} の起動に失敗 HTTP ${res.status}: ${explain(res.status)}` +
+      `[kick-github] ${repoName}/${workflow} の起動に失敗 HTTP ${res.status}: ` +
+        `${explain(res.status)} / 鍵 ${tokenUsed}` +
         ` / 残りレート ${remaining} / 応答: ${text.slice(0, 500)}`,
     )
     return reply(502, {
       ok: false,
+      repo: repoName,
       workflow,
       github_status: res.status,
       reason: explain(res.status),

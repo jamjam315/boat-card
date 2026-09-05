@@ -14,19 +14,33 @@
 # 指定したワークフローが実際に起動する。既定の daily.yml は、その日のデータが
 # 揃っていれば鮮度ガードで5秒で空振りするので、気軽に押してよい。
 # x-post-daily.yml を選ぶと dry_run=true で起動するので投稿はされない。
+#
+# 【mtpworks-x-bot を選んだとき】
+# generate-daily.yml が起動する。あちらは投稿枠(19:30〜21:30 JST)の外なら
+# 数秒で空振りする。枠内でも --publish を渡していないので投稿はされない。
+# PATの対象リポジトリに mtpworks-x-bot が入っていないと 404 が返る
+# (そのときは応答の reason にそう書いてある)。
 name: キッカーの疎通確認
 
 on:
   workflow_dispatch:
     inputs:
+      repo:
+        description: 'どのリポジトリを起動するか'
+        type: choice
+        default: 'boat-card'
+        options:
+          - boat-card
+          - mtpworks-x-bot
       workflow:
-        description: '起動させるワークフロー'
+        description: '起動させるワークフロー（repo に合うものを選ぶこと）'
         type: choice
         default: 'daily.yml'
         options:
           - daily.yml
           - results.yml
           - x-post-daily.yml
+          - generate-daily.yml
 
 jobs:
   kick:
@@ -36,6 +50,7 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TARGET: ${{ inputs.workflow }}
+          REPO: ${{ inputs.repo }}
         run: |
           set -u
           FUNC_URL="https://vynbhssakpxiikmseoja.supabase.co/functions/v1/kick-github"
@@ -48,9 +63,9 @@ jobs:
           # x-post-daily.yml は投稿してしまうので、この確認では必ず dry-run で起動する。
           # (本番の便は Supabase Cron 側が dry_run:false を送る)
           if [ "${TARGET}" = "x-post-daily.yml" ]; then
-            BODY="{\"workflow\":\"${TARGET}\",\"inputs\":{\"dry_run\":true}}"
+            BODY="{\"repo\":\"${REPO}\",\"workflow\":\"${TARGET}\",\"inputs\":{\"dry_run\":true}}"
           else
-            BODY="{\"workflow\":\"${TARGET}\"}"
+            BODY="{\"repo\":\"${REPO}\",\"workflow\":\"${TARGET}\"}"
           fi
           echo "送る本文: ${BODY}"
 
@@ -66,4 +81,4 @@ jobs:
             echo "::error::キッカーが起動に失敗しました（HTTP ${code}）。応答の reason を読んでください。"
             exit 1
           fi
-          echo "起動しました。Actionsタブで ${TARGET} の新しい実行を確認してください。"
+          echo "起動しました。${REPO} の Actionsタブで ${TARGET} の新しい実行を確認してください。"
