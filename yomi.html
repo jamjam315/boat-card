@@ -647,7 +647,7 @@ body{background:var(--bg); color:var(--ink);
       cond.axisPos = 1;
       cond.oppoBoats = [1,2,3,4,5,6].filter(function(n){ return n !== axis; });
     }
-    html += '<a class="next-btn' + (perfect ? ' hit' : '') +
+    html += '<a class="next-btn' + (perfect ? ' hit' : '') + '" id="nextBt' +
       '" href="/backtest-custom.html?preset=' + encodeURIComponent(JSON.stringify(cond)) + '">' +
       'この条件で10年買い続けたら' +
       '<small>' + esc(venue) + '・' + axis + '号艇を軸（1着）' +
@@ -661,6 +661,32 @@ body{background:var(--bg); color:var(--ink);
     }
     html += '</section>';
     box.innerHTML = html;
+
+    // --- ボタン1の門番 ---
+    // 条件を指定してのバックテストはプレミアム。非会員が押すと、遷移先の
+    // お試しモードが後から条件を上書きし(艇番の軸と3連単が外れて選手モードに
+    // なる)、「一瞬入って消えた」ように映る。押した場所で止めて、通知と同じ壁を
+    // 出す。会員は今までどおり、素の<a>としてそのまま遷移する。
+    var premium = null;   // null=判定前 / true=会員 / false=非会員
+    if(window.TeiyomiMembership){
+      TeiyomiMembership.load().then(function(st){ premium = !!(st && st.active); });
+    }
+    var bt = document.getElementById("nextBt");
+    if(bt) bt.addEventListener("click", function(ev){
+      // 会員と判っているときは何もしない(リンクのまま。新しいタブで開くのも効く)。
+      if(premium === true) return;
+      if(!window.TeiyomiAlerts || !TeiyomiAlerts.premiumGate) return;
+      if(ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
+      ev.preventDefault();
+      var href = bt.getAttribute("href");
+      // 判定前に押された場合もここに来る。壁の側でもう一度会員を確かめて、
+      // 会員なら壁を閉じてそのまま送り出す(会員を止めてしまわないため)。
+      TeiyomiAlerts.premiumGate({
+        title: "🔎 条件を指定したバックテストはプレミアムの機能です",
+        body: "会場・期間・券種・買い目を指定して、過去10年ぶんを検証できます。",
+        ok: function(){ location.href = href; }
+      });
+    });
 
     var btn = document.getElementById("nextAlert");
     if(btn) btn.addEventListener("click", function(){

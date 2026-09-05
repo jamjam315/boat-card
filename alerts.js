@@ -209,6 +209,53 @@
   }
 
   /**
+   * プレミアムの壁の中身。通知(bellFlow)からも、答案の「バックテストで検証」からも
+   * 同じものを出す。Androidアプリ(TWA)では購入への導線も購入を促す文言も出さない
+   * (Playのポリシー)。この規則を守る場所を1か所にしておく。
+   */
+  function gateHtml(title, body) {
+    var inApp = window.TeiyomiTWA && TeiyomiTWA.isTWA();
+    return "<h3>" + escText(title) + "</h3>" +
+      "<p>" + escText(body) +
+      (inApp ? TeiyomiTWA.gateText() : "プレミアム（月額）でご利用いただけます。") + "</p>" +
+      '<a class="bell-cta" href="/premium/">プレミアムを見る</a>' +
+      '<button type="button" class="bell-sub bell-close">閉じる</button>';
+  }
+
+  /**
+   * プレミアム限定の入口を踏んだときに、その場で壁を出す。
+   * 会員なら壁を閉じて opts.ok() を呼ぶ(遷移するかどうかは呼び出し側が決める)。
+   *
+   * 遷移してから向こうで断るのではなく、押した場所で止める。
+   * 遷移させると、条件が一瞬入ってから制限で書き換わり、
+   * 「見えたものが消えた」ように映るため。
+   *
+   * opts = { title, body, ok }
+   */
+  function premiumGate(opts) {
+    ensureBellStyle();
+    var ov = document.createElement("div");
+    ov.className = "bell-overlay";
+    function close() { ov.remove(); }
+    ov.addEventListener("click", function (ev) { if (ev.target === ov) close(); });
+    document.body.appendChild(ov);
+
+    function render(html) { ov.innerHTML = '<div class="bell-pop" role="dialog" aria-modal="true">' + html + "</div>"; }
+    render("<h3>" + escText(opts.title) + "</h3><p>確認中…</p>");
+
+    var membershipReady = window.TeiyomiMembership
+      ? TeiyomiMembership.load()
+      : Promise.resolve(null);
+
+    membershipReady.then(function (state) {
+      if (state && state.active) { close(); if (opts.ok) opts.ok(); return; }
+      render(gateHtml(opts.title, opts.body));
+      var b = ov.querySelector(".bell-close");
+      if (b) b.addEventListener("click", close);
+    });
+  }
+
+  /**
    * 🔔の一連の流れを開く。
    * opts = { toban, playerName, title(「・頂」付き可), venue(守護神のとき) }
    */
@@ -240,14 +287,9 @@
     membershipReady.then(function (state) {
       if (!state || !state.active) {
         // 未ログイン・匿名・非会員はすべてここ(絞り込み通知はプレミアムの機能)。
-        // Androidアプリ(TWA)では、購入への導線も購入を促す文言も出さない
-        // (Playのポリシーで外部決済への誘導が禁じられているため)。
-        var inApp = window.TeiyomiTWA && TeiyomiTWA.isTWA();
-        render("<h3>🔔 絞り込み通知はプレミアムの機能です</h3>" +
-          "<p>保存した条件に当てはまる出走がある朝だけ、通知でお知らせします。" +
-          (inApp ? TeiyomiTWA.gateText() : "プレミアム（月額）でご利用いただけます。") + "</p>" +
-          '<a class="bell-cta" href="/premium/">プレミアムを見る</a>' +
-          '<button type="button" class="bell-sub bell-close">閉じる</button>');
+        // 壁の形(TWAの扱いを含む)は gateHtml が持っている。
+        render(gateHtml("🔔 絞り込み通知はプレミアムの機能です",
+          "保存した条件に当てはまる出走がある朝だけ、通知でお知らせします。"));
         wire(".bell-close", close);
         return;
       }
@@ -340,6 +382,7 @@
     condSummary: condSummary,
     findSame: findSame,
     titlePreset: titlePreset,
-    bellFlow: bellFlow
+    bellFlow: bellFlow,
+    premiumGate: premiumGate
   };
 })();
