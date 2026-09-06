@@ -562,6 +562,23 @@ def cleanup_old_race_pages(today_iso):
     return removed
 
 
+# /checked/ の着地ページ。sitemap.xml は build_all_player_pages.py と
+# build_race_pages.py の両方が全体を書き出すので、片方だけに載せると
+# 後から走ったほうに消される(yomi-guide.html で実際に起きた)。
+# 一覧を3か所に写さずに済むよう、どちらも checked_data.json から引く。
+def checked_urls():
+    path = "checked_data.json"
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            items = json.load(f)["items"]
+    except Exception:
+        return []
+    return (["https://teiyomi.com/checked/"] +
+            [f"https://teiyomi.com/checked/{it['slug']}.html" for it in items])
+
+
 def refresh_sitemap():
     """トップ・ガイド・players_index.jsの選手・race/配下の現存ページ(ローリング後)から
     sitemap.xmlを再生成する。ローリングで消えたページはここで自動的にsitemapからも消える。"""
@@ -570,7 +587,7 @@ def refresh_sitemap():
             "https://teiyomi.com/about.html", "https://teiyomi.com/delete-account.html",
             "https://teiyomi.com/players/",
             "https://teiyomi.com/backtest.html", "https://teiyomi.com/backtest-custom.html",
-            "https://teiyomi.com/mypage.html", "https://teiyomi.com/yomi-guide.html"]
+            "https://teiyomi.com/mypage.html", "https://teiyomi.com/yomi-guide.html"] + checked_urls()
     try:
         player_pages = load_js("players_index.js", "PLAYER_PAGES")
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]

@@ -191,6 +191,23 @@ def scan_race_urls():
     return urls
 
 
+# /checked/ の着地ページ。sitemap.xml は build_all_player_pages.py と
+# build_race_pages.py の両方が全体を書き出すので、片方だけに載せると
+# 後から走ったほうに消される(yomi-guide.html で実際に起きた)。
+# 一覧を3か所に写さずに済むよう、どちらも checked_data.json から引く。
+def checked_urls():
+    path = "checked_data.json"
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            items = json.load(f)["items"]
+    except Exception:
+        return []
+    return (["https://teiyomi.com/checked/"] +
+            [f"https://teiyomi.com/checked/{it['slug']}.html" for it in items])
+
+
 def build_sitemap(written):
     """トップ・ガイド・全図鑑ページ・(存在すれば)race/配下の現存レースページから
     sitemap.xmlを自動生成する。ページ数が増減しても、次回実行するたびに追従する。
@@ -206,7 +223,7 @@ def build_sitemap(written):
             "https://teiyomi.com/backtest-custom.html", "https://teiyomi.com/mypage.html",
             # yomi-guide.html はあちらの一覧にだけ在って、こちらから漏れていた。
             # 手動実行のうちは滅多に起きなかったが、週次で回すと毎週消える。
-            "https://teiyomi.com/yomi-guide.html"]
+            "https://teiyomi.com/yomi-guide.html"] + checked_urls()
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
     urls += scan_race_urls()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
