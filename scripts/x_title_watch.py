@@ -202,10 +202,21 @@ def text_master_born(cur, toban, as_of):
             f"{TAGS}")
 
 
+def master_line(n_master, lead="現在の"):
+    """「主」の人数を伝える一行。まとめ(A)と予備軍(C)の両方から呼ぶ。
+
+    0人の週は実在する(実測で 2026-07-21 がそうだった)。
+    「0人だけです」は日本語として壊れるので、そこだけ言い切りの文へ差し替える。
+    空位は空位のまま、飾らずに出す。"""
+    if n_master == 0:
+        return "いま「主」の称号を持つ選手は、全国にひとりもいません。"
+    return f"{lead}「主」は全国で{n_master}人だけです。"
+
+
 def text_pool(pool, n_master, as_of):
     return (f"二つ名ウォッチ🚤 {md(as_of)}\n"
             f"「主」の水準に届いている選手が{pool}人。あと数走で称号が変わるかもしれません。\n"
-            f"現在の「主」は全国で{n_master}人だけです。\n"
+            f"{master_line(n_master)}\n"
             f"{TAGS}")
 
 
@@ -220,7 +231,7 @@ def text_weekly(d, cur, as_of):
         lead += f"いちばん増えたのは{venue}({vn}人)。"
     return (f"今週の二つ名ウォッチ🚤 {md(as_of)}\n"
             f"{lead}\n"
-            f"全国の巧者{n_kosha}人。「主」は全国で{n_master}人だけです。\n"
+            f"全国の巧者{n_kosha}人。{master_line(n_master, lead='')}\n"
             f"{TAGS}")
 
 

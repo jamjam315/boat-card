@@ -43,9 +43,10 @@ concurrency:
 env:
   # データ本体(results/)は data ブランチにある。下の _data がその作業ディレクトリ。
   TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
-  # 【投稿の元栓】確認が済むまでは false。true にすると定時実行が本番投稿になる。
+  # 【投稿の元栓】true で定時実行が本番投稿になる。止めたいときは false に戻すか、
+  # Actionsタブからこのワークフロー自体を Disable する。
   # 手動実行(workflow_dispatch)は、この値に関係なく上の dry_run 入力に従う。
-  POST_LIVE: "false"
+  POST_LIVE: "true"
 
 jobs:
   titles:
