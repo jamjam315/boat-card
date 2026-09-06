@@ -615,6 +615,9 @@ body{background:var(--bg); color:var(--ink);
       // 拡連複はバックテストに無い券種。渡さずに遷移する(会場・軸・期間は活きる)。
     };
     var SINGLE_BETS = { t: true, f: true };
+    // 着順のある券種だけ。2連複・3連複は順不同なので「1着」の指定も表記もしない
+    // (バックテスト側も、順不同の券種では着順の行を出さない)。
+    var ORDERED_BETS = { "2t": true, "3t": true };
 
     var box = document.getElementById("next");
     if(!box) return;
@@ -644,13 +647,22 @@ body{background:var(--bg); color:var(--ink);
     } else {
       cond.mode = "axis";
       cond.axisBoat = axis;
-      cond.axisPos = 1;
+      // 着順は、着順のある券種のときだけ渡す。3連複に「1着」を送っても
+      // 向こうは無視するが、送った条件と画面の表示が食い違う状態にはしない。
+      if(bet && ORDERED_BETS[bet]) cond.axisPos = 1;
       cond.oppoBoats = [1,2,3,4,5,6].filter(function(n){ return n !== axis; });
+    }
+    // 買い方の言い方を券種に合わせる。単勝・複勝は1艇買うだけなので「軸」ではないし、
+    // 3連複に「1着」は無い(複勝は3着まで当たりなので、いちばん誤解を招く)。
+    // 券種が分からない場合(拡連複)も着順は書かない。
+    var pick = axis + "号艇";
+    if(!(bet && SINGLE_BETS[bet])){
+      pick += (bet && ORDERED_BETS[bet]) ? "を軸（1着）" : "を軸";
     }
     html += '<a class="next-btn' + (perfect ? ' hit' : '') + '" id="nextBt' +
       '" href="/backtest-custom.html?preset=' + encodeURIComponent(JSON.stringify(cond)) + '">' +
       'この条件で10年買い続けたら' +
-      '<small>' + esc(venue) + '・' + axis + '号艇を軸（1着）' +
+      '<small>' + esc(venue) + '・' + pick +
       (bet ? '・' + esc(p.records[0].ken) : '') + '・過去10年</small></a>';
 
     // --- ボタン2: 通知 ---
