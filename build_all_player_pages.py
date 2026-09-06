@@ -48,6 +48,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:16px 18px;}
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
+.thist{list-style:none; margin:0; padding:0;}
+.thist li{display:flex; gap:10px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line);}
+.thist li:first-child{border-top:0;}
+.thist .th-date{font-size:11.5px; color:var(--muted); flex:0 0 84px;}
+.thist .th-name{font-weight:600;}
+.th-note{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
 .card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
 .toprates{display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; font-size:14px;}
 .toprates .tr-item{white-space:nowrap;}
@@ -197,7 +203,10 @@ def build_sitemap(written):
     urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
             "https://teiyomi.com/about.html", "https://teiyomi.com/delete-account.html",
             "https://teiyomi.com/players/", "https://teiyomi.com/backtest.html",
-            "https://teiyomi.com/backtest-custom.html", "https://teiyomi.com/mypage.html"]
+            "https://teiyomi.com/backtest-custom.html", "https://teiyomi.com/mypage.html",
+            # yomi-guide.html はあちらの一覧にだけ在って、こちらから漏れていた。
+            # 手動実行のうちは滅多に起きなかったが、週次で回すと毎週消える。
+            "https://teiyomi.com/yomi-guide.html"]
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
     urls += scan_race_urls()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -315,7 +324,46 @@ def share_card_url(toban):
     return "https://teiyomi.com/og-image.png"
 
 
-def render_page(prof):
+# 二つ名の変遷。scripts/x_title_watch.py が週次で追記するファイルを読むだけで、
+# ここでは計算しない(称号の定義が2か所に分かれると食い違うため)。
+# 無ければ変遷の欄を出さない(まだ1週も回っていない状態でも生成できるように)。
+TITLES_HISTORY_PATH = "titles_history.json"
+# 出すのは直近5件まで。全部出すと、古い二つ名のほうが長くなる選手が出てくる。
+MAX_HISTORY_ROWS = 5
+
+
+def load_titles_history():
+    if not os.path.exists(TITLES_HISTORY_PATH):
+        print(f"[title] {TITLES_HISTORY_PATH} が無いので、二つ名の変遷は出しません。")
+        return {}
+    with open(TITLES_HISTORY_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def history_block(rows):
+    """二つ名の変遷。記録は「その二つ名になった日」なので、新しい順に並べる。
+
+    1件しか無い＝週次ウォッチが動き始めてから一度も変わっていない、なので
+    「◯月◯日から」とだけ書く。変わっていないことを「変遷」として飾らない。"""
+    if not rows:
+        return ""
+    shown = rows[-MAX_HISTORY_ROWS:][::-1]
+    lis = "".join(
+        f'<li><span class="th-date">{r["d"]}</span>'
+        f'<span class="th-name">「{r["c"]}」</span></li>'
+        for r in shown
+    )
+    note = ("この二つ名になったのはこの日です。" if len(rows) == 1
+            else "直近1年の成績で毎週計算し直しているため、走るほどに変わります。")
+    return (f'<section class="card">'
+            f'<div class="card-ttl"><span class="pin"></span>二つ名の変遷'
+            f'<span class="card-sub">週次で更新</span></div>'
+            f'<ul class="thist">{lis}</ul>'
+            f'<div class="th-note">{note}</div>'
+            f'</section>')
+
+
+def render_page(prof, history_rows=None):
     fp = prof["profile"]
     title = meta_title(prof)
     description = meta_description(prof)
@@ -380,6 +428,7 @@ def render_page(prof):
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
     {home_block(prof)}
   </section>
+  {history_block(history_rows)}
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
     {kon_block(prof)}
@@ -415,6 +464,7 @@ def generation_base_date():
 
 def main():
     fan_master = load_fan_master()
+    history = load_titles_history()
     players_k, NAT_PCT, by_venue, by_player, tenji_labels = load_k_stats()
     today_iso = generation_base_date()
     print(f"集計期間: {LAST_PERIOD['cutoff']} 〜 {LAST_PERIOD['latest']}"
@@ -432,7 +482,7 @@ def main():
             prof = build_profile(t, fp, kp, NAT_PCT, by_venue, by_player,
                                   venue_today=None, day_today=None, today_iso=today_iso,
                                   tenji_label=tenji_labels.get(t))
-            html = render_page(prof)
+            html = render_page(prof, history.get(t))
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
             n_ok += 1

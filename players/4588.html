@@ -59,6 +59,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:16px 18px;}
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
+.thist{list-style:none; margin:0; padding:0;}
+.thist li{display:flex; gap:10px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line);}
+.thist li:first-child{border-top:0;}
+.thist .th-date{font-size:11.5px; color:var(--muted); flex:0 0 84px;}
+.thist .th-name{font-weight:600;}
+.th-note{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
 .card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
 .toprates{display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; font-size:14px;}
 .toprates .tr-item{white-space:nowrap;}
@@ -97,7 +103,7 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
       <div class="pname">田中京介 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A2</span><button class="fav-btn" id="favBtn" data-toban="4588" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
       <div class="pmeta">35歳 ・ 福岡支部 ・ 57kg</div>
       <div class="catch">「堅実タイプ（勝ちパターンは平均的）」</div>
-      <div class="catch-basis">決まり手の傾向が全国平均に近い（まくり差し18.0% / 全国12.1%）</div>
+      <div class="catch-basis">決まり手の傾向が全国平均に近い（まくり差し17.6% / 全国12.2%）</div>
     </div>
     <a class="hero-nav next" id="heroNext" aria-label="次の選手"></a>
   </section>
@@ -108,15 +114,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:50.0%"></i></span><span class="kval nums">50.0%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:12.0%"></i></span><span class="kval nums">12.0%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:12.0%"></i></span><span class="kval nums">12.0%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:18.0%"></i></span><span class="kval nums">18.0%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:8.0%"></i></span><span class="kval nums">8.0%</span></div><div class="note">直近1年・勝ち50件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:51.0%"></i></span><span class="kval nums">51.0%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:11.8%"></i></span><span class="kval nums">11.8%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:11.8%"></i></span><span class="kval nums">11.8%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:17.6%"></i></span><span class="kval nums">17.6%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:7.8%"></i></span><span class="kval nums">7.8%</span></div><div class="note">直近1年・勝ち51件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
     <div class="nohome">特に際立って強い会場は、まだ見つかっていません。</div>
   </section>
+  
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
-    <div class="kon"><b>直近</b> 着外→1着→着外 </div>
+    <div class="kon"><b>直近</b> 3着→着外→1着 </div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>展示タイムの傾向</div>

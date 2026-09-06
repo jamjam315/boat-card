@@ -1,0 +1,159 @@
+# 二つ名を毎週作り直し、変化があればXへ投稿する。
+#
+# 【なぜ週次で作り直すのか】
+# 二つ名は「直近1年」のローリング集計で決まるので、走らなくても窓が滑るだけで
+# 変わる。ところが選手ページは生成が手動のままで、2026-08-27から10日間
+# 据え置きになっていた。計算式だけが生き物で、画面は止まっていた。ここで配線する。
+#
+# 【なぜ毎日ではなく毎週か】
+# 実測(過去8週)で週あたり188人の二つ名が動く。毎日回すと1636枚の再生成
+# コミットが毎日入り、変化の粒も細かすぎて「速報」にならない。
+# 週1回にして、投稿も週1本にする。
+#
+# 【なぜ月曜20:20 JSTか】
+# 土日の開催ぶんが results.yml(深夜01:00)で反映され終わっている。
+# 20:05 は昇級ウォッチ(x-post-daily.yml)が使っているので15分ずらす。
+# concurrency も別グループにして、待たされないようにしてある。
+#
+# 【止めたいとき】
+# Actionsタブ →「二つ名ウォッチ(週次)」→ 右上「…」→ Disable workflow。
+name: 二つ名ウォッチ(週次)
+
+on:
+  schedule:
+    # 月曜 20:20 JST（UTC 11:20）。GitHubのcronは混雑すると飛ぶが、
+    # 飛んだ週は投稿が1本抜けるだけで、翌週が新しい as_of を見て追いつく。
+    - cron: '20 11 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '投稿せずに本文を確認するだけにする（false にすると実際に投稿します）'
+        type: boolean
+        default: true
+
+# 状態ファイル(x_state/)・変遷(titles_history.json)・選手ページをコミットするため。
+permissions:
+  contents: write
+
+# x-post 系とは別グループ。昇級ウォッチ(20:05)と待ち合わせないようにする。
+concurrency:
+  group: weekly-titles
+  cancel-in-progress: false
+
+env:
+  # データ本体(results/)は data ブランチにある。下の _data がその作業ディレクトリ。
+  TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
+  # 【投稿の元栓】確認が済むまでは false。true にすると定時実行が本番投稿になる。
+  # 手動実行(workflow_dispatch)は、この値に関係なく上の dry_run 入力に従う。
+  POST_LIVE: "false"
+
+jobs:
+  titles:
+    runs-on: ubuntu-latest
+    steps:
+      # ref を明示するのは、状態ファイルを必ず最新で読むため
+      # (指定しないと「実行が作られた瞬間のコミット」で固定される)。
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: データ本体(dataブランチ)を _data に取り出す
+        uses: actions/checkout@v7
+        with:
+          ref: data
+          path: _data
+
+      # 置き場所の指定ミスで「データが空」のまま走ると、中身のない二つ名で
+      # 1636枚を上書きしてしまう。数ファイルしか無い時点で止める。
+      - name: データが揃っているか確認
+        run: |
+          n=$(ls _data/results/*.jsonl 2>/dev/null | wc -l)
+          echo "results 年ファイル: ${n}件"
+          test "$n" -ge 10
+
+      # GitHubのcronは混雑すると数時間遅れて発火することがある。人が見ていない
+      # 時間帯に投稿しないよう、19:00〜23:59 JST の外なら投稿も状態更新もせず
+      # 緑で終わらせる。手動起動は時刻に関係なく通す。
+      - name: 投稿してよい時間帯か確かめる
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          JST_HOUR=$(TZ=Asia/Tokyo date +%H)
+          JST_TIME=$(TZ=Asia/Tokyo date +%H:%M)
+          if [ "${EVENT_NAME}" != "schedule" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 10# は 08/09 を8進数と誤解釈させないため。
+          if [ "$((10#$JST_HOUR))" -ge 19 ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "window guard: skipped (JST ${JST_TIME}, event=schedule)"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v7
+        if: steps.gate.outputs.go == 'true'
+        with:
+          python-version: '3.12'
+
+      - name: 依存を入れる
+        if: steps.gate.outputs.go == 'true'
+        run: pip install requests requests-oauthlib
+
+      # 二つ名を計算し、状態と変遷を更新し、変化があれば投稿する。
+      # 選手ページより先に走らせるのは、変遷ファイルを更新してから
+      # ページに焼き込むため(逆にすると1週遅れのページになる)。
+      - name: 二つ名の変化を見て、あれば投稿する
+        if: steps.gate.outputs.go == 'true'
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # 定時実行は元栓(POST_LIVE)しだい。手動実行は入力に従い、
+          # 入力が空・想定外の値なら dry-run に倒す
+          # (黙って本番投稿になるほうが怖いため)。
+          if [ "${EVENT_NAME}" = "schedule" ]; then
+            if [ "${POST_LIVE}" = "true" ]; then
+              echo "定時実行・本番投稿します"
+              python scripts/x_title_watch.py
+            else
+              echo "定時実行ですが POST_LIVE=false のため dry-run で確認します"
+              python scripts/x_title_watch.py --dry-run
+            fi
+          elif [ "${DRY_RUN}" = "false" ]; then
+            echo "手動実行・本番投稿します"
+            python scripts/x_title_watch.py
+          else
+            echo "手動実行・dry-run で確認します（投稿はしません）"
+            python scripts/x_title_watch.py --dry-run
+          fi
+
+      # 変遷を焼き込んだ選手ページを作り直す。
+      - name: 選手ページを作り直す(二つ名と変遷)
+        if: steps.gate.outputs.go == 'true'
+        run: python build_all_player_pages.py
+
+      - name: 更新をコミット
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          git config user.name "boat-bot"
+          git config user.email "boat-bot@users.noreply.github.com"
+          git add x_state/ titles_history.json players/ players_index.js players_list.js sitemap.xml
+          if git diff --staged --quiet; then
+            echo "変化なし"
+            exit 0
+          fi
+          git commit -m "二つ名を週次で更新 ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          # 他のワークフローとpushが重なった時のために、rebaseして数回やり直す。
+          for i in 1 2 3; do
+            git push && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin main || exit 1
+          done
+          exit 1

@@ -11,13 +11,13 @@
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>岡部貴司の二つ名「徳山の逃げ切り屋」と成績｜艇読み選手図鑑</title>
-<meta name="description" content="岡部貴司選手（B1・岡山支部、52歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「徳山の逃げ切り屋」、当地徳山での勝率は37.5%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<title>岡部貴司の二つ名「徳山巧者」と成績｜艇読み選手図鑑</title>
+<meta name="description" content="岡部貴司選手（B1・岡山支部、52歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「徳山巧者」、当地徳山での勝率は38.9%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/3708.html">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://teiyomi.com/players/3708.html">
-<meta property="og:title" content="岡部貴司の二つ名「徳山の逃げ切り屋」と成績｜艇読み選手図鑑">
-<meta property="og:description" content="岡部貴司選手（B1・岡山支部、52歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「徳山の逃げ切り屋」、当地徳山での勝率は37.5%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<meta property="og:title" content="岡部貴司の二つ名「徳山巧者」と成績｜艇読み選手図鑑">
+<meta property="og:description" content="岡部貴司選手（B1・岡山支部、52歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「徳山巧者」、当地徳山での勝率は38.9%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <meta property="og:image" content="https://teiyomi.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/og-image.png">
@@ -59,6 +59,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px; padding:16px 18px;}
 .card-ttl{font-size:14px; font-weight:600; display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
 .card-ttl .pin{width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;}
+.thist{list-style:none; margin:0; padding:0;}
+.thist li{display:flex; gap:10px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line);}
+.thist li:first-child{border-top:0;}
+.thist .th-date{font-size:11.5px; color:var(--muted); flex:0 0 84px;}
+.thist .th-name{font-weight:600;}
+.th-note{font-size:11.5px; color:var(--muted); margin-top:8px; line-height:1.6;}
 .card-sub{font-size:11px; color:var(--muted); font-weight:400; margin-left:auto;}
 .toprates{display:flex; align-items:baseline; flex-wrap:wrap; column-gap:10px; font-size:14px;}
 .toprates .tr-item{white-space:nowrap;}
@@ -96,8 +102,8 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
     <div class="hero-body">
       <div class="pname">岡部貴司 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span><button class="fav-btn" id="favBtn" data-toban="3708" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
       <div class="pmeta">52歳 ・ 岡山支部 ・ 57kg</div>
-      <div class="catch">「徳山の逃げ切り屋」</div>
-      <div class="catch-basis">徳山で際立って好成績、かつ「逃げ」が持ち味のため（詳しくは下の「当地」欄）</div>
+      <div class="catch">「徳山巧者」</div>
+      <div class="catch-basis">徳山で際立って好成績のため（詳しくは下の「当地」欄）</div>
     </div>
     <a class="hero-nav next" id="heroNext" aria-label="次の選手"></a>
   </section>
@@ -108,15 +114,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:68.2%"></i></span><span class="kval nums">68.2%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:18.2%"></i></span><span class="kval nums">18.2%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:0%"></i></span><span class="kval nums">0%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:9.1%"></i></span><span class="kval nums">9.1%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:4.5%"></i></span><span class="kval nums">4.5%</span></div><div class="note">直近1年・勝ち22件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:62.5%"></i></span><span class="kval nums">62.5%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:20.8%"></i></span><span class="kval nums">20.8%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:4.2%"></i></span><span class="kval nums">4.2%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:8.3%"></i></span><span class="kval nums">8.3%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:4.2%"></i></span><span class="kval nums">4.2%</span></div><div class="note">直近1年・勝ち24件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
-    <div class="homebox">🏠 <b>徳山</b>：16走・勝率37.5%（他会場8.8%より+28.7pt）</div>
+    <div class="homebox">🏠 <b>徳山</b>：18走・勝率38.9%（他会場9.1%より+29.7pt）</div>
   </section>
+  <section class="card"><div class="card-ttl"><span class="pin"></span>二つ名の変遷<span class="card-sub">週次で更新</span></div><ul class="thist"><li><span class="th-date">2026-09-01</span><span class="th-name">「徳山巧者」</span></li></ul><div class="th-note">この二つ名になったのはこの日です。</div></section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
-    <div class="kon"><b>直近</b> 3着→1着→着外 </div>
+    <div class="kon"><b>直近</b> 着外→3着→着外 </div>
   </section>
   
   <section class="card" id="careerCard" data-toban="3708">
