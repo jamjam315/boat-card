@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-07", "toban": "4004", "name": "山本浩輔", "k": "B1", "age": 48, "br": "長崎", "catch": "江戸川巧者", "basis": "江戸川で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "江戸川", "races": [2, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-09-08", "toban": "4415", "name": "下出卓矢", "k": "A1", "age": 39, "br": "福井", "catch": "津の自在まくり屋", "basis": "津で際立って好成績、かつ「まくり」が持ち味のため（詳しくは下の「当地」欄）", "venue": "津", "races": [1, 7], "reason": "home"};

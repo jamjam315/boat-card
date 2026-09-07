@@ -22,6 +22,11 @@ body{background:var(--bg); color:var(--ink);
 .stale-warn{background:#fdf3e0; border:1px solid #e8c468; color:#7a5a13; border-radius:var(--radius);
   padding:10px 14px; margin:8px 0 0; font-size:12.5px; line-height:1.6;}
 .stale-warn a{color:inherit; text-decoration:underline; font-weight:600;}
+/* アカウント削除の完了。**警告ではないので黄色にしない。**
+   終わったことを1回だけ伝える帯。 */
+.deleted-note{background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); color:var(--ink2); font-size:12.5px;
+  padding:11px 13px; margin:10px 0 0; line-height:1.8;}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .stale-warn{background:#3a2f12; border-color:#6b5620; color:#e8c468;}
 }
