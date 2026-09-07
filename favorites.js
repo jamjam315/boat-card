@@ -366,11 +366,14 @@
     // トップページの常設ボタン用。スタンドアロン起動中・PC幅では出す意味が
     // 無いため、ボタン自体を出すかどうかの判定にそのまま使える。
     canShowAddToHome: function () {
-      return !isStandalone() && isMobile();
+      // iOSアプリの中では、常設ボタン自体を出さない。
+      return !inIOSApp() && !isStandalone() && isMobile();
     },
     // 常設ボタンから明示的に呼ばれた場合は、初回だけの制限(a2hsAlreadyPrompted)
     // を経由せずいつでも案内を開ける(押しに来た人には毎回応える)。
     showAddToHomeGuide: function () {
+      // ボタンを隠しているので普通は呼ばれないが、呼ばれても出さない。
+      if (inIOSApp()) return;
       showA2HSBanner();
     }
   };
@@ -582,7 +585,19 @@
     return (isIOS() || isAndroid()) && window.innerWidth <= 768;
   }
 
+  /**
+   * iOSアプリ(殻)の中か。
+   *
+   * ホーム画面への追加案内は、**すでにアプリとして入っている人には意味が無い**
+   * どころか、何をすればいいのか分からない案内になる。ios.js が読まれていない
+   * ページでも落ちないよう、window越しに見る。
+   */
+  function inIOSApp() {
+    return !!(window.TeiyomiIOS && window.TeiyomiIOS.isIOSApp());
+  }
+
   function maybeShowA2HS() {
+    if (inIOSApp()) return;
     if (a2hsAlreadyPrompted()) return;
     if (isStandalone()) return;
     if (!isMobile()) return;

@@ -218,6 +218,7 @@ body{background:var(--bg); color:var(--ink);
 
 <script src="data.js"></script>
 <script src="players_index.js"></script>
+<script src="ios.js"></script>
 <script src="twa.js"></script>
 <script src="favorites.js"></script>
 <script src="membership.js"></script>
@@ -485,6 +486,19 @@ const NOTIFY_LEAD = "毎朝、お気に入り選手の出走をお知らせし�
 function renderNotifyBox(){
   const box = document.getElementById("notifyBox");
   if(!box) return;
+  // iOSアプリ(殻)では、ブラウザの通知(Web Push)は使えない。WKWebViewに
+  // Service WorkerのPushが無いので、このあとの getState() は必ず
+  // "unsupported" を返し、「お使いのブラウザは通知に対応していません」と
+  // 出てしまう。**アプリの中でブラウザの話をしない。**
+  // 通知そのものはアプリ側の仕組みで受け取る(WP-4)。
+  if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){
+    box.innerHTML = `<div class="authbox">
+      <div class="authbox-row"><span>🔔 出走のお知らせ</span>
+        <span class="authbox-msg" style="margin:0;">準備中</span></div>
+      <p class="authbox-notice">${NOTIFY_LEAD}<br>アプリの通知設定からお受け取りいただけるよう準備しています。</p>
+    </div>`;
+    return;
+  }
   if(!window.TeiyomiNotify){ box.innerHTML=""; return; }
   TeiyomiNotify.getState().then(({state})=>{
     if(state === "unsupported"){

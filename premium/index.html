@@ -170,10 +170,12 @@ body{background:var(--bg); color:var(--ink);
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a></p>
 </div>
 
+<script src="../ios.js"></script>
 <script src="../twa.js"></script>
 <script src="../favorites.js"></script>
 <script src="../membership.js"></script>
 <script src="../billing.js"></script>
+<script src="../billing-ios.js"></script>
 <script>
 (function(){
   "use strict";
@@ -201,8 +203,28 @@ body{background:var(--bg); color:var(--ink);
   var FREE_LINK = '<a class="btn sub" style="display:block; text-align:center; ' +
     'text-decoration:none;" href="../backtest.html">無料のバックテストを見る</a>';
 
+  /**
+   * iOSアプリ(殻)から見たときの案内。
+   *
+   * **ここに Google Play・Androidアプリ・外部サイトの話を一切書かない。**
+   * App Store Review Guideline 3.1.1 は、アプリの中からアプリ外の決済へ
+   * 誘導することを禁じている。「Playで買えます」という案内も誘導にあたる。
+   * 下の renderComingSoon() の文言はまさにそれなので、iOSでは**あの関数に
+   * 到達させない**（呼び出し口が3つあるので、関数の入口で分ける）。
+   *
+   * 購入そのものはWP-3で入る。それまでは中立に「準備中」とだけ伝える。
+   */
+  function renderIOSComingSoon(){
+    box.innerHTML =
+      '<p class="state-msg">プレミアムのご利用は、<b>アプリ内でのお手続きとして準備中</b>です。</p>' +
+      '<p class="btn-note">ご利用いただけるようになりましたら、この画面からお手続きいただけます。</p>' +
+      FREE_NOTE + FREE_LINK;
+  }
+
   /** 未契約の方(未ログイン・匿名・非会員すべて)への案内。Webから見たとき。 */
   function renderComingSoon(){
+    // iOSアプリの中では、この先の文言(Google Play・Androidアプリ)を出さない。
+    if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){ renderIOSComingSoon(); return; }
     var inApp = !!(window.TeiyomiTWA && TeiyomiTWA.isTWA());
     var lead = inApp
       ? '<p class="state-msg">プレミアムのご利用は、アプリ内でのお手続きとして<b>準備中</b>です。</p>'

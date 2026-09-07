@@ -124,6 +124,7 @@ NAV_JS = """
 # 5b と同じ TeiyomiMembership をそのまま使う)。favorites.js が作った
 # Supabaseクライアントを共有するため、読み込み順は favorites → membership → career。
 FAV_JS = """
+<script src="/ios.js"></script>
 <script src="/twa.js"></script>
 <script src="/favorites.js"></script>
 <script src="/membership.js"></script>
