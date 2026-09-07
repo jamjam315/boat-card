@@ -92,6 +92,8 @@ body{background:var(--bg); color:var(--ink);
 
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
 .foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+.note-alt{font-size:12px; color:var(--ink2); background:var(--bg); border-radius:8px;
+  padding:9px 11px; margin:10px 0 0; line-height:1.9;}
 </style>
 </head>
 <body>
@@ -111,7 +113,7 @@ body{background:var(--bg); color:var(--ink);
 
   <section class="intro">
     <p class="updated">最終更新日：2026年8月15日</p>
-    <p>艇読み（teiyomi.com）のアカウントと、お預かりしているデータの削除をご希望の方のためのページです。<b>削除はメールでのご依頼を受けて、運営者が行います。</b>手順と、削除されるものの一覧を下にまとめました。</p>
+    <p>艇読み（teiyomi.com）のアカウントと、お預かりしているデータの削除をご希望の方のためのページです。<b>削除は<a href="mypage.html">マイページ</a>からご自分で行えます。</b>その場で完了し、運営者への依頼や待ち時間はありません。手順と、削除されるものの一覧を下にまとめました。</p>
   </section>
 
   <section class="step">
@@ -127,15 +129,15 @@ body{background:var(--bg); color:var(--ink);
         <tr><th>契約状態</th><td>有料プランの加入状況の記録</td></tr>
         <tr><th>通知の送信記録</th><td>同じ日に二重で通知しないための記録</td></tr>
       </table>
-      <p>これらは<b>アカウントを消すと自動的に一緒に消える</b>作りになっています（データベース側で連鎖削除するよう定義してあります）。手作業で1件ずつ消すのではないため、消し忘れが起きません。</p>
+      <p>これらは<b>1回の操作でまとめて消えます</b>。ほとんどはデータベース側の連鎖削除で、お気に入り選手だけは削除の処理が明示的に消しています（この表だけ連鎖削除の設定を持たないため）。いずれも手作業ではないので、消し忘れが起きません。</p>
       <p>なお、本サイトは氏名・住所・電話番号・生年月日・クレジットカード情報を<b>そもそも取得していません</b>。閲覧履歴を独自に記録する仕組みもありません。詳しくは<a href="privacy.html">プライバシーポリシー</a>をご覧ください。</p>
     </div>
   </section>
 
   <section class="step">
-    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">削除を依頼する</span></div>
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">自分で削除する</span></div>
     <div class="step-body">
-      <p>下記のアドレスへ、<b>アカウントに登録しているメールアドレスから</b>ご連絡ください。ご本人からのご依頼であることを確認するため、登録アドレス以外からのご依頼にはお応えできない場合があります。</p>
+      <p><a href="mypage.html">マイページ</a>にログインし、いちばん下の「アカウントを削除する」から進んでください。消えるものの一覧を確認したうえで、確認欄に「削除」と入力すると実行されます。<b>その場で削除が完了します。</b></p><p class="note-alt">ログインできない・画面から進めない場合は、下記のアドレスへご連絡ください。<b>アカウントに登録しているメールアドレスから</b>お送りください（ご本人からのご依頼であることを確認するため、登録アドレス以外からのご依頼にはお応えできない場合があります）。</p>
       <div class="mailbox">
         <p class="to">📧 <a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a></p>
         <p class="note">運営者：MTP Works</p>
@@ -148,7 +150,7 @@ body{background:var(--bg); color:var(--ink);
   <section class="step">
     <div class="step-head"><span class="step-num">3</span><span class="step-ttl">対応までの目安</span></div>
     <div class="step-body">
-      <p>ご依頼を受け取ってから、<b>7日以内</b>に削除いたします。削除が完了しましたら、ご依頼いただいたアドレスへご連絡します。</p>
+      <p>マイページから実行した場合は<b>その場で完了します</b>。メールでご依頼いただいた場合は、受け取ってから<b>7日以内</b>に削除し、ご依頼いただいたアドレスへご連絡します。</p>
       <p>削除したデータは元に戻せません。有料プランをご利用中の場合は、<b>先に解約のお手続きをお済ませください</b>（アカウントを削除しても、ストア側の定期購入は自動では解約されません）。</p>
       <div class="warn">⚠️ 削除は取り消せません。お気に入りや検証ノートを残しておきたい場合は、先にお手元に控えてから依頼してください。</div>
     </div>

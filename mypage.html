@@ -108,6 +108,30 @@ body{background:var(--bg); color:var(--ink);
 .plan-badge{font-size:11.5px; font-weight:700; color:var(--on-accent); background:var(--accent);
   border-radius:var(--radius-pill); padding:2px 10px;}
 .plan-badge.off{background:var(--muted);}
+/* アカウント削除の区画。**目立たせない。**
+   取り返しのつかない操作なので、探して辿り着いた人だけが押せばよく、
+   他の操作のついでに目に入って押されるほうが困る。赤で塗らないのは、
+   押す前の画面ではまだ何も起きないため（確認画面のほうを赤くする）。 */
+.danger{margin-top:26px; padding-top:16px; border-top:1px solid var(--line);}
+.danger-open{background:none; border:none; padding:6px 2px; margin:0 -2px; font:inherit;
+  font-size:12px; color:var(--muted); text-decoration:underline;
+  text-decoration-color:var(--line2); cursor:pointer;
+  -webkit-tap-highlight-color:transparent;}
+.danger-card{background:var(--surface); border:1px solid var(--danger-line,#e0b4b2);
+  border-radius:var(--radius); padding:14px 16px; margin-top:10px;}
+.danger-card h3{font-size:13.5px; margin:0 0 8px; color:#b3261e;}
+.danger-card p{font-size:12px; color:var(--ink2); margin:0 0 8px; line-height:1.8;}
+.danger-card ul{font-size:12px; color:var(--ink2); margin:0 0 8px; padding-left:1.2em; line-height:1.9;}
+.danger-note{font-size:11.5px; color:var(--ink2); background:var(--bg);
+  border-radius:8px; padding:9px 11px; margin:0 0 10px;}
+.danger-confirm{font-size:16px; padding:10px; width:100%; border:1px solid var(--line2);
+  border-radius:8px; background:var(--surface); color:var(--ink);}
+.danger-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+.danger-go{font-size:14px; font-weight:600; padding:10px 18px; border-radius:8px; border:none;
+  background:#b3261e; color:#fff; cursor:pointer;}
+.danger-go:disabled{opacity:.45; cursor:default;}
+.danger-cancel{font-size:14px; padding:10px 14px; border-radius:8px;
+  border:1px solid var(--line2); background:var(--surface); color:var(--ink2); cursor:pointer;}
 .plan a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 
 /* ---- 条件アラート ---- */
@@ -212,6 +236,11 @@ body{background:var(--bg); color:var(--ink);
 
   <p class="sec-label">ご契約</p>
   <div id="planBox"></div>
+
+  <!-- アカウント削除。ログイン中のときだけ中身が入る（renderDangerBox）。
+       ページのいちばん下に置くのは、探して辿り着く操作であって、
+       他の操作のついでに触れてよいものではないため。 -->
+  <div id="dangerBox"></div>
 
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
 </div>
@@ -594,7 +623,134 @@ function renderPlan(state){
 }
 
 // ===== 初期表示と更新 =====
-renderAuthBox(); renderFavoriteToday(); renderFavList(); renderNotifyBox(); renderPlan(null);
+// ===== アカウント削除（WP-2b・Apple 5.1.1(v)） =====
+//
+// **アプリの中から削除を始められるようにするための区画。**
+// これまで削除はメールでの依頼だけだった。App Store Review Guideline 5.1.1(v)
+// は、アカウントを作れるアプリに「アプリ内から削除を開始できること」を
+// 求めている。iOS版のために足したが、仕組み自体はブラウザ・Androidでも同じ
+// （出し分けはしない）。
+//
+// 【出すのはログイン中だけ】
+// 匿名のままの人には出さない。匿名アカウントは端末ごとに勝手に作られるもので、
+// 本人にとって「アカウント」という実感が無い。消したいのはお気に入りだが、
+// それはこのページの一覧から1件ずつ消せる（delete-account.html に案内がある）。
+//
+// 【消えるものを先に見せ、文字入力を挟む】
+// 押し間違いでは進めない形にする。確認は「削除」の入力で、
+// ボタンは入力が一致するまで押せない。
+let deleteBusy = false;   // 二重送信の防止。押した瞬間から立てる
+
+function renderDangerBox(){
+  const box = document.getElementById("dangerBox");
+  if(!box) return;
+  const user = (window.TeiyomiAuth && TeiyomiAuth.getUser()) || null;
+  // 認証が未確定・未ログイン・匿名のときは何も出さない。
+  if(!user || user.isAnonymous){ box.innerHTML = ""; return; }
+
+  box.innerHTML = `<div class="danger">
+    <button type="button" class="danger-open" id="dangerOpenBtn">アカウントを削除する</button>
+  </div>`;
+  document.getElementById("dangerOpenBtn").addEventListener("click", openDangerConfirm);
+}
+
+function openDangerConfirm(){
+  const box = document.getElementById("dangerBox");
+  const user = (window.TeiyomiAuth && TeiyomiAuth.getUser()) || null;
+  if(!box || !user) return;
+
+  box.innerHTML = `<div class="danger">
+    <div class="danger-card">
+      <h3>アカウントを削除します</h3>
+      <p><span class="authbox-email">${esc(user.email || "")}</span> のアカウントと、
+        ひも付いている次のものが<b>すべて消えます</b>。元に戻せません。</p>
+      <ul>
+        <li>ログイン情報（メールアドレス）</li>
+        <li>お気に入り選手</li>
+        <li>マイルール（条件アラート・検証ノート）</li>
+        <li>通知の登録（出走のお知らせの送信先）</li>
+        <li>会員情報（ご契約の記録）</li>
+      </ul>
+      <p class="danger-note">プレミアムをご利用中の場合、<b>定期購入の解約は別途必要です</b>。
+        アカウントを消しても、お申し込みになったストア側の定期購入は自動では解約されません。
+        先にストアの設定から解約をお済ませください。</p>
+      <p>続けるには、下の欄に <b>削除</b> と入力してください。</p>
+      <input type="text" class="danger-confirm" id="dangerInput"
+        placeholder="削除" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="danger-actions">
+        <button type="button" class="danger-go" id="dangerGoBtn" disabled>アカウントを削除</button>
+        <button type="button" class="danger-cancel" id="dangerCancelBtn">やめる</button>
+      </div>
+      <p class="authbox-msg" id="dangerMsg"></p>
+    </div>
+  </div>`;
+
+  const input = document.getElementById("dangerInput");
+  const go = document.getElementById("dangerGoBtn");
+  input.addEventListener("input", ()=>{ go.disabled = input.value.trim() !== "削除"; });
+  document.getElementById("dangerCancelBtn").addEventListener("click", renderDangerBox);
+  go.addEventListener("click", runDelete);
+}
+
+function runDelete(){
+  if(deleteBusy) return;          // 二重送信の防止（連打・二重タップ）
+  deleteBusy = true;
+
+  const go = document.getElementById("dangerGoBtn");
+  const cancel = document.getElementById("dangerCancelBtn");
+  const input = document.getElementById("dangerInput");
+  const msg = document.getElementById("dangerMsg");
+  if(go){ go.disabled = true; go.textContent = "削除しています…"; }
+  if(cancel) cancel.disabled = true;
+  if(input) input.disabled = true;
+  if(msg) msg.textContent = "";
+
+  deleteAccount().then((ok)=>{
+    if(ok){
+      // 消えたあとにこの画面を出しておく意味は無い。サインアウトして
+      // トップへ戻し、そこで「削除しました」を出す。
+      const done = ()=>{ location.href = "index.html?deleted=1"; };
+      if(window.TeiyomiAuth && TeiyomiAuth.signOut){
+        TeiyomiAuth.signOut().then(done, done);
+      } else { done(); }
+      return;
+    }
+    // **理由は出さない。** サーバー側も理由を返さない作りにしてある。
+    deleteBusy = false;
+    if(go){ go.disabled = false; go.textContent = "アカウントを削除"; }
+    if(cancel) cancel.disabled = false;
+    if(input) input.disabled = false;
+    if(msg){
+      msg.innerHTML = "削除できませんでした。時間をおいてもう一度お試しください。" +
+        "続くようでしたら <a href=\"mailto:mtpworks.info@gmail.com\">mtpworks.info@gmail.com</a> までご連絡ください。";
+    }
+  });
+}
+
+/** サーバーに削除を頼む。**消す相手はサーバーがJWTから決める**ので、IDは送らない。 */
+function deleteAccount(){
+  const auth = window.TeiyomiAuth;
+  if(!auth || !auth.getConfig || !auth.getAccessToken) return Promise.resolve(false);
+  const cfg = auth.getConfig();
+  if(!cfg || !cfg.url) return Promise.resolve(false);
+
+  return auth.getAccessToken().then((token)=>{
+    if(!token) return false;
+    return fetch(cfg.url + "/functions/v1/delete-account", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "apikey": cfg.anonKey,
+        "content-type": "application/json"
+      }
+    }).then((r)=>{
+      if(!r.ok) return false;
+      return r.json().then((j)=> j && j.ok === true, ()=> false);
+    });
+  }).catch(()=> false);
+}
+
+renderAuthBox(); renderFavoriteToday(); renderFavList(); renderNotifyBox(); renderPlan(null); renderDangerBox();
 window.addEventListener("teiyomi-favorites-synced", ()=>{ renderFavoriteToday(); renderFavList(); });
 // ===== 条件アラート(5bで保存した絞り込みの管理) =====
 // 保存は5b側。ここは一覧・オンオフ・削除だけ。壁は既存の membership.js を使う。
@@ -860,6 +1016,10 @@ window.addEventListener("teiyomi-auth-changed", ()=>{
   authFormOpen = false;
   renderAuthBox(); renderNotifyBox(); renderFavoriteToday(); renderFavList();
   renderAlertsBox(); renderNotesBox();
+  // ログイン・ログアウトで出し入れする（匿名のときは出さない）。
+  // 削除の確認を開いている最中に呼ばれると閉じるが、認証が変わった時点で
+  // 続けさせないほうが安全なので、これでよい。
+  renderDangerBox();
 });
 if(window.TeiyomiMembership) TeiyomiMembership.onChange(renderPlan);
 })();

@@ -443,6 +443,13 @@ enabled = true
 # いるため、プラットフォーム側のJWT検証(既定のtrue)を維持する。
 entrypoint = "./functions/send-test-push/index.ts"
 
+[functions.delete-account]
+enabled = true
+# 利用者が自分でアカウントを消す。auth: 'user'(JWT必須)で実装しているため、
+# プラットフォーム側のJWT検証(既定のtrue)を維持する。消す相手はJWTからしか
+# 決めないので、誰が呼んだかが確実に分かる必要がある。
+entrypoint = "./functions/delete-account/index.ts"
+
 [functions.verify-purchase]
 enabled = true
 # 購入トークンをGoogle Play Developer APIで検証し、membershipsを書き換える。

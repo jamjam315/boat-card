@@ -50,6 +50,11 @@ body{background:var(--bg); color:var(--ink);
 .stale-warn{background:#fdf3e0; border:1px solid #e8c468; color:#7a5a13; border-radius:var(--radius);
   padding:10px 14px; margin:8px 0 0; font-size:12.5px; line-height:1.6;}
 .stale-warn a{color:inherit; text-decoration:underline; font-weight:600;}
+/* アカウント削除の完了。**警告ではないので黄色にしない。**
+   終わったことを1回だけ伝える帯。 */
+.deleted-note{background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); color:var(--ink2); font-size:12.5px;
+  padding:11px 13px; margin:10px 0 0; line-height:1.8;}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .stale-warn{background:#3a2f12; border-color:#6b5620; color:#e8c468;}
 }
@@ -317,6 +322,8 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
 
   <p class="datameta nums" id="dataMetaNormal">データ取得：<span id="genAt">—</span> 時点</p>
   <div class="stale-warn nums" id="staleWarn" style="display:none"></div>
+  <!-- アカウント削除のあと、マイページから ?deleted=1 で戻ってくる（WP-2b）。 -->
+  <div class="deleted-note" id="deletedNote" style="display:none"></div>
 
   <!-- 「今日の注目選手」は開発中バナーの直下・レース場チップの上に置く。
        7/29に一度は出走一覧の下へ移したが、当時ここに並んでいた会員向けの
@@ -414,6 +421,25 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
       box.appendChild(closeBtn);
     }
   }
+
+  // アカウント削除のあとの一言（WP-2b）。
+  //
+  // マイページから ?deleted=1 で戻ってくる。**1回きり**にしたいので、
+  // 出したらすぐアドレスからクエリを落とす（再読み込みで再表示されない）。
+  (function showDeletedNote(){
+    try{
+      if(new URLSearchParams(location.search).get("deleted") !== "1") return;
+    }catch(e){ return; }
+    var box = document.getElementById("deletedNote");
+    if(box){
+      box.textContent = "アカウントを削除しました。ご利用ありがとうございました。" +
+        "データの閲覧は、これまでどおり登録なしでお使いいただけます。";
+      box.style.display = "";
+    }
+    try{
+      history.replaceState(null, "", location.pathname);
+    }catch(e){}
+  })();
 
   // 「ホーム画面に追加」の常設ボタン。スタンドアロン起動中・PC幅では
   // もう出す意味が無いためボタンごと隠す(favorites.js側の判定を再利用)。
