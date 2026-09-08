@@ -1,0 +1,19 @@
+{
+  "_readme": "sitemap.xml に載せる固定ページの一覧。sitemap は build_all_player_pages.py と build_race_pages.py の両方が全体を書き出すので、片方の一覧にだけ在るURLは、後から走ったほうに消される(yomi-guide.html で実際に起きた)。写しを2つ持たないよう、両方がこのファイルを読む。ページを増やしたらここに足すこと。",
+  "fixed": [
+    "/",
+    "/guide.html",
+    "/yomi-guide.html",
+    "/privacy.html",
+    "/about.html",
+    "/delete-account.html",
+    "/players/",
+    "/backtest.html",
+    "/backtest-custom.html",
+    "/mypage.html",
+    "/titles.html",
+    "/kyusoku.html",
+    "/premium/",
+    "/yomi.html"
+  ]
+}

@@ -55,6 +55,12 @@ body{background:var(--bg); color:var(--ink);
 .back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
 .back:hover{color:var(--accent)}
 
+.plist-kana{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:12px;}
+.plist-kana-label{font-size:11.5px; color:var(--muted); margin-right:2px;}
+.plist-kana a{display:inline-block; min-width:32px; text-align:center; padding:6px 8px;
+ border:1px solid var(--line2); border-radius:8px; font-size:13px;
+ text-decoration:none; color:var(--ink); -webkit-tap-highlight-color:transparent;}
+.plist-kana a:hover{border-color:var(--accent); color:var(--accent);}
 .plist-panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   margin-top:14px; padding:14px 16px;}
 .plist-input{width:100%; font:inherit; font-size:15px; padding:9px 12px; border-radius:10px;
@@ -120,6 +126,14 @@ body{background:var(--bg); color:var(--ink);
     <div><h1>艇読み</h1><p>選手一覧・検索</p></div>
   </header>
   <a class="back" href="/index.html">← トップに戻る</a>
+
+  <!-- 五十音の入口。この下の一覧はJSで描いていて、HTMLには選手ページへの
+       リンクが1本も無かった。検索できる人には下のパネルが速いが、
+       クロールと、検索語が思いつかない人にはここが入口になる。 -->
+  <nav class="plist-kana" aria-label="五十音から探す">
+    <span class="plist-kana-label">五十音から探す</span>
+    <a href="kana-a.html">あ</a><a href="kana-ka.html">か</a><a href="kana-sa.html">さ</a><a href="kana-ta.html">た</a><a href="kana-na.html">な</a><a href="kana-ha.html">は</a><a href="kana-ma.html">ま</a><a href="kana-ya.html">や</a><a href="kana-ra.html">ら</a><a href="kana-wa.html">わ</a>
+  </nav>
 
   <section class="plist-panel">
     <input type="search" id="plistSearch" class="plist-input" placeholder="選手名で検索" autocomplete="off">

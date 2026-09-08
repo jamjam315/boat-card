@@ -15,6 +15,8 @@ og:image生成・トップページのリンク文言の変更は別ファイル
 import datetime
 import json
 import os
+
+import sitemap_util
 import re
 import shutil
 from xml.sax.saxutils import escape
@@ -562,32 +564,26 @@ def cleanup_old_race_pages(today_iso):
     return removed
 
 
-# /checked/ の着地ページ。sitemap.xml は build_all_player_pages.py と
-# build_race_pages.py の両方が全体を書き出すので、片方だけに載せると
-# 後から走ったほうに消される(yomi-guide.html で実際に起きた)。
-# 一覧を3か所に写さずに済むよう、どちらも checked_data.json から引く。
-def checked_urls():
-    path = "checked_data.json"
-    if not os.path.exists(path):
-        return []
-    try:
-        with open(path, encoding="utf-8") as f:
-            items = json.load(f)["items"]
-    except Exception:
-        return []
-    return (["https://teiyomi.com/checked/"] +
-            [f"https://teiyomi.com/checked/{it['slug']}.html" for it in items])
+def kana_index_urls():
+    """五十音インデックス。実在するものだけ載せる(初回はまだ無い)。
+
+    行の一覧は build_all_player_pages.py が持っているが、こちらは
+    ファイルがあるかどうかだけ見る。表を2か所に持たないため。"""
+    out = []
+    for name in sorted(os.listdir("players")) if os.path.isdir("players") else []:
+        if name.startswith("kana-") and name.endswith(".html"):
+            out.append(f"https://teiyomi.com/players/{name}")
+    return out
 
 
 def refresh_sitemap():
-    """トップ・ガイド・players_index.jsの選手・race/配下の現存ページ(ローリング後)から
-    sitemap.xmlを再生成する。ローリングで消えたページはここで自動的にsitemapからも消える。"""
-    lastmod = datetime.date.today().isoformat()
-    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
-            "https://teiyomi.com/about.html", "https://teiyomi.com/delete-account.html",
-            "https://teiyomi.com/players/",
-            "https://teiyomi.com/backtest.html", "https://teiyomi.com/backtest-custom.html",
-            "https://teiyomi.com/mypage.html", "https://teiyomi.com/yomi-guide.html"] + checked_urls()
+    """固定ページ・五十音・検証結果・players_index.jsの選手・race/配下の現存ページから
+    sitemap.xmlを再生成する。ローリングで消えたページはここで自動的に消える。
+
+    固定ページと検証結果の一覧、lastmod の決め方は sitemap_util が持っている
+    (build_all_player_pages.py と同じものを引くので、片方にだけ在るURLで
+    消し合わない。以前 yomi-guide.html がそれで消えていた)。"""
+    urls = sitemap_util.fixed_urls() + kana_index_urls() + sitemap_util.checked_urls()
     try:
         player_pages = load_js("players_index.js", "PLAYER_PAGES")
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]
@@ -605,14 +601,7 @@ def refresh_sitemap():
                 for fname in sorted(os.listdir(venue_path)):
                     if fname.endswith(".html"):
                         urls.append(f"https://teiyomi.com/race/{date_name}/{venue_name}/{fname}")
-    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
-             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for url in urls:
-        lines.append(f"  <url><loc>{escape(url)}</loc><lastmod>{lastmod}</lastmod></url>")
-    lines.append("</urlset>")
-    with open("sitemap.xml", "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-    return len(urls)
+    return sitemap_util.write(urls)
 
 
 def main():

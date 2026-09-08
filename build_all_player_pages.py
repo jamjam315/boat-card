@@ -8,6 +8,9 @@ fan(コース傾向・属性・母数厚い公式集計) + K(決まり手・当�
 (このスクリプトは既存サイトのどこからも参照されない、独立した出力)。
 """
 import os, json, re, statistics, datetime
+import unicodedata
+
+import sitemap_util
 from xml.sax.saxutils import escape
 from build_profiles_v5 import LAST_PERIOD, load_fan_master, load_k_stats, build_profile
 
@@ -192,49 +195,119 @@ def scan_race_urls():
     return urls
 
 
-# /checked/ の着地ページ。sitemap.xml は build_all_player_pages.py と
-# build_race_pages.py の両方が全体を書き出すので、片方だけに載せると
-# 後から走ったほうに消される(yomi-guide.html で実際に起きた)。
-# 一覧を3か所に写さずに済むよう、どちらも checked_data.json から引く。
-def checked_urls():
-    path = "checked_data.json"
-    if not os.path.exists(path):
-        return []
-    try:
-        with open(path, encoding="utf-8") as f:
-            items = json.load(f)["items"]
-    except Exception:
-        return []
-    return (["https://teiyomi.com/checked/"] +
-            [f"https://teiyomi.com/checked/{it['slug']}.html" for it in items])
+# 五十音インデックス。/players/ の一覧はJSで描画していて、HTMLには選手ページへの
+# リンクが1本も無かった。Googleから見ると1,636ページがsitemapにしか存在せず、
+# 「検出 - インデックス未登録」のまま積み上がる。行ごとの静的な一覧を置いて、
+# トップ → /players/ → 五十音 → 選手ページ をHTMLだけで辿れるようにする。
+#
+# 半角カナ(fanの「カナ」)を NFKC で全角に直してから先頭1文字で振り分ける。
+# 濁点付き(ﾄﾞ など)は正規化すると1文字になるので、濁音も表に入れておくこと
+# (入れ忘れて「ド」で始まる4人が行なしになった)。
+KANA_ROWS = [
+    ("a",  "あ", "アイウエオ"),
+    ("ka", "か", "カキクケコガギグゲゴ"),
+    ("sa", "さ", "サシスセソザジズゼゾ"),
+    ("ta", "た", "タチツテトダヂヅデド"),
+    ("na", "な", "ナニヌネノ"),
+    ("ha", "は", "ハヒフヘホバビブベボパピプペポ"),
+    ("ma", "ま", "マミムメモ"),
+    ("ya", "や", "ヤユヨ"),
+    ("ra", "ら", "ラリルレロ"),
+    ("wa", "わ", "ワヲン"),
+]
+
+
+def kana_norm(kana):
+    return unicodedata.normalize("NFKC", kana or "").strip()
+
+
+def kana_key(kana):
+    """氏名カナから行のキーを返す。判定できなければ None。"""
+    k = kana_norm(kana)
+    if not k:
+        return None
+    for key, _label, chars in KANA_ROWS:
+        if k[0] in chars:
+            return key
+    return None
+
+
+def kana_index_urls():
+    return [f"https://teiyomi.com/players/kana-{key}.html" for key, _l, _c in KANA_ROWS]
+
+
+def kana_nav(current, counts):
+    return "".join(
+        f'<a class="krow{" on" if k == current else ""}" href="kana-{k}.html">{label}</a>'
+        for k, label, _c in KANA_ROWS if counts.get(k)
+    )
+
+
+def render_kana_index(key, label, rows, counts):
+    """1行ぶんの静的な選手一覧。ここが選手ページへの唯一のHTMLの入口になる。"""
+    items = "".join(
+        f'<li><a href="{r["t"]}.html"><span class="pn">{escape(r["name"])}</span>'
+        f'<span class="pk">{escape(r["k"])}・{escape(r["br"])}</span>'
+        f'<span class="pc">{escape(r["catch"] or "")}</span></a></li>'
+        for r in rows
+    )
+    url = f"https://teiyomi.com/players/kana-{key}.html"
+    total = sum(counts.values())
+    desc = (f"艇読みの選手図鑑、{label}行の選手{len(rows)}人の一覧。"
+            "二つ名・級別・支部から選手ページへ。")
+    return f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>{label}行の選手一覧｜艇読み選手図鑑</title>
+<meta name="description" content="{desc}">
+<link rel="canonical" href="{url}">
+<link rel="stylesheet" href="/theme.css">
+<style>
+body{{margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic",sans-serif; line-height:1.7;}}
+.wrap{{max-width:680px; margin:0 auto; padding:22px 18px 60px;}}
+.crumb{{font-size:12px; color:var(--muted);}}
+.crumb a{{color:var(--muted);}}
+h1{{font-size:20px; margin:12px 0 4px;}}
+.sub{{font-size:12.5px; color:var(--muted); margin-bottom:14px;}}
+.krow{{display:inline-block; min-width:34px; text-align:center; margin:0 4px 6px 0; padding:6px 8px;
+ border:1px solid var(--line2); border-radius:8px; font-size:13px; text-decoration:none; color:var(--ink);}}
+.krow.on{{background:var(--accent); color:var(--on-accent,#fff); border-color:var(--accent);}}
+ul.plist{{list-style:none; margin:16px 0 0; padding:0; border-top:1px solid var(--line);}}
+ul.plist li{{border-bottom:1px solid var(--line);}}
+ul.plist a{{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; padding:11px 2px; text-decoration:none; color:var(--ink);}}
+.pn{{font-weight:700; font-size:15px;}}
+.pk{{font-size:11.5px; color:var(--muted);}}
+.pc{{font-size:12px; color:var(--accent); flex:1 1 100%;}}
+.note{{font-size:11.5px; color:var(--muted); margin-top:22px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="crumb"><a href="/">艇読み</a> ／ <a href="/players/">選手図鑑</a></p>
+<h1>{label}行の選手</h1>
+<p class="sub">{len(rows)}人。名前のカナ順に並べています。</p>
+<nav>{kana_nav(key, counts)}</nav>
+<ul class="plist">{items}</ul>
+<p class="note">二つ名は直近1年の成績から機械的に付けています。週次で見直しているため、走るほどに変わります。</p>
+<p class="crumb"><a href="/players/">検索して探す（全{total}人）</a></p>
+</div>
+</body>
+</html>
+"""
 
 
 def build_sitemap(written):
-    """トップ・ガイド・全図鑑ページ・(存在すれば)race/配下の現存レースページから
-    sitemap.xmlを自動生成する。ページ数が増減しても、次回実行するたびに追従する。
-    race/はbuild_race_pages.py側の7日ローリングで管理されているため、ここではスキャンして
-    載せるだけ(このスクリプトの実行がレースページの生成・削除に影響することはない)。"""
-    lastmod = datetime.date.today().isoformat()
-    # 固定ページの一覧は build_race_pages.py の refresh_sitemap() と同じにしておく。
-    # sitemap.xml は両方のスクリプトが書き出しており、片方だけに載っているURLがあると、
-    # あとから実行したほうに上書きされて消えてしまうため(実際に消えた経緯がある)。
-    urls = ["https://teiyomi.com/", "https://teiyomi.com/guide.html", "https://teiyomi.com/privacy.html",
-            "https://teiyomi.com/about.html", "https://teiyomi.com/delete-account.html",
-            "https://teiyomi.com/players/", "https://teiyomi.com/backtest.html",
-            "https://teiyomi.com/backtest-custom.html", "https://teiyomi.com/mypage.html",
-            # yomi-guide.html はあちらの一覧にだけ在って、こちらから漏れていた。
-            # 手動実行のうちは滅多に起きなかったが、週次で回すと毎週消える。
-            "https://teiyomi.com/yomi-guide.html"] + checked_urls()
+    """固定ページ・五十音・検証結果・全図鑑ページ・現存レースページから作る。
+
+    固定ページと検証結果の一覧、lastmod の決め方は sitemap_util が持っている。
+    build_race_pages.py も同じものを引くので、片方にだけ在るURLで消し合わない。"""
+    urls = sitemap_util.fixed_urls() + kana_index_urls() + sitemap_util.checked_urls()
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
     urls += scan_race_urls()
-    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
-             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for url in urls:
-        lines.append(f"  <url><loc>{escape(url)}</loc><lastmod>{lastmod}</lastmod></url>")
-    lines.append("</urlset>")
-    with open("sitemap.xml", "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-    return len(urls)
+    return sitemap_util.write(urls)
 
 
 def kimarite_block(prof):
@@ -381,7 +454,28 @@ def history_block(rows):
             f'</section>')
 
 
-def render_page(prof, history_rows=None):
+def hero_nav_html(neighbors, side):
+    """前/次の選手への実リンク。
+
+    ここは元々 ?crew= があるときだけJSが埋める枠で、HTMLは空だった。そのため
+    選手ページ同士がHTMLでは1本もつながっておらず、クロールが行き止まりになる。
+    五十音順の前後を最初からhrefで入れておき、?crew= 付きで開かれたときは
+    従来どおりJSが同じレースの並びで上書きする(HTMLだけでも成り立つ形にする)。
+    """
+    idx = 0 if side == "prev" else 1
+    person = (neighbors or [None, None])[idx]
+    eid = "heroPrev" if side == "prev" else "heroNext"
+    label = "前の選手" if side == "prev" else "次の選手"
+    if not person:
+        return f'<a class="hero-nav {side}" id="{eid}" aria-label="{label}"></a>'
+    arrow = "‹" if side == "prev" else "›"
+    return (f'<a class="hero-nav {side}" id="{eid}" href="{person["t"]}.html" '
+            f'aria-label="{label}" style="display:flex">'
+            f'<span class="arrow">{arrow}</span>'
+            f'<span class="nm">{escape(person["name"])}</span></a>')
+
+
+def render_page(prof, history_rows=None, neighbors=None):
     fp = prof["profile"]
     title = meta_title(prof)
     description = meta_description(prof)
@@ -424,14 +518,14 @@ def render_page(prof, history_rows=None):
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
-    <a class="hero-nav prev" id="heroPrev" aria-label="前の選手"></a>
+    {hero_nav_html(neighbors, "prev")}
     <div class="hero-body">
       <div class="pname">{fp['氏名']} <span style="font-weight:400;font-size:13px;color:var(--ink2);">{fp['級別']}</span><button class="fav-btn" id="favBtn" data-toban="{prof['touban']}" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
       <div class="pmeta">{fp['年齢']}歳 ・ {fp['支部']}支部 ・ {fp['体重']}kg</div>
       <div class="catch">「{prof['catch']}」</div>
       <div class="catch-basis">{prof['catch_basis']}</div>
     </div>
-    <a class="hero-nav next" id="heroNext" aria-label="次の選手"></a>
+    {hero_nav_html(neighbors, "next")}
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>通算の進入コース傾向<span class="card-sub">直近半年(公式集計)</span></div>
@@ -487,7 +581,14 @@ def main():
     today_iso = generation_base_date()
     print(f"集計期間: {LAST_PERIOD['cutoff']} 〜 {LAST_PERIOD['latest']}"
           f" / 「今の調子」の基準日: {today_iso}")
-    both = sorted(set(fan_master) & set(players_k))
+    # 五十音順に並べる。前後リンクと五十音ページの並びをここで1つに決めて、
+    # ページ間の鎖と一覧の順序が食い違わないようにする。カナが無い人は最後。
+    both = sorted(
+        set(fan_master) & set(players_k),
+        key=lambda t: (kana_norm(fan_master[t].get("カナ")) == "",
+                       kana_norm(fan_master[t].get("カナ")), t),
+    )
+    order = {t: i for i, t in enumerate(both)}
 
     os.makedirs(OUT_DIR, exist_ok=True)
     n_ok = 0
@@ -500,7 +601,14 @@ def main():
             prof = build_profile(t, fp, kp, NAT_PCT, by_venue, by_player,
                                   venue_today=None, day_today=None, today_iso=today_iso,
                                   tenji_label=tenji_labels.get(t))
-            html = render_page(prof, history.get(t))
+            i = order[t]
+            # 端はつなげない(1人目の前・最後の人の次を作ると、輪になって
+            # どこが端か分からなくなる)。
+            nb = [
+                {"t": both[i - 1], "name": fan_master[both[i - 1]]["氏名"]} if i > 0 else None,
+                {"t": both[i + 1], "name": fan_master[both[i + 1]]["氏名"]} if i + 1 < len(both) else None,
+            ]
+            html = render_page(prof, history.get(t), nb)
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
             n_ok += 1
@@ -527,6 +635,26 @@ def main():
     # players/{登番}.html が実際に書けた登番の一覧を index.html 側へ渡す。
     # 生成できたページと完全に同じ集合(written)から作るので、このスクリプトを
     # 再実行するたびに players/ の中身と players_index.js が必ず一致する。
+    # 五十音ページ。index_rows は上のループで積んだ「一覧に出す最小の情報」で、
+    # 並びも both と同じ(五十音順)なので、行で振り分けるだけでよい。
+    by_row = {}
+    for r in index_rows:
+        k = kana_key(r.get("kana"))
+        if k:
+            by_row.setdefault(k, []).append(r)
+    counts = {k: len(v) for k, v in by_row.items()}
+    n_kana = 0
+    for key, label, _chars in KANA_ROWS:
+        rows = by_row.get(key, [])
+        if not rows:
+            continue
+        with open(os.path.join(OUT_DIR, f"kana-{key}.html"), "w", encoding="utf-8") as f:
+            f.write(render_kana_index(key, label, rows, counts))
+        n_kana += 1
+    missed = len(index_rows) - sum(counts.values())
+    print(f"[kana] 五十音ページ {n_kana}枚 / 振り分け {sum(counts.values())}人"
+          + (f" / 行を決められなかった人 {missed}人" if missed else ""))
+
     with open("players_index.js", "w", encoding="utf-8") as f:
         f.write("window.PLAYER_PAGES = " + json.dumps(sorted(written)) + ";\n")
 
