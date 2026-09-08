@@ -15,8 +15,18 @@
 # 20:05 は昇級ウォッチ(x-post-daily.yml)が使っているので15分ずらす。
 # concurrency も別グループにして、待たされないようにしてある。
 #
+# 【本番の起動は外部キッカー(Supabase Cron → kick-github)】
+# GitHubのcronは混雑すると数時間遅れる。2026-09-07の初回は5時間遅れてJST01:35に
+# 発火し、下の窓ガードが正しく弾いて投稿されなかった。x-post-daily.yml と同じく、
+# 起動をSupabase Cronへ移す。scheduleは「キッカーが止まった週の保険」として残す。
+#
+# Cronの本文は inputs で dry_run を渡すこと。**省略すると既定の true が効いて
+# dry-run になり、投稿されない**(下の入力の default が true のため)。
+#   {"workflow": "weekly.yml", "inputs": {"dry_run": "false"}}
+#
 # 【止めたいとき】
 # Actionsタブ →「二つ名ウォッチ(週次)」→ 右上「…」→ Disable workflow。
+# キッカー側を止めるなら Supabase の Cron を無効にする。
 name: 二つ名ウォッチ(週次)
 
 on:

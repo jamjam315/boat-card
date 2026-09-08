@@ -59,7 +59,15 @@ const REPOS: Record<
 > = {
   'boat-card': {
     owner: 'jamjam315',
-    workflows: new Set(['daily.yml', 'results.yml', 'x-post-daily.yml']),
+    workflows: new Set([
+      'daily.yml',
+      'results.yml',
+      'x-post-daily.yml',
+      // 二つ名ウォッチ(週次)。2026-09-07の初回はGitHubのcronが5時間遅れて
+      // JST01:35に発火し、窓ガード(JST19時以降)が正しく弾いて投稿されなかった。
+      // 日次の投稿と同じく、起動をこちらへ移す。
+      'weekly.yml',
+    ]),
     tokenEnv: 'GITHUB_KICK_TOKEN',
   },
   'mtpworks-x-bot': {
