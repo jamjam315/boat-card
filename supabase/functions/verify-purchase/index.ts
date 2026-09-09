@@ -1,15 +1,29 @@
-// Google Play の定期購入を検証して、memberships を書き換える(タスク③)。
+// ストアの定期購入を検証して、memberships を書き換える(タスク③ / WP-3a)。
 //
-// アプリ(TWA)内で購入すると purchaseToken が手に入る。それをこの関数に渡し、
-// Google Play Developer API で「本当に買われていて、いま有効か」を確かめてから
+// アプリ内で購入すると購入の証跡が手に入る。それをこの関数に渡し、**ストアの
+// サーバーに問い合わせて**「本当に買われていて、いま有効か」を確かめてから
 // memberships に書き込む。クライアントが言ってきた内容は一切信用しない。
 //
+// ## 2つのストア
+//
+//   Android(TWA) … purchaseToken を Google Play Developer API へ
+//   iOS(殻)      … 購入のJWSから取り出したIDを App Store Server API へ
+//
+// **構図は同じ。** どちらもクライアントが送ってきたものは信用せず、権威の
+// サーバーの答えだけを採用する。違いは問い合わせ先と証跡の形だけなので、
+// 入口(認証・使い回しの検出・キャッシュ)と出口(memberships への書き戻し)は
+// 1本にまとめてある。
+//
+// どちらのストアかは body の platform で決まる。**未指定は android**——
+// 出回っている billing.js は platform を送らないため(logic.ts の parsePlatform)。
+//
 // ## フェイルクローズ
-// 「有効」と答えるのは、Googleが明示的に有効と答えた場合だけ。それ以外
-// (Secrets未設定・認証不備・Google照会失敗・応答が読めない・例外)は
+// 「有効」と答えるのは、**ストアが明示的に有効と答えた場合だけ**。それ以外
+// (Secrets未設定・認証不備・照会失敗・応答が読めない・例外)は
 // **すべて is_active:false を返す**。疑わしきは無効。
-// GOOGLE_PLAY_SA_KEY を設定するまで、この関数は誰もプレミアムにしない。
-// 商品登録前の今はそれが正しい挙動。
+// GOOGLE_PLAY_SA_KEY を設定するまでAndroidでは、APPLE_* を設定するまでiOSでは、
+// この関数は誰もプレミアムにしない。設定前はそれが正しい挙動。
+// **片方のSecretsが欠けても、もう片方のストアには影響しない**(判定が別々のため)。
 //
 // ## なぜ呼び出し元チェックが共有キーではなくJWTなのか
 // レジャー帳の同名関数は X-Client-Key(アプリの.envに載る値)で入口を絞っている。
@@ -19,20 +33,36 @@
 // 共有キーのようにAPKから抜き出せる値でもない。
 //
 // ## デプロイ
-//   supabase functions deploy verify-purchase
-//   supabase secrets set GOOGLE_PLAY_SA_KEY="$(cat service-account.json)"
-//   supabase secrets set ANDROID_PACKAGE_NAME=com.mtpworks.teiyomi
-// サービスアカウントのJSONは絶対にこのリポジトリに置かないこと
-// (mainがGitHub Pagesでそのまま公開されるため)。
+//   supabase functions deploy verify-purchase --project-ref <PROJECT_REF>
+//
+// Secrets(Android):
+//   GOOGLE_PLAY_SA_KEY / ANDROID_PACKAGE_NAME
+// Secrets(iOS):
+//   APPLE_KEY_ID / APPLE_ISSUER_ID / APPLE_PRIVATE_KEY / APPLE_BUNDLE_ID
+//
+// 手順は docs/ops/appstore-verify-deploy.md に全部書いてある。
+// **鍵の現物は絶対にこのリポジトリに置かないこと**
+// (mainがGitHub Pagesでそのまま公開されるため。.gitignore が *.p8 と
+//  service-account*.json を名前の時点で弾いているが、頼り切らない)。
+//
+// APPLE_* が未設定のあいだ、iOSの購入は常に is_active:false(フェイルクローズ)。
+// Androidの経路には影響しない。
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import {
+  appleSecretsConfigured,
   canUseCache,
+  entitlementFromAppleTransaction,
+  fetchAppleTransaction,
+  isAcceptableToken,
   isKnownProduct,
   isRowActive,
+  membershipRowKey,
+  parsePlatform,
   parseSubscription,
   secretsConfigured,
   tokenTakenByOther,
+  transactionIdFromJws,
 } from './logic.ts'
 
 const JSON_HEADERS = { 'content-type': 'application/json' }
@@ -91,22 +121,42 @@ export default {
         const purchaseToken = body.purchase_token
         const productId = body.product_id
 
-        if (
-          typeof purchaseToken !== 'string' || purchaseToken.length === 0 ||
-          purchaseToken.length > 4096 || typeof productId !== 'string'
-        ) {
+        // どのストアの話か。知らない値は android に倒さず拒否する(logic.ts)。
+        const platform = parsePlatform(body.platform)
+        if (platform === null) return denied('unknown platform', 400)
+
+        if (typeof purchaseToken !== 'string' || typeof productId !== 'string') {
           return denied('invalid parameters', 400)
         }
-        // 身に覚えのない商品IDはGoogleに問い合わせもしない。
+        // 証跡の形はストアごとに違う。**同じ上限で受けない。**
+        // Playのトークンは100〜200文字だが、AppleのJWSは x5c(証明書3枚)を含んで
+        // 5〜8KBある。4096で共通にしていたレジャー帳では、Sandboxの購入が
+        // 入口の `invalid parameters` で弾かれていた(2026-08-25)。
+        if (!isAcceptableToken(purchaseToken, platform)) {
+          return denied('invalid purchase_token for ' + platform, 400)
+        }
+        // 身に覚えのない商品IDはストアに問い合わせもしない。
         if (!isKnownProduct(productId)) {
           return denied('unknown product_id: ' + productId, 400)
         }
+
+        // --- この購読を指す行の鍵を決める ---
+        //
+        // **クライアントが送ってきた証跡をそのまま鍵にしない。** Playのトークンは
+        // 更新しても変わらないのでそのままでよいが、AppleのJWSは更新のたびに
+        // 丸ごと変わる。iOSでは originalTransactionId を鍵にする(logic.ts の
+        // membershipRowKey に、これを間違えたときに何が壊れるかを書いた)。
+        //
+        // ここから下は鍵しか見ない。**引くときと入れるときで値が食い違わない**のが
+        // 大事で、食い違うとキャッシュも使い回しの検出も永久に効かない。
+        const rowKey = membershipRowKey(purchaseToken, platform)
+        if (rowKey === null) return denied('malformed jws', 400)
 
         // --- このトークンを他の人が使っていないか ---
         const { data: tokenRows, error: tokenErr } = await supabaseAdmin
           .from('memberships')
           .select('user_id,status,price_id,current_period_end,purchase_token,updated_at')
-          .eq('purchase_token', purchaseToken)
+          .eq('purchase_token', rowKey)
         if (tokenErr) return denied('token lookup failed: ' + tokenErr.message, 500)
         if (tokenTakenByOther(tokenRows, userId)) {
           // 使い回しの防止。正規の乗り換えもここで止まるが、自動で前の
@@ -120,14 +170,28 @@ export default {
             null
 
         // --- 前回の検証が新しければ、それをそのまま返す ---
-        // Googleへの問い合わせ回数の上限も兼ねている。期限は is_premium() 側でも
-        // 見ているので、キャッシュを返しても期限切れの人が通ることはない。
+        // ストア(Google/Apple)への問い合わせ回数の上限も兼ねている。
+        // **期限を過ぎた記録はキャッシュにしない**ので、更新日にストア側で
+        // 期限が伸びていれば、ここは素通りして聞き直しに行く(logic.ts)。
         if (canUseCache(mine, nowMs)) {
           const active = isRowActive(mine, nowMs)
           console.log(
             '[verify-purchase] cache hit user=' + userId.slice(0, 8) + ' active=' + active,
           )
           return ok(active, productId, mine?.current_period_end ?? null)
+        }
+
+        // --- iOS: App Store Server API で照会 ---
+        //
+        // **Androidと同じ形。** クライアントが送ってきたものは信用せず、権威の
+        // サーバー(Apple)に問い合わせて、その答えだけを採用する。
+        if (platform === 'ios') {
+          return await verifyWithApple({
+            userId,
+            jws: purchaseToken,
+            rowKey,
+            productId,
+          })
         }
 
         // --- Google Play Developer API で照会 ---
@@ -177,7 +241,9 @@ export default {
             status: state.active ? 'active' : 'inactive',
             price_id: productId,
             current_period_end: state.expiry,
-            purchase_token: purchaseToken,
+            // Androidでは rowKey === purchaseToken(logic.ts の membershipRowKey)。
+            // 鍵に統一しておくと、引くときと入れるときが構造的に一致する。
+            purchase_token: rowKey,
             platform: 'play',
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' })
@@ -292,4 +358,169 @@ async function getGoogleAccessToken(saKeyRaw: string): Promise<string> {
   const json = await res.json()
   if (typeof json.access_token !== 'string') throw new Error('no access_token')
   return json.access_token
+}
+
+/**
+ * App Store Server API で購入を確かめて、memberships に書き戻す。
+ *
+ * ## Androidと同じ形にしてある
+ *
+ * クライアントが送ってきたJWSは**信用しない**。そこから transactionId だけを
+ * 取り出してAppleへ問い合わせ、**Appleの答えだけを採用する**。
+ * Google Play Developer API に purchase_token を投げるのと同じ構図で、
+ * フェイルクローズも同じ——Secrets未設定・照会失敗・応答が読めない、はすべて無効。
+ *
+ * ## acknowledge が無い
+ *
+ * Playには「3日以内に受領を返さないと自動返金」という決まりがあるが、
+ * App Storeにこれに当たるものは無い。だからこの経路には acknowledge 相当の
+ * 後始末が要らない(Play側の acknowledge() と対にならないのは、そのため)。
+ */
+async function verifyWithApple(args: {
+  userId: string
+  jws: string
+  /** memberships の行を指す鍵(呼び出し元が membershipRowKey で作る)。 */
+  rowKey: string
+  productId: string
+}): Promise<Response> {
+  const { userId, jws, rowKey, productId } = args
+
+  const keyId = Deno.env.get('APPLE_KEY_ID') ?? ''
+  const issuerId = Deno.env.get('APPLE_ISSUER_ID') ?? ''
+  const privateKey = Deno.env.get('APPLE_PRIVATE_KEY') ?? ''
+  const bundleId = Deno.env.get('APPLE_BUNDLE_ID') ?? ''
+  // Secrets未設定＝検証できない＝無効。Play側とまったく同じ構え。
+  if (!appleSecretsConfigured(keyId, issuerId, privateKey, bundleId)) {
+    return denied('APPLE_* secrets not configured')
+  }
+
+  // **問い合わせるのは transactionId。** originalTransactionId を渡すと初回期間の
+  // expiresDate が返り、有効な購読者が expired で締め出される(logic.ts に詳述)。
+  const transactionId = transactionIdFromJws(jws)
+  if (transactionId === null) return denied('malformed jws', 400)
+
+  let apiToken: string
+  try {
+    apiToken = await createAppleApiToken({ keyId, issuerId, privateKey, bundleId })
+  } catch (e) {
+    return denied('failed to sign apple token: ' + e)
+  }
+
+  const fetchTx = (base: string) =>
+    fetch(base + '/' + encodeURIComponent(transactionId), {
+      headers: { authorization: 'Bearer ' + apiToken },
+    })
+
+  // 本番 → 届かなければSandbox(並び順の理由は logic.ts に書いた)。
+  const { res, trace } = await fetchAppleTransaction(fetchTx)
+  // **両方のステータスを必ず1行残す。** 片方しか出ないと「本番で止まったのか、
+  // Sandboxまで行って駄目だったのか」が分からない。
+  console.log('[verify-purchase] apple api ' + trace)
+  if (!res.ok) return denied('apple api ' + trace)
+
+  // 応答の signedTransactionInfo もJWS。**ここは署名を見なくてよい**——
+  // TLSでApple自身から受け取っており、経路が権威を担保している。
+  let tx: Record<string, unknown>
+  try {
+    const payload = await res.json() as { signedTransactionInfo?: unknown } | null
+    const signed = payload?.signedTransactionInfo
+    if (typeof signed !== 'string') return denied('no signedTransactionInfo')
+    const parts = signed.split('.')
+    if (parts.length !== 3) return denied('malformed apple jws')
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4))
+    tx = JSON.parse(atob(b64 + pad))
+  } catch (e) {
+    return denied('apple response unreadable: ' + e)
+  }
+
+  const verdict = entitlementFromAppleTransaction(tx, {
+    expectedProductId: productId,
+    expectedBundleId: bundleId,
+    now: Date.now(),
+  })
+  // **なぜ無効になったかを残す。** 可否だけだと、bundleIdの取り違えなのか
+  // 期限切れなのかがログから分からず、切り分けに実機を往復することになる。
+  // 出すのは reason の短い文字列だけで、トークン本文とAppleの応答本体は出さない。
+  if (!verdict.isActive) {
+    console.log('[verify-purchase] apple verdict=' + verdict.reason)
+  }
+
+  // --- memberships に書き戻す(Play経路とまったく同じ形) ---
+  const { error: upsertErr } = await supabaseAdmin
+    .from('memberships')
+    .upsert({
+      user_id: userId,
+      status: verdict.isActive ? 'active' : 'inactive',
+      price_id: productId,
+      current_period_end: verdict.expiry,
+      // **JWS本文も transactionId も入れない。** 前者は長いうえに再取得のたびに
+      // 変わり、後者は更新のたびに変わるので、どちらも鍵にすると次回引けない。
+      purchase_token: rowKey,
+      platform: 'ios',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+  if (upsertErr) {
+    // 書けなかったのに有効と答えると、次の画面で「非会員」に見える。
+    return denied('upsert failed: ' + upsertErr.message, 500)
+  }
+
+  console.log(
+    '[verify-purchase] verified(ios) user=' + userId.slice(0, 8) +
+      ' product=' + productId + ' active=' + verdict.isActive,
+  )
+  return ok(verdict.isActive, productId, verdict.expiry)
+}
+
+/**
+ * App Store Server API 用のJWTを作る(ES256)。
+ *
+ * 外部ライブラリを増やさないよう、WebCryptoで自前で作る——[getGoogleAccessToken]
+ * がRS256で同じことをしているのと同じ流儀。違いは鍵の型(EC P-256)と、
+ * Appleは**署名したJWTをそのままBearerに使う**こと(Googleのように交換しない)。
+ *
+ * ECDSAの署名は WebCrypto が r||s の生バイトで返す。JWTはこの形式を期待するので
+ * 変換は要らない(DERへ包み直さないこと)。
+ */
+async function createAppleApiToken(args: {
+  keyId: string
+  issuerId: string
+  privateKey: string
+  bundleId: string
+}): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  const header = { alg: 'ES256', kid: args.keyId, typ: 'JWT' }
+  const claim = {
+    iss: args.issuerId,
+    iat: now,
+    // Appleの上限は60分。短くしておく(使い捨てなので長くする理由が無い)。
+    exp: now + 20 * 60,
+    aud: 'appstoreconnect-v1',
+    bid: args.bundleId,
+  }
+
+  const b64url = (s: string) =>
+    btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const unsigned = b64url(JSON.stringify(header)) + '.' + b64url(JSON.stringify(claim))
+
+  const pem = args.privateKey
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '')
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0))
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    der,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  )
+  const sigBuf = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    new TextEncoder().encode(unsigned),
+  )
+  const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return unsigned + '.' + sig
 }
