@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】このページが何を読み込んでよいかをブラウザに宣言する。
+     万一XSSやCDNの乗っ取りが起きても、攻撃者が用意した別の場所へは
+     つなげない・実行できないようにするための安全網。
+     GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
+     'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
+     現状は外せない。将来まとめて外部ファイルにできたら外すこと。
+     ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>利用規約（プレミアム）｜艇読み</title>
+<meta name="description" content="艇読みプレミアム（自動更新サブスクリプション）の利用規約です。契約の成立、更新、解約、返金、免責について定めます。">
+<link rel="canonical" href="https://teiyomi.com/terms.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teiyomi.com/terms.html">
+<meta property="og:title" content="利用規約（プレミアム）｜艇読み">
+<meta property="og:description" content="艇読みプレミアム（自動更新サブスクリプション）の利用規約です。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
+<style>
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.7;}
+.wrap{max-width:680px; margin:0 auto; padding:0 14px 40px;}
+
+.topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius);
+  padding:16px 18px; display:flex; align-items:center; gap:11px; position:relative; overflow:hidden;}
+.topbar::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
+.lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
+.lanes i{display:block; border-radius:2px;}
+.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub); letter-spacing:.02em; position:relative; z-index:1;}
+
+.back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
+.back:hover{color:var(--accent)}
+
+.intro{background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.intro .updated{font-size:11.5px; color:var(--muted); margin:0 0 8px;}
+.intro p{margin:0; font-size:13.5px; color:var(--ink2); line-height:1.8;}
+
+.step{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  margin-top:14px; padding:18px 20px;}
+.step-head{display:flex; align-items:center; gap:10px; margin-bottom:11px;}
+.step-num{flex:0 0 auto; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--on-accent);
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.step-ttl{font-size:15px; font-weight:700;}
+.step-body{font-size:13.5px; color:var(--ink2); line-height:1.8;}
+.step-body b{color:var(--ink);}
+.step-body ul{margin:8px 0 0; padding-left:20px;}
+.step-body li{margin-top:5px;}
+.step-body p+p{margin-top:10px;}
+/* 生成AIの節だけ、中で2つに分かれる(生成と報告で扱いが違うため)。 */
+.step-body h3{font-size:14px; margin:16px 0 0;}
+.step-body h3:first-child{margin-top:0;}
+.step-body a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+
+.foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
+.foot a{color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="lanes" aria-hidden="true">
+      <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+      <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+    </div>
+    <div><h1>艇読み</h1><p>利用規約（プレミアム）</p></div>
+  </header>
+  <a class="back" href="index.html">← トップに戻る</a>
+
+  <section class="intro">
+    <p class="updated">最終更新日：2026年9月11日</p>
+    <p>この規約は、艇読み（以下「本サイト」）が提供する有料プラン「艇読みプレミアム」（以下「本サービス」）のご利用条件を定めるものです。本サービスにお申し込みいただいた時点で、この規約に同意いただいたものとします。</p>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">1</span><span class="step-ttl">本サービスの内容</span></div>
+    <div class="step-body">
+      <p>本サービスは、条件を指定してのバックテスト、条件アラート、検証ノート、答案へのAI講評など、本サイトの一部機能を利用できる月額制のプランです。提供する機能の内容は、<a href="guide-premium.html">プレミアムの使い方</a>に記載のとおりとし、改善のために予告なく変更することがあります。</p>
+      <p>本サービスは情報の提供を目的とするもので、舟券の的中や利益を保証するものではありません。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">2</span><span class="step-ttl">契約の成立と料金</span></div>
+    <div class="step-body">
+      <p>本サービスは、ご利用のアプリストアを通じてお申し込みいただく<b>自動更新サブスクリプション</b>です。契約は、ストアでのお支払い手続きが完了した時点で成立します。</p>
+      <p>料金は、お申し込み時にストアの画面に表示される金額です。表示される金額は国・地域および通貨によって異なることがあります。お支払いはストアに登録されたアカウントに対して行われ、本サイトがクレジットカード情報等をお預かりすることはありません。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">3</span><span class="step-ttl">自動更新について</span></div>
+    <div class="step-body">
+      <p>本サービスは、<b>契約期間（1か月）が終了する24時間前までに解約されない限り、同じ料金で自動的に更新</b>されます。更新時の料金は、更新の24時間前までにストアに登録されたアカウントに請求されます。</p>
+      <p>更新後の期間についても、この規約が引き続き適用されます。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">4</span><span class="step-ttl">解約について</span></div>
+    <div class="step-body">
+      <p>解約は、お申し込みいただいたストアのアカウント設定から行ってください。本サイト上で解約の手続きを行うことはできません。</p>
+      <ul>
+        <li>App Store でお申し込みの場合：iPhone の「設定」→ ご自身の名前 →「サブスクリプション」</li>
+        <li>その他のストアでお申し込みの場合：そのストアが定める解約の手順に従ってください</li>
+      </ul>
+      <p>解約後も、<b>お支払い済みの期間が終了するまでは本サービスをご利用いただけます。</b>期間の途中で解約された場合も、残りの期間について日割りでの返金は行いません。</p>
+      <p>本サイトのアカウントを削除した場合、本サービスの契約は自動では解約されません。アカウントの削除とあわせて、上記の手順でストア側の解約も行ってください。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">5</span><span class="step-ttl">返金について</span></div>
+    <div class="step-body">
+      <p>お支払いはストアを通じて行われるため、返金のお申し出は各ストアの定めるところに従い、ストアに対して行ってください。本サイトが直接返金を行うことはできません。</p>
+      <ul>
+        <li>App Store でお申し込みの場合：Apple の「問題を報告する」（reportaproblem.apple.com）から</li>
+        <li>その他のストアでお申し込みの場合：そのストアが定める払い戻しの手順に従ってください</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">6</span><span class="step-ttl">アカウントと利用の制限</span></div>
+    <div class="step-body">
+      <p>本サービスのご利用には、メールアドレスによる本サイトへのログインが必要です。1つの契約は1つの本サイトアカウントに紐づきます。同じ契約を複数のアカウントで共有することはできません。</p>
+      <p>本サイトの運営を妨げる行為、データの自動収集、他の利用者への迷惑行為があった場合、本サイトは本サービスの提供を停止することがあります。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">7</span><span class="step-ttl">サービスの変更・終了</span></div>
+    <div class="step-body">
+      <p>本サイトは、本サービスの内容を変更し、または本サービスの提供を終了することがあります。提供を終了する場合は、本サイト上でお知らせしたうえで、終了日以降の自動更新を停止します。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">8</span><span class="step-ttl">免責</span></div>
+    <div class="step-body">
+      <p>本サイトが提供する情報は、公式に公開されているデータをもとに作成していますが、その正確性・完全性・最新性を保証するものではありません。本サービスの利用によって生じた損害（舟券の購入に関するものを含みます）について、本サイトは責任を負いません。</p>
+      <p>通信障害、データ提供元の変更、ストアの障害など、本サイトの責任によらない事由により本サービスを利用できなかった場合も同様とします。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">9</span><span class="step-ttl">規約の変更</span></div>
+    <div class="step-body">
+      <p>本サイトは、必要に応じてこの規約を変更することがあります。変更後の規約は、本ページに掲載した時点から効力を生じます。重要な変更については、本サイト上でお知らせします。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">10</span><span class="step-ttl">準拠法・管轄</span></div>
+    <div class="step-body">
+      <p>この規約は日本法に準拠します。本サービスに関して紛争が生じた場合は、本サイト運営者の所在地を管轄する日本の裁判所を第一審の専属的合意管轄裁判所とします。</p>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-head"><span class="step-num">11</span><span class="step-ttl">お問い合わせ</span></div>
+    <div class="step-body">
+      本サービスおよびこの規約に関するお問い合わせは、以下までご連絡ください。
+      <ul>
+        <li>運営者：MTP Works</li>
+        <li>連絡先：<a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a></li>
+      </ul>
+      <p>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。</p>
+    </div>
+  </section>
+
+  <p class="foot">以上</p>
+</div>
+</body>
+</html>

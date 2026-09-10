@@ -236,6 +236,70 @@ body{background:var(--bg); color:var(--ink);
   }
 
   /**
+   * iOSアプリ(殻)の中で買えるときの表示(WP-3c)。
+   *
+   * 【3.1.2 で求められるものを全部ここに置く】
+   *   プラン名／価格と期間／自動更新であること／更新と解約の方法／
+   *   利用規約とプライバシーポリシーへのリンク／購入の復元
+   * 価格はストアが組み立てた文字列(¥480)をそのまま出す。取れなければ
+   * 「準備中」(renderIOSComingSoon)に倒し、購入ボタンを出さない。
+   *
+   * **ここに Google Play・Androidアプリの話を書かない**(3.1.1)。
+   * 「サブスクリプションを管理」への外部リンクは、殻の許可リストに
+   * apps.apple.com が無いためまだ置かない(WP-1hで足してから)。
+   */
+  function renderBuyIOS(){
+    TeiyomiBilling.price().then(function(p){
+      var yen = TeiyomiBilling.priceText(p);
+      if(!yen){ renderIOSComingSoon(); return; }   // 商品が取れない＝まだ売れない
+      var buyLabel = esc(yen) + ' / 月で登録する';
+      box.innerHTML =
+        '<p class="state-msg">艇読みプレミアム　<b>' + esc(yen) + ' / 月</b></p>' +
+        '<p class="btn-note">1か月ごとに自動更新されるサブスクリプションです。' +
+        'お支払いはお使いのAppleアカウントに請求され、期間終了の24時間前までに解約しない限り、' +
+        '同じ料金で自動的に更新されます。解約はiPhoneの「設定」→ ご自身の名前 →' +
+        '「サブスクリプション」から、いつでも行えます。解約後も、お支払い済みの期間の終わりまではお使いいただけます。</p>' +
+        '<button type="button" class="btn" id="buyBtn">' + buyLabel + '</button>' +
+        '<button type="button" class="btn sub" id="restoreBtn" style="margin-top:8px;">以前の購入を復元する</button>' +
+        '<p class="btn-msg" id="buyMsg"></p>' +
+        '<p class="btn-note">お申し込みの前に<a href="../terms.html">利用規約</a>と' +
+        '<a href="../privacy.html">プライバシーポリシー</a>をご確認ください。</p>' +
+        FREE_NOTE;
+
+      var btn = document.getElementById("buyBtn");
+      var rbtn = document.getElementById("restoreBtn");
+      var msg = document.getElementById("buyMsg");
+      function busy(on){ btn.disabled = on; rbtn.disabled = on; }
+
+      btn.addEventListener("click", function(){
+        busy(true); btn.textContent = "手続き中…"; msg.textContent = "";
+        TeiyomiBilling.buy().then(function(r){
+          if(r.ok) return;   // 成功時は membership の更新で画面が描き直される
+          busy(false); btn.textContent = buyLabel;
+          msg.textContent =
+            r.reason === "cancelled"    ? "" :
+            r.reason === "pending"      ? "お支払いの承認待ちです。承認されると自動で反映されます。" :
+            r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいて「以前の購入を復元する」をお試しください。" :
+            r.reason === "unavailable"  ? "この画面ではご登録いただけません。" :
+                                          "購入できませんでした。時間をおいてもう一度お試しください。";
+        });
+      });
+
+      rbtn.addEventListener("click", function(){
+        busy(true); rbtn.textContent = "確認中…"; msg.textContent = "";
+        TeiyomiBilling.restore().then(function(r){
+          if(r.ok) return;
+          busy(false); rbtn.textContent = "以前の購入を復元する";
+          msg.textContent =
+            r.reason === "no_purchase"  ? "復元できる購入がありません。" :
+            r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいてもう一度お試しください。" :
+                                          "復元できませんでした。時間をおいてもう一度お試しください。";
+        });
+      });
+    });
+  }
+
+  /**
    * アプリ内で買えるときの表示。
    *
    * 金額はストアから取った値をそのまま出す。取れなければ金額を伏せる
@@ -253,6 +317,9 @@ body{background:var(--bg); color:var(--ink);
         'href="../mypage.html">ログインする</a>' + FREE_NOTE;
       return;
     }
+    // iOSアプリの中では、3.1.2の説明と復元ボタンを持つ画面に分ける。
+    // ログイン要否の判定は上で済んでいる(Androidと同じ扱い)。
+    if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){ renderBuyIOS(); return; }
 
     TeiyomiBilling.price().then(function(p){
       var yen = TeiyomiBilling.priceText(p);
