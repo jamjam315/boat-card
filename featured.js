@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-11", "toban": "4654", "name": "篠田優也", "k": "A1", "age": 40, "br": "兵庫", "catch": "浜名湖巧者", "basis": "浜名湖で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "浜名湖", "races": [11], "reason": "home"};
+window.FEATURED = {"date": "2026-09-12", "toban": "4654", "name": "篠田優也", "k": "A1", "age": 40, "br": "兵庫", "catch": "浜名湖巧者", "basis": "浜名湖で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "浜名湖", "races": [2, 12], "reason": "home"};
