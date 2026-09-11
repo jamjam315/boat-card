@@ -13,10 +13,10 @@ name: JS tests
 on:
   push:
     branches: [main]
-    paths: ['*.js', 'tests/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'tests/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
   pull_request:
     branches: [main]
-    paths: ['*.js', 'tests/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'tests/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
 
 permissions:
   contents: read
@@ -32,3 +32,15 @@ jobs:
           node-version: '22'
       # ディレクトリ指定は Node 22 では通らない(モジュール解決に失敗する)。ファイルで渡す。
       - run: node --test tests/*.test.mjs
+
+  deno:
+    name: deno test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # 型チェックは通らない(withSupabase の ctx の型が合わない。本体の
+      # デプロイには影響しないので既存のまま)。テストの実行だけを見る。
+      - run: deno test --no-check supabase/
