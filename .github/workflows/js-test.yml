@@ -30,4 +30,5 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - run: node --test tests/
+      # ディレクトリ指定は Node 22 では通らない(モジュール解決に失敗する)。ファイルで渡す。
+      - run: node --test tests/*.test.mjs

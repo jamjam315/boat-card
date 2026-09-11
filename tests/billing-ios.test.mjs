@@ -1,5 +1,5 @@
 // billing-ios.js の単体テスト。
-//   node --test tests/
+//   node --test tests/*.test.mjs
 //
 // 守りたいのは3つ。
 //   1. onEvent の各 status で、画面に返す reason が正しいこと
