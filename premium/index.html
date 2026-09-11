@@ -270,7 +270,8 @@ body{background:var(--bg); color:var(--ink);
       var rbtn = document.getElementById("restoreBtn");
       var msg = document.getElementById("buyMsg");
       function busy(on){ btn.disabled = on; rbtn.disabled = on; }
-      // ログイン前に届いた取引が、ログイン後の検証で拒否されていたら先に伝える。
+      // 押していない経路(起動時の再配送・ログイン後のまとめ検証・自動復元)で
+      // 拒否されていたら、ここで先に伝える。控えは読むと消える。
       if(TeiyomiBilling.lastRejection && TeiyomiBilling.lastRejection() === "other_account"){
         msg.textContent = "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。";
       }

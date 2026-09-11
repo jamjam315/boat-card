@@ -27,6 +27,14 @@
 //   通信失敗・タイムアウト・5xx  → **返さない**。取引は未完了のまま次の起動で再配送され、
 //                                   そのときもう一度ここへ来る(サーバーは originalTransactionId で冪等)
 //
+// **ok:false は「確定的な拒否」の意味(WP-3e)。** 殻はこれを受けたら取引を完了させる
+// (待ち行列に残すと、その商品を二度と買えなくなる)。だから「答えを聞けていない」ものを
+// 間違って ok:false で返さないこと——上の3行目がその線引き。
+//
+// 【同じ取引を1回しか検証しない(WP-3e)】
+// 殻の合図は開いているタブ全部に届く。4タブなら同じ取引を4回 verify してしまう
+// (実機で発生)。localStorage の印で、取れたタブだけが検証する。詳細は takeVerifyLock。
+//
 // 【起動時の復元は条件付き(step0回答①)】
 // Androidは起動ごとに restore() で更新と解約を検知するが、iOSの復元はApple IDの
 // パスワード入力を求めることがある。次を全部満たすときだけ、1セッション1回送る。
@@ -66,6 +74,9 @@
   var VERIFIED_KEY = "teiyomi_ios_verified";
   // 起動時の復元を1セッション1回に抑える印(sessionStorage)。
   var SESSION_KEY = "teiyomi_ios_billing_checked";
+  // 同じ取引をタブ間で1回しか検証しないための印(localStorage)。requestId ごと。
+  var VERIFY_LOCK_PREFIX = "teiyomi_ios_verify_lock:";
+  var VERIFY_LOCK_TTL_MS = 60000;
 
   // ---- 殻への送信 -----------------------------------------------------------
 
@@ -128,6 +139,33 @@
       var v = JSON.parse(raw);
       return !!(v && v.userId === userId);
     } catch (e) { return false; }
+  }
+
+  /**
+   * 同じ requestId の検証を、タブ間で1回に絞る。取れたら true。
+   *
+   * 殻の合図は開いているタブ全部に同じものが届く。4タブ開いていれば同じ取引を
+   * 4回 verify する。実機では殻側の `知らない requestId の返事を捨てました` ×3
+   * として現れた——最初の1件で殻の保持から外れ、残り3件の返事が宙に浮くため。
+   *
+   * **厳密な排他ではない。** localStorage の読み書きに原子性は無いので、ほぼ同時なら
+   * 両方が取れることがある。ここで潰したいのは「4回」であって「2回になり得ること」
+   * ではない。サーバーは originalTransactionId で冪等なので、すり抜けても害は出ない。
+   *
+   * 60秒で失効させるのは、印を置いたタブが検証の途中で閉じられたときに、その取引が
+   * 二度と検証されなくなるのを避けるため。**検証後に解放はしない**(済んだ取引を
+   * 別のタブがもう一度確かめる理由が無い)。
+   */
+  function takeVerifyLock(requestId) {
+    var key = VERIFY_LOCK_PREFIX + requestId;
+    try {
+      var at = parseInt(localStorage.getItem(key), 10);
+      if (at > 0 && (Date.now() - at) < VERIFY_LOCK_TTL_MS) return false;
+      localStorage.setItem(key, String(Date.now()));
+      return true;
+    } catch (e) {
+      return true;   // localStorage が使えない(プライベートモード等)。従来どおり検証する
+    }
   }
 
   // ---- 公開I/F(billing.js と同じ顔ぶれ) ------------------------------------
@@ -210,19 +248,27 @@
   }
 
   /**
-   * 返り値(Promise): {active:true} | {active:false, reason} | null(答えを聞けていない)
+   * 返り値(Promise): {active:true} | {active:false, reason} | null(答えを聞けていない
+   *   ／他のタブに任せた)
    *   reason: "other_account"(409) | "not_verified"
    *
    * 未ログインなら**検証せずに保持**し、ログイン完了(teiyomi-auth-changed)後に
    * 検証する。殻は返事が来るまで完了させないので、ここで捨てても取引は
    * 失われないが、ログインした瞬間に片づけるほうが早い。
+   *
+   * `waiting` は「この画面が結果を待っている」＝利用者がいま押した、の意味。
+   * **そのときは印が取れなくても検証する。** 押した本人のタブが、別タブに先を
+   * 越されたせいで「確認できませんでした」を出すほうが困るため。印は置くので、
+   * 待っていない他のタブはこの先も黙る。
    */
-  function verifyAndReply(requestId, jws, restored) {
+  function verifyAndReply(requestId, jws, restored, waiting) {
     if (!loggedIn()) {
       held[requestId] = { requestId: requestId, jws: jws, restored: !!restored };
       return Promise.resolve(null);
     }
-    if (inFlight[requestId]) return Promise.resolve(null);   // 同じ依頼が検証中
+    if (inFlight[requestId]) return Promise.resolve(null);   // このタブで検証中
+    if (waiting) takeVerifyLock(requestId);                  // 印は置くが、取れなくても進む
+    else if (!takeVerifyLock(requestId)) return Promise.resolve(null);   // 他のタブに任せる
     inFlight[requestId] = true;
     return verify(jws).then(function (res) {
       delete inFlight[requestId];
@@ -298,15 +344,24 @@
 
   function onPurchase(e) {
     var w = buyWaiter || { fn: null };
+    var waiting = !!w.fn;
     switch (e.status) {
       case "ok":
         // 検証を頼んだ取引かどうかに関わらず確かめる。起動時に再配送された
         // 取引(buyWaiter 無し)もここへ来る。
         if (typeof e.requestId !== "string" || typeof e.jws !== "string") return;
-        verifyAndReply(e.requestId, e.jws, false).then(function (res) {
+        verifyAndReply(e.requestId, e.jws, false, waiting).then(function (res) {
           // 答えを聞けていない(通信失敗等)ときも、押した人を待たせ続けない。
           // 取引そのものは殻が持っていて、次の起動か「復元」で片づく。
           if (res === null) { settle(w, { ok: false, reason: "not_verified" }); return; }
+          // 待っている人がいない＝起動時の再配送。結果の届け先が無いので、
+          // 拒否の理由を控えて、画面を描き直させる(WP-3e)。
+          //
+          // **描き直しが要る。** premium は price() の返事で本文を組み立てる。
+          // 再配送はその price() が呼んだ iap.products をきっかけに届くので、
+          // 検証(fetch)の結果は必ずその回の描画より後になる。控えるだけでは
+          // 次に画面が描かれるまで案内文が出ない。
+          if (!res.active && !waiting) { lastRejection = res.reason; reloadMembership(); }
           settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;
@@ -318,11 +373,15 @@
 
   function onRestore(e) {
     var w = restoreWaiter || { fn: null };
+    var waiting = !!w.fn;
     switch (e.status) {
       case "ok":
         if (typeof e.requestId !== "string" || typeof e.jws !== "string") return;
-        verifyAndReply(e.requestId, e.jws, true).then(function (res) {
+        verifyAndReply(e.requestId, e.jws, true, waiting).then(function (res) {
           if (res === null) { settle(w, { ok: false, reason: "not_verified" }); return; }
+          // 起動時の自動復元(autoRestoreIfRenewalDue)は結果を見ない経路なので、
+          // ここでも控えて描き直させる(WP-3e。理由は onPurchase 側の注記と同じ)。
+          if (!res.active && !waiting) { lastRejection = res.reason; reloadMembership(); }
           settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;

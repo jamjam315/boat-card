@@ -5,6 +5,7 @@
 //   1. onEvent の各 status で、画面に返す reason が正しいこと
 //   2. サーバーが答えていないとき(通信失敗・5xx)に iap.verified を**送らない**こと
 //   3. 合言葉(token)が無いときに殻へ**何も送らない**こと
+//   4. 同じ取引を複数タブが同時に verify しないこと(WP-3e)
 import { test } from "node:test";
 // vm の中で作られた値は prototype が別なので、strict な deepEqual は通らない。
 import assert from "node:assert";
@@ -20,7 +21,8 @@ function boot(opts = {}) {
   const sent = [];                       // 殻へ送ったもの
   const reloads = { n: 0 };
   const membershipListeners = [];
-  const store = new Map();
+  // opts.store を渡すと複数の boot で localStorage を共有できる＝別タブを作れる。
+  const store = opts.store || new Map();
   const sess = new Map();
   const win = {
     __teiyomiNative: opts.noToken ? undefined : { token: "tok-1" },
@@ -324,6 +326,128 @@ test("restore 中に 409 でも reason は other_account", async () => {
   const r = win.TeiyomiBilling.restore();
   win.TeiyomiIOSBilling.onEvent({ type: "restore", requestId: "req-1", status: "ok", jws: "JWS" });
   assert.deepEqual(await r, { ok: false, reason: "other_account" });
+});
+
+// ---- WP-3e: 409の案内を、押していない経路でも出す ----
+
+test("起動時の再配送が 409 なら、画面向けに理由を残す", async () => {
+  // 押した人がいない＝結果の届け先が無い。ここで控えておかないと、
+  // premium を開いても 409 の案内文に到達しない(実機で発生した形)。
+  const { win, sent, reloads } = boot({
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+
+  assert.deepEqual(sent, [{ type: "iap.verified", requestId: "req-1", ok: false, token: "tok-1" }]);
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
+  // 控えるだけでは足りない。再配送は premium の price() をきっかけに届くので、
+  // 検証の結果はその回の描画より後になる。描き直させて初めて案内文が出る。
+  assert.equal(reloads.n, 1, "画面を描き直させる");
+});
+
+test("起動時の自動復元が 409 でも、画面向けに理由を残す", async () => {
+  const { win } = boot({
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "restore", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
+});
+
+test("押した本人には返しているので、控えは残さない", async () => {
+  // 残すと、次に premium が描かれたときに同じ文言がもう一度出る。
+  const { win, reloads } = boot({
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
+  await flush();
+
+  assert.equal(win.TeiyomiBilling.lastRejection(), null);
+  assert.equal(reloads.n, 0, "押している最中に画面を描き直さない(ボタンの状態が飛ぶ)");
+});
+
+// ---- WP-3e: タブ間の二重検証抑止 ----
+
+test("同じ取引が4タブに届いても、verify は1回だけ", async () => {
+  // 実機の形。殻は開いている全タブへ同じ合図を配るので、抑えないと4回飛ぶ
+  // (殻側では `知らない requestId の返事を捨てました` ×3 として現れる)。
+  const store = new Map();
+  let fetched = 0;
+  const fetch = () => {
+    fetched++;
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) });
+  };
+  const tabs = [boot({ store, fetch }), boot({ store, fetch }), boot({ store, fetch }), boot({ store, fetch })];
+
+  tabs.forEach((t) => t.win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" }));
+  await flush();
+
+  assert.equal(fetched, 1, "印を取れたタブだけが検証する");
+  assert.equal(tabs.reduce((n, t) => n + t.sent.length, 0), 1, "iap.verified も1回だけ");
+});
+
+test("別の取引なら、印があっても検証する", async () => {
+  const store = new Map();
+  let fetched = 0;
+  const fetch = () => {
+    fetched++;
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) });
+  };
+  const a = boot({ store, fetch });
+  const b = boot({ store, fetch });
+
+  a.win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS-1" });
+  b.win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-2", status: "ok", jws: "JWS-2" });
+  await flush();
+
+  assert.equal(fetched, 2, "印は requestId ごと");
+});
+
+test("60秒を過ぎた印は効かない（取ったタブが閉じられた場合の救済）", async () => {
+  const store = new Map([["teiyomi_ios_verify_lock:req-1", String(Date.now() - 120000)]]);
+  let fetched = 0;
+  const { win } = boot({
+    store,
+    fetch: () => {
+      fetched++;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) });
+    },
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+
+  assert.equal(fetched, 1);
+});
+
+test("押した本人のタブは、他タブが印を持っていても検証する", async () => {
+  // 先を越されたせいで「確認できませんでした」を出すほうが困る。
+  const store = new Map([["teiyomi_ios_verify_lock:req-1", String(Date.now())]]);
+  const { win } = boot({
+    store,
+    fetch: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) }),
+  });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+
+  assert.deepEqual(await r, { ok: true });
+});
+
+test("印を取れなかったタブは、iap.verified を送らない", async () => {
+  const store = new Map([["teiyomi_ios_verify_lock:req-1", String(Date.now())]]);
+  let fetched = 0;
+  const { win, sent } = boot({
+    store,
+    fetch: () => { fetched++; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) }); },
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+
+  assert.equal(fetched, 0, "検証しない");
+  assert.equal(sent.length, 0, "返事も送らない(送った側が返す)");
 });
 
 // ---- WP-3d: 二重読み込み ----
