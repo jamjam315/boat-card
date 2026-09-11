@@ -307,7 +307,7 @@ test("ログイン後の検証で 409(別アカウント)なら ok:false を返�
   await flush();
   assert.deepEqual(sent, [{ type: "iap.verified", requestId: "req-1", ok: false, token: "tok-1" }]);
   assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
-  assert.equal(win.TeiyomiBilling.lastRejection(), null, "一度読んだら消える");
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account", "読んでも消えない(WP-3e追補2)");
 });
 
 test("buy 中に 409 なら reason は other_account", async () => {
@@ -356,18 +356,16 @@ test("起動時の自動復元が 409 でも、画面向けに理由を残す", 
   assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
 });
 
-test("押した本人には返しているので、控えは残さない", async () => {
-  // 残すと、次に premium が描かれたときに同じ文言がもう一度出る。
+test("押した本人にも控えを残す(あとで画面が描き直されても案内が消えないため・WP-3e追補2)", async () => {
   const { win, reloads } = boot({
     fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
   });
   const r = win.TeiyomiBilling.buy();
   win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
   assert.deepEqual(await r, { ok: false, reason: "other_account" });
-  await flush();
-
-  assert.equal(win.TeiyomiBilling.lastRejection(), null);
-  assert.equal(reloads.n, 0, "押している最中に画面を描き直さない(ボタンの状態が飛ぶ)");
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
+  // 押している最中は描き直さない(ボタンの状態が飛ぶ)。結果は reason で本人に返る。
+  assert.equal(reloads.n, 0);
 });
 
 // ---- WP-3e: タブ間の二重検証抑止 ----
@@ -490,7 +488,9 @@ test("別のタブが 409 を受けても、premium 側の lastRejection() で�
 
   // B は検証していないが、控えを読める。
   assert.equal(b.win.TeiyomiBilling.lastRejection(), "other_account");
-  assert.equal(b.win.TeiyomiBilling.lastRejection(), null, "表示したら消える");
+  assert.equal(b.win.TeiyomiBilling.lastRejection(), "other_account", "読んでも消えない(2回目の描画でも出る)");
+  b.win.TeiyomiBilling.clearRejection();
+  assert.equal(b.win.TeiyomiBilling.lastRejection(), null);
   assert.equal(store.has("teiyomi_ios_last_denial"), false);
 });
 
@@ -505,9 +505,9 @@ test("別のタブが控えを置いたら、storage イベントでこのタブ
   assert.equal(b.reloads.n, 1);
 });
 
-test("10分より古い控えは出さない", () => {
+test("24時間より古い控えは出さない", () => {
   const store = new Map();
-  store.set("teiyomi_ios_last_denial", JSON.stringify({ requestId: "r", reason: "other_account", at: Date.now() - 11 * 60 * 1000 }));
+  store.set("teiyomi_ios_last_denial", JSON.stringify({ requestId: "r", reason: "other_account", at: Date.now() - 25 * 60 * 60 * 1000 }));
   const b = boot({ store });
   assert.equal(b.win.TeiyomiBilling.lastRejection(), null);
 });
@@ -525,4 +525,57 @@ test("ログイン後のまとめ検証で 409 でも、控えを置いて描き
   await flush();
   assert.equal(a.reloads.n, 1, "描き直しを起こす");
   assert.equal(a.win.TeiyomiBilling.lastRejection(), "other_account");
+});
+
+
+// ---- WP-3e追補2: 4経路それぞれで、premium が読む控えが「2回読んでも」残る ----
+// premium は読み込み直後に2回描画される(onChange 即時 + INITIAL_SESSION)。
+// 1回目で消える控えは、2回目の描画で #buyMsg を空に戻してしまう(シミュレータで再現)。
+
+const deny409 = () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) });
+
+async function expectDenialSurvivesTwoReads(win, label) {
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account", `${label}: 1回目の描画`);
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account", `${label}: 2回目の描画でも残る`);
+}
+
+test("経路1: 起動時再配送(押していない・ログイン済み) → 控えが2回の描画を越えて残る", async () => {
+  const { win } = boot({ fetch: deny409 });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+  await expectDenialSurvivesTwoReads(win, "再配送");
+});
+
+test("経路2: ログイン後のまとめ検証 → 控えが2回の描画を越えて残る", async () => {
+  const { win } = boot({ user: { id: "anon", email: null, isAnonymous: true }, fetch: deny409 });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  win.__user = { id: "u1", email: "a@b", isAnonymous: false };
+  win.dispatchEvent("teiyomi-auth-changed");
+  await flush();
+  await expectDenialSurvivesTwoReads(win, "まとめ検証");
+});
+
+test("経路3: buy の再送(押している) → reason と控えの両方が other_account", async () => {
+  const { win } = boot({ fetch: deny409 });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
+  await expectDenialSurvivesTwoReads(win, "buy");
+});
+
+test("経路4: restore(押している) → reason と控えの両方が other_account", async () => {
+  const { win } = boot({ fetch: deny409 });
+  const r = win.TeiyomiBilling.restore();
+  win.TeiyomiIOSBilling.onEvent({ type: "restore", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
+  await expectDenialSurvivesTwoReads(win, "restore");
+});
+
+test("検証が通ったら控えは下がる", async () => {
+  const store = new Map();
+  store.set("teiyomi_ios_last_denial", JSON.stringify({ requestId: "r0", reason: "other_account", at: Date.now() }));
+  const { win } = boot({ store });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+  assert.equal(win.TeiyomiBilling.lastRejection(), null);
 });

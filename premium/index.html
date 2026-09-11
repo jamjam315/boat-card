@@ -277,6 +277,8 @@ body{background:var(--bg); color:var(--ink);
       }
 
       btn.addEventListener("click", function(){
+        // 押した＝新しい結果に置き換わる。以前の拒否の控えは下げる。
+        if(TeiyomiBilling.clearRejection) TeiyomiBilling.clearRejection();
         busy(true); btn.textContent = "手続き中…"; msg.textContent = "";
         TeiyomiBilling.buy().then(function(r){
           if(r.ok) return;   // 成功時は membership の更新で画面が描き直される
@@ -292,6 +294,7 @@ body{background:var(--bg); color:var(--ink);
       });
 
       rbtn.addEventListener("click", function(){
+        if(TeiyomiBilling.clearRejection) TeiyomiBilling.clearRejection();
         busy(true); rbtn.textContent = "確認中…"; msg.textContent = "";
         TeiyomiBilling.restore().then(function(r){
           if(r.ok) return;
