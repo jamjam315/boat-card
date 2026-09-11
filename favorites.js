@@ -156,6 +156,12 @@
   }
 
   function syncOnLoad() {
+    // ログアウトの瞬間は supaUserId が null になる。そのまま .eq("user_id", null)
+    // を投げると supabase-js が user_id=eq.null というURLにし、Postgres が
+    // uuid として読もうとして 22P02 を出す(.catch で握り潰していたので画面には
+    // 出ないが、Postgresのエラーとして毎回記録される)。
+    // signOut() は直後に匿名で入り直して同期をやり直すので、ここは投げずに抜ける。
+    if (!supaReady || !supaUserId) return Promise.resolve();
     return supaClient
       .from(SUPA_TABLE)
       .select("toban")
@@ -184,7 +190,8 @@
   }
 
   function pushAdd(toban) {
-    if (!supaReady) return;
+    // supaUserId も見る(ログアウト直後は null。syncOnLoad と同じ理由)。
+    if (!supaReady || !supaUserId) return;
     supaClient
       .from(SUPA_TABLE)
       .upsert({ user_id: supaUserId, toban: String(toban) }, { onConflict: "user_id,toban", ignoreDuplicates: true })
@@ -192,7 +199,7 @@
   }
 
   function pushRemove(toban) {
-    if (!supaReady) return;
+    if (!supaReady || !supaUserId) return;
     supaClient
       .from(SUPA_TABLE)
       .delete()
