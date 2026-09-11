@@ -31,7 +31,9 @@ function boot(opts = {}) {
     },
     TeiyomiNative: { postMessage: (s) => sent.push(JSON.parse(s)) },
     TeiyomiAuth: {
-      getUser: () => opts.user === undefined ? { id: "u1", email: "a@b", isAnonymous: false } : opts.user,
+      getUser: () => win.__user === undefined
+        ? (opts.user === undefined ? { id: "u1", email: "a@b", isAnonymous: false } : opts.user)
+        : win.__user,
       getConfig: () => ({ url: "https://supa.example", anonKey: "anon" }),
       getAccessToken: () => Promise.resolve(opts.noAccessToken ? null : "jwt"),
     },
@@ -40,12 +42,15 @@ function boot(opts = {}) {
     localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, v) },
     sessionStorage: { getItem: (k) => sess.has(k) ? sess.get(k) : null, setItem: (k, v) => sess.set(k, v) },
     fetch: opts.fetch || (() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) })),
-    setTimeout, clearTimeout, AbortController, Promise, JSON, Array, String, Date,
+    setTimeout, clearTimeout, AbortController, Promise, JSON, Array, String, Date, Object,
+    __listeners: {},
+    addEventListener(name, fn) { (this.__listeners[name] ||= []).push(fn); },
+    dispatchEvent(name) { (this.__listeners[name] || []).forEach((fn) => fn()); },
   };
   win.window = win;
   const ctx = vm.createContext(win);
   vm.runInContext(SRC, ctx);
-  return { win, sent, reloads, membershipListeners, store, sess };
+  return { win, sent, reloads, membershipListeners, store, sess, ctx };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -127,7 +132,7 @@ test("purchase ok → verify(platform:ios, jws) → iap.verified ok:true → rel
 
 test("サーバーが 4xx で拒否 → iap.verified ok:false → not_verified、reload しない", async () => {
   const { win, sent, reloads } = boot({
-    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+    fetch: () => Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) }),
   });
   const r = win.TeiyomiBilling.buy();
   win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
@@ -263,4 +268,84 @@ test("殻の窓口が無ければ、印があっても送らない", () => {
   store.set("teiyomi_ios_verified", JSON.stringify({ userId: "u1", at: "x" }));
   fire(membershipListeners, notActive);
   assert.equal(sent.length, 0);
+});
+
+
+// ---- WP-3d: 未ログインで届いた取引はログイン後に検証する ----
+
+test("未ログインで届いた purchase ok は保持し、ログイン完了後に verify → iap.verified", async () => {
+  let fetched = 0;
+  const { win, sent } = boot({
+    user: { id: "anon", email: null, isAnonymous: true },
+    fetch: () => { fetched++; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) }); },
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+  assert.equal(fetched, 0, "未ログインでは検証しない");
+  assert.equal(sent.length, 0, "iap.verified も送らない");
+
+  // 殻が同じ requestId で送り直してきても、二重に保持しない(ログイン後の検証は1回)。
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+
+  win.__user = { id: "u1", email: "a@b", isAnonymous: false };
+  win.dispatchEvent("teiyomi-auth-changed");
+  await flush();
+  assert.equal(fetched, 1);
+  assert.deepEqual(sent, [{ type: "iap.verified", requestId: "req-1", ok: true, token: "tok-1" }]);
+});
+
+test("ログイン後の検証で 409(別アカウント)なら ok:false を返し、画面向けに理由を残す", async () => {
+  const { win, sent } = boot({
+    user: { id: "anon", email: null, isAnonymous: true },
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  win.__user = { id: "u1", email: "a@b", isAnonymous: false };
+  win.dispatchEvent("teiyomi-auth-changed");
+  await flush();
+  assert.deepEqual(sent, [{ type: "iap.verified", requestId: "req-1", ok: false, token: "tok-1" }]);
+  assert.equal(win.TeiyomiBilling.lastRejection(), "other_account");
+  assert.equal(win.TeiyomiBilling.lastRejection(), null, "一度読んだら消える");
+});
+
+test("buy 中に 409 なら reason は other_account", async () => {
+  const { win } = boot({
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
+});
+
+test("restore 中に 409 でも reason は other_account", async () => {
+  const { win } = boot({
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  const r = win.TeiyomiBilling.restore();
+  win.TeiyomiIOSBilling.onEvent({ type: "restore", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
+});
+
+// ---- WP-3d: 二重読み込み ----
+
+test("2回読まれても状態は1つ。billing.js に上書きされた TeiyomiBilling を戻す", async () => {
+  const { win, sent, ctx } = boot();
+  const first = win.TeiyomiBilling;
+  win.TeiyomiBilling = { tag: "play-again" };      // billing.js があとから上書きした形
+  vm.runInContext(SRC, ctx);                       // premium の静的タグで2回目
+  assert.equal(win.TeiyomiBilling, first, "最初の実体に戻る");
+
+  // 受け口も1つのまま。送り直しを受けても検証は1回。
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+  assert.equal(sent.filter((m) => m.type === "iap.verified").length, 1);
+});
+
+test("2回目の読み込みで、あとから来た membership に配線される", () => {
+  const { win, ctx, membershipListeners } = boot();
+  // 1回目は membership.js より先に読まれた形にする。
+  const before = membershipListeners.length;
+  vm.runInContext(SRC, ctx);
+  assert.equal(membershipListeners.length, before, "配線済みなら二重に登録しない");
 });

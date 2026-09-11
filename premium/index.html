@@ -270,6 +270,10 @@ body{background:var(--bg); color:var(--ink);
       var rbtn = document.getElementById("restoreBtn");
       var msg = document.getElementById("buyMsg");
       function busy(on){ btn.disabled = on; rbtn.disabled = on; }
+      // ログイン前に届いた取引が、ログイン後の検証で拒否されていたら先に伝える。
+      if(TeiyomiBilling.lastRejection && TeiyomiBilling.lastRejection() === "other_account"){
+        msg.textContent = "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。";
+      }
 
       btn.addEventListener("click", function(){
         busy(true); btn.textContent = "手続き中…"; msg.textContent = "";
@@ -279,6 +283,7 @@ body{background:var(--bg); color:var(--ink);
           msg.textContent =
             r.reason === "cancelled"    ? "" :
             r.reason === "pending"      ? "お支払いの承認待ちです。承認されると自動で反映されます。" :
+            r.reason === "other_account" ? "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。" :
             r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいて「以前の購入を復元する」をお試しください。" :
             r.reason === "unavailable"  ? "この画面ではご登録いただけません。" :
                                           "購入できませんでした。時間をおいてもう一度お試しください。";
@@ -292,6 +297,7 @@ body{background:var(--bg); color:var(--ink);
           busy(false); rbtn.textContent = "以前の購入を復元する";
           msg.textContent =
             r.reason === "no_purchase"  ? "復元できる購入がありません。" :
+            r.reason === "other_account" ? "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。" :
             r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいてもう一度お試しください。" :
                                           "復元できませんでした。時間をおいてもう一度お試しください。";
         });

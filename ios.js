@@ -49,6 +49,16 @@
   // 付くのはアプリのときだけなので、ブラウザのDOMは1文字も変わらない。
   if (isIOSApp) {
     document.documentElement.setAttribute("data-ios-app", "1");
+    // 購入の受け口(billing-ios.js)を全ページに置く(WP-3d)。殻は起動時に
+    // 未完了の取引を再配送してくるが、受け口が無いページでは届かない。
+    // どのページを開いていても受け取れるよう、ここで差し込む。
+    // premium は静的な <script> でも読むが、billing-ios.js は二重読み込みに
+    // 耐える作り(最後に読まれたほうが TeiyomiBilling を戻す)。
+    // ブラウザ・Androidではこの分岐に入らないので、ページは1バイトも変わらない。
+    var s = document.createElement("script");
+    s.src = "/billing-ios.js";
+    s.async = false;
+    (document.head || document.documentElement).appendChild(s);
   }
 
   window.TeiyomiIOS = {

@@ -45,6 +45,16 @@
   var ios = window.TeiyomiIOS;
   if (!ios || !ios.isIOSApp()) return;   // ← ブラウザ・Androidはここで終わり
 
+  // 【二重読み込みに耐える】ios.js が全ページに差し込むぶんと、premium の静的な
+  // <script> のぶんで2回読まれる。状態(返事待ち・保持中の取引)は最初の1回が
+  // 持ち、2回目以降は TeiyomiBilling を戻すだけ(間に billing.js が Play用で
+  // 上書きしていても、最後に読まれたこちらが勝つ)。
+  if (window.__teiyomiIOSBillingApi) {
+    window.TeiyomiBilling = window.__teiyomiIOSBillingApi;
+    if (window.__teiyomiIOSBillingWire) window.__teiyomiIOSBillingWire();
+    return;
+  }
+
   // App Store Connect の商品ID。Playと同じ文字列(ストアが別なので衝突しない)。
   // 殻(lib/billing/purchase_bridge.dart の teiyomiProductId)と一字一句そろえる。
   var PRODUCT_ID = "teiyomi_premium_monthly";
@@ -82,6 +92,11 @@
   var buyWaiter = null;       // iap.buy の返事待ち(同時に1つ)
   var restoreWaiter = null;   // iap.restore の返事待ち(同時に1つ)
   var lastProducts = null;    // 最後に届いた商品一覧(画面の描き直しで使い回す)
+
+  // 未ログインのときに届いた取引(WP-3d)。ログインが済んだら検証する。
+  // requestId で重複を除く(殻は同じ requestId で何度も送り直してくる)。
+  var held = {};              // requestId → {requestId, jws, restored}
+  var inFlight = {};          // 検証中の requestId(同じ依頼を二重に投げない)
 
   function settle(waiterRef, value) {
     var w = waiterRef.fn; waiterRef.fn = null;
@@ -172,9 +187,11 @@
       }).then(function (r) {
         if (timer) clearTimeout(timer);
         if (r.status >= 500) return { answered: false };            // サーバー側の不調。聞き直す
-        if (!r.ok) return { answered: true, active: false };          // 明示の拒否(他人のトークン等)
+        // 明示の拒否。409 は「その購読は別のアカウントに紐づいている」
+        // (verify-purchase の tokenTakenByOther)。画面の文言を分けるために残す。
+        if (!r.ok) return { answered: true, active: false, status: r.status };
         return r.json().then(function (j) {
-          return { answered: true, active: !!(j && j.is_active) };
+          return { answered: true, active: !!(j && j.is_active), status: r.status };
         }, function () { return { answered: false }; });
       }, function () {
         if (timer) clearTimeout(timer);
@@ -187,18 +204,55 @@
    * 殻から届いた証跡をサーバーで確かめ、答えを殻へ返す。
    * 返り値(Promise<boolean>): サーバーが有効と答えたか。
    */
-  function verifyAndReply(requestId, jws) {
+  function loggedIn() {
+    var u = currentUser();
+    return !!(u && !u.isAnonymous);
+  }
+
+  /**
+   * 返り値(Promise): {active:true} | {active:false, reason} | null(答えを聞けていない)
+   *   reason: "other_account"(409) | "not_verified"
+   *
+   * 未ログインなら**検証せずに保持**し、ログイン完了(teiyomi-auth-changed)後に
+   * 検証する。殻は返事が来るまで完了させないので、ここで捨てても取引は
+   * 失われないが、ログインした瞬間に片づけるほうが早い。
+   */
+  function verifyAndReply(requestId, jws, restored) {
+    if (!loggedIn()) {
+      held[requestId] = { requestId: requestId, jws: jws, restored: !!restored };
+      return Promise.resolve(null);
+    }
+    if (inFlight[requestId]) return Promise.resolve(null);   // 同じ依頼が検証中
+    inFlight[requestId] = true;
     return verify(jws).then(function (res) {
-      if (!res.answered) return false;   // **返さない**(次の起動で再配送される)
+      delete inFlight[requestId];
+      if (!res.answered) return null;   // **返さない**(次の起動で再配送される)
       send({ type: "iap.verified", requestId: requestId, ok: !!res.active });
+      delete held[requestId];
       if (res.active) {
         var u = currentUser();
         if (u && u.id) markVerified(u.id);
         reloadMembership();   // 開いている画面すべてを描き直す
+        return { active: true };
       }
-      return !!res.active;
+      return { active: false, reason: res.status === 409 ? "other_account" : "not_verified" };
     });
   }
+
+  /** ログインが済んだので、保持していた取引を検証する。 */
+  function flushHeld() {
+    if (!loggedIn()) return;
+    Object.keys(held).forEach(function (id) {
+      var h = held[id];
+      verifyAndReply(h.requestId, h.jws, h.restored).then(function (res) {
+        // 画面(premium)が開いていれば、結果は reload で描き直される。
+        // 拒否されたときの文言は、次に buy/restore を押したときに出る。
+        if (res && !res.active) lastRejection = res.reason;
+      });
+    });
+  }
+  var lastRejection = null;
+  window.addEventListener("teiyomi-auth-changed", flushHeld);
 
   /**
    * 購入する。返り値は billing.js と同じ形 {ok, reason}。
@@ -249,8 +303,11 @@
         // 検証を頼んだ取引かどうかに関わらず確かめる。起動時に再配送された
         // 取引(buyWaiter 無し)もここへ来る。
         if (typeof e.requestId !== "string" || typeof e.jws !== "string") return;
-        verifyAndReply(e.requestId, e.jws).then(function (active) {
-          settle(w, active ? { ok: true } : { ok: false, reason: "not_verified" });
+        verifyAndReply(e.requestId, e.jws, false).then(function (res) {
+          // 答えを聞けていない(通信失敗等)ときも、押した人を待たせ続けない。
+          // 取引そのものは殻が持っていて、次の起動か「復元」で片づく。
+          if (res === null) { settle(w, { ok: false, reason: "not_verified" }); return; }
+          settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;
       case "cancelled": settle(w, { ok: false, reason: "cancelled" }); return;
@@ -264,8 +321,9 @@
     switch (e.status) {
       case "ok":
         if (typeof e.requestId !== "string" || typeof e.jws !== "string") return;
-        verifyAndReply(e.requestId, e.jws).then(function (active) {
-          settle(w, active ? { ok: true } : { ok: false, reason: "not_verified" });
+        verifyAndReply(e.requestId, e.jws, true).then(function (res) {
+          if (res === null) { settle(w, { ok: false, reason: "not_verified" }); return; }
+          settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;
       case "empty":  settle(w, { ok: false, reason: "no_purchase" }); return;
@@ -298,11 +356,21 @@
     restore();   // 結果は見ない。反映は verifyAndReply → reload() が行う
   }
 
-  var membership = window.TeiyomiMembership;
-  if (membership && membership.onChange) membership.onChange(autoRestoreIfRenewalDue);
+  // 会員状態への配線。membership.js より先に読まれることがある(ios.js からの
+  // 動的挿入)ので、あとから読まれた側(premium の静的タグ)からも呼び直せるようにする。
+  var wired = false;
+  function wireMembership() {
+    if (wired) return;
+    var m = window.TeiyomiMembership;
+    if (!m || !m.onChange) return;
+    wired = true;
+    m.onChange(autoRestoreIfRenewalDue);
+  }
+  wireMembership();
+  window.__teiyomiIOSBillingWire = wireMembership;
 
   // Play用の実装を、iOSのときだけ置き換える。
-  window.TeiyomiBilling = {
+  window.__teiyomiIOSBillingApi = window.TeiyomiBilling = {
     productId: PRODUCT_ID,
     available: available,
     price: price,
@@ -311,6 +379,8 @@
     restore: restore,
     /** 最後に届いた商品(画面の描き直し用)。まだ取っていなければ null。 */
     lastProducts: function () { return lastProducts; },
+    /** 直近で拒否された理由("other_account" など)。画面が拾って出す。 */
+    lastRejection: function () { var r = lastRejection; lastRejection = null; return r; },
     // 検証用の入口。画面からは呼ばない。
     _verify: verify
   };
