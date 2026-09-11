@@ -1,0 +1,33 @@
+# Web側のJS(billing-ios.js)の単体テストを push / PR で回す。
+#
+# 【なぜ要るか】
+# これまで boat-card のワークフローはデータ更新とX投稿だけで、コードのテストを
+# 回すものが無かった。tests/ の結果は手元で流したものしか無く、壊しても気づけない。
+#
+# 【何を回すか】
+#   node --test tests/   … billing-ios.js の状態機械(殻とのやりとり・409・タブ間)
+# Deno の Edge Function テスト(supabase/functions/*/logic_test.ts)はここでは回さない。
+# 足すときは deno のセットアップと一緒に別ジョブで。
+name: JS tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['*.js', 'tests/**', '.github/workflows/js-test.yml']
+  pull_request:
+    branches: [main]
+    paths: ['*.js', 'tests/**', '.github/workflows/js-test.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: node --test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: node --test tests/

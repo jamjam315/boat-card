@@ -78,6 +78,14 @@
   var VERIFY_LOCK_PREFIX = "teiyomi_ios_verify_lock:";
   var VERIFY_LOCK_TTL_MS = 60000;
 
+  // 拒否された取引の控え(WP-3e追補)。**localStorage に置く**。
+  // 検証したタブと premium を出しているタブは別のことがある(殻は直近に
+  // iap.products を送ったタブ1枚にしか届けないが、ログイン後のまとめ検証などは
+  // 別タブで走りうる)。タブ内メモリだと premium は理由を知らないまま描かれる。
+  // premium はどのタブが検証したかに関係なくここを読み、表示したら消す。
+  var DENIAL_KEY = "teiyomi_ios_last_denial";
+  var DENIAL_TTL_MS = 10 * 60 * 1000;
+
   // ---- 殻への送信 -----------------------------------------------------------
 
   /**
@@ -293,11 +301,37 @@
       verifyAndReply(h.requestId, h.jws, h.restored).then(function (res) {
         // 画面(premium)が開いていれば、結果は reload で描き直される。
         // 拒否されたときの文言は、次に buy/restore を押したときに出る。
-        if (res && !res.active) lastRejection = res.reason;
+        if (res && !res.active) { noteDenial(h.requestId, res.reason); reloadMembership(); }
       });
     });
   }
-  var lastRejection = null;
+  var lastRejection = null;   // localStorage が使えないときの控え
+
+  function noteDenial(requestId, reason) {
+    lastRejection = reason;
+    try {
+      localStorage.setItem(DENIAL_KEY, JSON.stringify({ requestId: requestId, reason: reason, at: Date.now() }));
+    } catch (e) { /* 使えなければメモリの控えだけ */ }
+  }
+
+  /** 控えを読んで消す。古いものは捨てる。 */
+  function takeDenial() {
+    var mem = lastRejection; lastRejection = null;
+    try {
+      var raw = localStorage.getItem(DENIAL_KEY);
+      if (raw) {
+        localStorage.removeItem(DENIAL_KEY);
+        var d = JSON.parse(raw);
+        if (d && d.reason && (Date.now() - (d.at || 0)) < DENIAL_TTL_MS) return d.reason;
+      }
+    } catch (e) {}
+    return mem;
+  }
+
+  // 別のタブが控えを置いたら、このタブの画面も描き直す(premium が別タブでも案内が出る)。
+  window.addEventListener("storage", function (e) {
+    if (e && e.key === DENIAL_KEY && e.newValue) reloadMembership();
+  });
   window.addEventListener("teiyomi-auth-changed", flushHeld);
 
   /**
@@ -361,7 +395,7 @@
           // 再配送はその price() が呼んだ iap.products をきっかけに届くので、
           // 検証(fetch)の結果は必ずその回の描画より後になる。控えるだけでは
           // 次に画面が描かれるまで案内文が出ない。
-          if (!res.active && !waiting) { lastRejection = res.reason; reloadMembership(); }
+          if (!res.active && !waiting) { noteDenial(e.requestId, res.reason); reloadMembership(); }
           settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;
@@ -381,7 +415,7 @@
           if (res === null) { settle(w, { ok: false, reason: "not_verified" }); return; }
           // 起動時の自動復元(autoRestoreIfRenewalDue)は結果を見ない経路なので、
           // ここでも控えて描き直させる(WP-3e。理由は onPurchase 側の注記と同じ)。
-          if (!res.active && !waiting) { lastRejection = res.reason; reloadMembership(); }
+          if (!res.active && !waiting) { noteDenial(e.requestId, res.reason); reloadMembership(); }
           settle(w, res.active ? { ok: true } : { ok: false, reason: res.reason });
         });
         return;
@@ -439,7 +473,7 @@
     /** 最後に届いた商品(画面の描き直し用)。まだ取っていなければ null。 */
     lastProducts: function () { return lastProducts; },
     /** 直近で拒否された理由("other_account" など)。画面が拾って出す。 */
-    lastRejection: function () { var r = lastRejection; lastRejection = null; return r; },
+    lastRejection: takeDenial,
     // 検証用の入口。画面からは呼ばない。
     _verify: verify
   };

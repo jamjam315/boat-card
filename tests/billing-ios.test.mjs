@@ -41,13 +41,13 @@ function boot(opts = {}) {
     },
     TeiyomiMembership: { reload: () => { reloads.n++; }, onChange: (fn) => membershipListeners.push(fn) },
     TeiyomiBilling: { tag: "play" },     // billing.js が先に置いたもの
-    localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, v) },
+    localStorage: { getItem: (k) => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) },
     sessionStorage: { getItem: (k) => sess.has(k) ? sess.get(k) : null, setItem: (k, v) => sess.set(k, v) },
     fetch: opts.fetch || (() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ is_active: true }) })),
     setTimeout, clearTimeout, AbortController, Promise, JSON, Array, String, Date, Object,
     __listeners: {},
     addEventListener(name, fn) { (this.__listeners[name] ||= []).push(fn); },
-    dispatchEvent(name) { (this.__listeners[name] || []).forEach((fn) => fn()); },
+    dispatchEvent(name, ev) { (this.__listeners[name] || []).forEach((fn) => fn(ev)); },
   };
   win.window = win;
   const ctx = vm.createContext(win);
@@ -472,4 +472,57 @@ test("2回目の読み込みで、あとから来た membership に配線され�
   const before = membershipListeners.length;
   vm.runInContext(SRC, ctx);
   assert.equal(membershipListeners.length, before, "配線済みなら二重に登録しない");
+});
+
+
+// ---- WP-3e追補: 409の控えはタブをまたぐ ----
+
+test("別のタブが 409 を受けても、premium 側の lastRejection() で読める（読んだら消える）", async () => {
+  const store = new Map();
+  const a = boot({ store, fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }) });
+  const b = boot({ store });   // premium を出しているタブ
+
+  // 起動時の再配送が A に届き、A が検証して 409。
+  a.win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  await flush();
+  assert.equal(a.sent.filter((m) => m.type === "iap.verified" && m.ok === false).length, 1);
+  assert.ok(store.get("teiyomi_ios_last_denial").includes('"other_account"'));
+
+  // B は検証していないが、控えを読める。
+  assert.equal(b.win.TeiyomiBilling.lastRejection(), "other_account");
+  assert.equal(b.win.TeiyomiBilling.lastRejection(), null, "表示したら消える");
+  assert.equal(store.has("teiyomi_ios_last_denial"), false);
+});
+
+test("別のタブが控えを置いたら、storage イベントでこのタブの画面が描き直される", () => {
+  const store = new Map();
+  const b = boot({ store });
+  b.win.dispatchEvent("storage", { key: "teiyomi_ios_last_denial", newValue: "{}" });
+  assert.equal(b.reloads.n, 1);
+  // 関係ない鍵・削除(newValue null)では描き直さない。
+  b.win.dispatchEvent("storage", { key: "other", newValue: "x" });
+  b.win.dispatchEvent("storage", { key: "teiyomi_ios_last_denial", newValue: null });
+  assert.equal(b.reloads.n, 1);
+});
+
+test("10分より古い控えは出さない", () => {
+  const store = new Map();
+  store.set("teiyomi_ios_last_denial", JSON.stringify({ requestId: "r", reason: "other_account", at: Date.now() - 11 * 60 * 1000 }));
+  const b = boot({ store });
+  assert.equal(b.win.TeiyomiBilling.lastRejection(), null);
+});
+
+test("ログイン後のまとめ検証で 409 でも、控えを置いて描き直す（3経路目）", async () => {
+  const store = new Map();
+  const a = boot({
+    store,
+    user: { id: "anon", email: null, isAnonymous: true },
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
+  });
+  a.win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  a.win.__user = { id: "u1", email: "a@b", isAnonymous: false };
+  a.win.dispatchEvent("teiyomi-auth-changed");
+  await flush();
+  assert.equal(a.reloads.n, 1, "描き直しを起こす");
+  assert.equal(a.win.TeiyomiBilling.lastRejection(), "other_account");
 });
