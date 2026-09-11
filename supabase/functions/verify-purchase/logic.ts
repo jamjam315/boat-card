@@ -272,6 +272,12 @@ export const APPLE_TRANSACTION_NOT_FOUND = 4040010
  * **公開後の挙動は変わらない。** 本番が200を返すようになればSandboxには回らず、
  * 審査員のSandbox購入は従来どおり 404+4040010 の経路で通る。
  *
+ * ## ただし許可制(WP-3f)
+ *
+ * この問い直しは `APPLE_ALLOW_SANDBOX="true"` のときだけ働く。Sandboxの購入は
+ * 無料なので、常時開けておくと**無料で本番の権利が取れる**。審査に出す前と
+ * 更新審査のあいだだけ開ける運用にしてある(docs/ops/appstore-verify-deploy.md)。
+ *
  * **「本番が無効と言ったものをSandboxで有効にする」経路は増えていない。**
  * 401は「答えを聞けていない」であって「無効」ではない。無効の判断は
  * [entitlementFromAppleTransaction] が応答の中身を見て下す。
@@ -282,7 +288,12 @@ export const APPLE_TRANSACTION_NOT_FOUND = 4040010
 export function shouldRetryInSandbox(
   status: number,
   body: { errorCode?: number } | null,
+  allowSandbox: boolean,
 ): boolean {
+  // **許可されていなければ、そもそも問い直さない**(WP-3f)。
+  // 叩かなければSandbox由来の応答が入り込む余地が無い。二重の守り
+  // ([appleSourceAllowed])のうち、こちらが1枚目。
+  if (!allowSandbox) return false
   if (status === 401) return true
   return status === 404 && body?.errorCode === APPLE_TRANSACTION_NOT_FOUND
 }
@@ -316,6 +327,7 @@ export type AppleTransactionResult = {
  */
 export async function fetchAppleTransaction(
   fetchTx: (base: string) => Promise<AppleResponse>,
+  opts: { allowSandbox: boolean },
 ): Promise<AppleTransactionResult> {
   const production = await fetchTx(APPLE_API_PRODUCTION)
   let res = production
@@ -326,7 +338,7 @@ export async function fetchAppleTransaction(
     try {
       body = await production.json() as { errorCode?: number }
     } catch { /* 本文が読めなくても判断は続ける */ }
-    if (shouldRetryInSandbox(production.status, body)) {
+    if (shouldRetryInSandbox(production.status, body, opts.allowSandbox)) {
       res = await fetchTx(APPLE_API_SANDBOX)
       sandboxStatus = res.status
     }
@@ -347,6 +359,99 @@ export type AppleTransaction = {
   expiresDate?: number
   type?: string
   revocationDate?: number
+  /** この取引そのもののID。**要求したIDと一致することを確かめる**([appleTransactionMatches])。 */
+  transactionId?: string
+  /** 購読の初回購入のID。**行の鍵はこれ**([appleRowKey])。 */
+  originalTransactionId?: string
+  /** 'Production' | 'Sandbox'。[appleSourceAllowed] が見る。 */
+  environment?: string
+}
+
+/**
+ * **行の鍵は、Appleが答えたIDから作る**(WP-3f)。
+ *
+ * ## なぜクライアントの復号値では駄目なのか
+ *
+ * [membershipRowKey] はクライアントが送ってきたJWSを**署名検証せずに**復号して
+ * originalTransactionId を取り出す。Appleへ問い合わせるのは同じペイロードの
+ * 別フィールド(transactionId)なので、**2つは独立に偽造できる**。
+ *
+ * 本物の transactionId を1つ持っていれば、originalTransactionId だけを毎回
+ * 違う値にして送ることで、Appleの200を取りながら毎回別の鍵で行を作れる——
+ * [tokenTakenByOther] も一意索引も一度も発火せず、**支払い1件で無制限の
+ * アカウントがプレミアムになる**(2026-09-11のセキュリティ点検 Vuln 1)。
+ *
+ * だから鍵はAppleの応答から作る。originalTransactionId が無ければ
+ * transactionId に落とす(membershipRowKey と同じ優先順)。
+ */
+export function appleRowKey(tx: AppleTransaction): string | null {
+  const original = tx.originalTransactionId
+  if (typeof original === 'string' && original.length > 0) return original
+  const id = tx.transactionId
+  if (typeof id === 'string' && id.length > 0) return id
+  return null
+}
+
+/**
+ * Appleが答えたのが、こちらが聞いた取引かを確かめる。
+ *
+ * Get Transaction Info は渡したIDの取引を返すので、一致するのが正常。
+ * **一致しない・入っていないものは無効に倒す**(取り違えた応答を権利の
+ * 根拠にしない)。
+ */
+export function appleTransactionMatches(
+  tx: AppleTransaction,
+  requestedId: string,
+): boolean {
+  // 空同士を一致と読まない。空になるのは「入っていない」ときなので、
+  // それを照合が通った証拠にしてはいけない。
+  if (requestedId.length === 0) return false
+  return typeof tx.transactionId === 'string' && tx.transactionId === requestedId
+}
+
+/**
+ * Sandboxへの問い直しを許してよいか。
+ *
+ * **Secret `APPLE_ALLOW_SANDBOX` が文字列 "true" のときだけ許す。**
+ * 未設定・空・それ以外は許さない。設定を忘れたら「本番だけを見る」に倒れる
+ * ——Secretsまわりの他の判定([secretsConfigured] / [appleSecretsConfigured])と
+ * 同じ、厳しい側が既定という構え。
+ */
+export function sandboxAllowed(raw: string | undefined | null): boolean {
+  return raw === 'true'
+}
+
+/**
+ * その取引を、いまの設定で権利の根拠にしてよいか。
+ *
+ * ## なぜ要るのか
+ *
+ * Sandboxの購入は**無料**。Sandboxの応答をそのまま本番の権利にすると、
+ * TestFlightのテスターが誰でもタダでプレミアムになれる(2026-09-11の
+ * セキュリティ点検 Vuln 2)。404+4040010 の問い直しは恒久的な分岐なので、
+ * 公開後も自然には閉じない。
+ *
+ * 見るのは2つ。**どちらか片方でもSandboxを指していたら拒否する。**
+ *
+ *   fromSandbox   … Sandboxのエンドポイントが答えたか(呼び出し側が持っている)
+ *   tx.environment … Appleが取引に付けている環境名
+ *
+ * environment が入っていないときは判断材料が無いだけなので、
+ * エンドポイントのほうだけで決める(本番が答えたなら本番の取引)。
+ */
+export function appleSourceAllowed(
+  tx: AppleTransaction,
+  opts: { fromSandbox: boolean; allowSandbox: boolean },
+): { ok: boolean; reason: string } {
+  if (opts.allowSandbox) return { ok: true, reason: 'sandbox allowed' }
+  if (opts.fromSandbox) {
+    return { ok: false, reason: 'sandbox response not allowed' }
+  }
+  const env = tx.environment
+  if (typeof env === 'string' && env !== 'Production') {
+    return { ok: false, reason: 'sandbox transaction not allowed' }
+  }
+  return { ok: true, reason: 'production' }
 }
 
 /**

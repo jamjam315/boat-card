@@ -12,6 +12,10 @@ import {
   CACHE_TTL_MS,
   canUseCache,
   entitlementFromAppleTransaction,
+  type AppleTransaction,
+  appleRowKey,
+  appleSourceAllowed,
+  appleTransactionMatches,
   fetchAppleTransaction,
   isAcceptableToken,
   isKnownProduct,
@@ -23,6 +27,7 @@ import {
   parseSubscription,
   PRODUCT_IDS,
   secretsConfigured,
+  sandboxAllowed,
   shouldRetryInSandbox,
   tokenTakenByOther,
   transactionIdFromJws,
@@ -309,7 +314,7 @@ Deno.test('JWSにも上限はある(長い入力を握らせない)', () => {
 
 Deno.test('本番に無い(404+4040010)ならSandboxへ問い直す', () => {
   assertEquals(
-    shouldRetryInSandbox(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND }),
+    shouldRetryInSandbox(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND }, true),
     true,
   )
 })
@@ -318,15 +323,15 @@ Deno.test('本番401でもSandboxへ問い直す(公開前は本番が401を返�
   // これが無いと、App Storeで公開されるまでiOSの購入を一度も検証できない。
   // 401は「無効」ではなく「答えを聞けていない」。有効/無効の判断は
   // entitlementFromAppleTransaction が応答の中身を見て下す。
-  assertEquals(shouldRetryInSandbox(401, null), true)
+  assertEquals(shouldRetryInSandbox(401, null, true), true)
 })
 
 Deno.test('それ以外はSandboxへ回さない(二重に叩くだけで結果が変わらない)', () => {
-  assertFalse(shouldRetryInSandbox(404, { errorCode: 4040005 }))
-  assertFalse(shouldRetryInSandbox(404, null))
-  assertFalse(shouldRetryInSandbox(500, null))
-  assertFalse(shouldRetryInSandbox(503, null))
-  assertFalse(shouldRetryInSandbox(400, null))
+  assertFalse(shouldRetryInSandbox(404, { errorCode: 4040005 }, true))
+  assertFalse(shouldRetryInSandbox(404, null, true))
+  assertFalse(shouldRetryInSandbox(500, null, true))
+  assertFalse(shouldRetryInSandbox(503, null, true))
+  assertFalse(shouldRetryInSandbox(400, null, true))
 })
 
 /** fetchAppleTransaction に渡す偽の応答。 */
@@ -341,7 +346,7 @@ Deno.test('本番が答えたらSandboxは叩かない(全利用者の1往復を
   const r = await fetchAppleTransaction((base) => {
     called.push(base)
     return Promise.resolve(reply(200, { signedTransactionInfo: 'x' }))
-  })
+  }, { allowSandbox: true })
   assertEquals(called, [APPLE_API_PRODUCTION])
   assertEquals(r.productionStatus, 200)
   assertEquals(r.sandboxStatus, null)
@@ -357,7 +362,7 @@ Deno.test('本番401→Sandbox200で成功する(公開前の経路)', async () 
         ? reply(401)
         : reply(200, { signedTransactionInfo: 'x' }),
     )
-  })
+  }, { allowSandbox: true })
   assertEquals(called, [APPLE_API_PRODUCTION, APPLE_API_SANDBOX])
   assertEquals(r.res.status, 200)
   assertEquals(r.res.ok, true)
@@ -374,7 +379,7 @@ Deno.test('本番404(4040010)→Sandboxへ回る(審査員のSandbox購入)', as
         ? reply(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND })
         : reply(200, { signedTransactionInfo: 'x' }),
     )
-  })
+  }, { allowSandbox: true })
   assertEquals(called.length, 2)
   assertEquals(r.trace, 'production=404 sandbox=200')
 })
@@ -384,7 +389,7 @@ Deno.test('本番5xxではSandboxへ回らない', async () => {
   const r = await fetchAppleTransaction((base) => {
     called.push(base)
     return Promise.resolve(reply(500))
-  })
+  }, { allowSandbox: true })
   assertEquals(called, [APPLE_API_PRODUCTION])
   assertEquals(r.res.ok, false)
   assertEquals(r.trace, 'production=500 sandbox=-')
@@ -396,8 +401,7 @@ Deno.test('本番の本文が読めなくても判断は続く(404の本文欠�
       base === APPLE_API_PRODUCTION
         ? { ok: false, status: 404, json: () => Promise.reject(new Error('empty')) }
         : reply(200),
-    )
-  )
+    ), { allowSandbox: true })
   // 404で本文が読めなければ 4040010 とは確認できない＝回さない。
   assertEquals(r.trace, 'production=404 sandbox=-')
 })
@@ -541,4 +545,142 @@ Deno.test('iOSで書いた行でも is_premium() と同じ条件で有効にな�
 Deno.test('使い回しの検出は鍵の形に依らない(iOSの鍵でも効く)', () => {
   const rows = [{ user_id: 'ほかの人', purchase_token: '2000000111' }]
   assertEquals(tokenTakenByOther(rows, 'わたし'), true)
+})
+
+// ===========================================================================
+// WP-3f: セキュリティ点検(2026-09-11)で見つかった穴を塞ぐ
+// ===========================================================================
+
+// ---- Vuln 1: 行の鍵はAppleの答えから作る ----
+
+Deno.test('行の鍵はAppleの originalTransactionId', () => {
+  assertEquals(
+    appleRowKey({ transactionId: '2000000999', originalTransactionId: '2000000111' }),
+    '2000000111',
+  )
+})
+
+Deno.test('originalTransactionId が無ければ transactionId に落とす', () => {
+  assertEquals(appleRowKey({ transactionId: '2000000999' }), '2000000999')
+})
+
+Deno.test('Appleの答えにIDが無ければ鍵にできない(無効に倒す)', () => {
+  assertEquals(appleRowKey({}), null)
+  assertEquals(appleRowKey({ originalTransactionId: '' }), null)
+  // 型の外から来た値(応答は Record<string, unknown> のまま渡される)。
+  assertEquals(appleRowKey({ originalTransactionId: 12345 } as unknown as AppleTransaction), null)
+})
+
+Deno.test('偽造ペイロードの鍵は採用されない(Vuln 1)', () => {
+  // 攻撃者のJWS: transactionId は本物、originalTransactionId だけ任意の値。
+  const forged = jws({
+    transactionId: '2000000999',
+    originalTransactionId: 'ATTACKER-RANDOM-1',
+  })
+  // 入口の下見はその偽の値を拾う（ここは早期409のためだけ）。
+  assertEquals(membershipRowKey(forged, 'ios'), 'ATTACKER-RANDOM-1')
+
+  // **Appleが答えた取引から作る鍵は、本物の originalTransactionId。**
+  // 攻撃者が毎回違う鍵で行を作ることはできない＝使い回しの検出が効く。
+  const fromApple = appleRowKey({
+    transactionId: '2000000999',
+    originalTransactionId: '2000000111',
+  })
+  assertEquals(fromApple, '2000000111')
+  assertFalse(fromApple === 'ATTACKER-RANDOM-1')
+
+  // 同じ本物の取引を何度使い回しても鍵は変わらないので、
+  // 2人目以降は tokenTakenByOther で止まる。
+  const rows = [{ user_id: 'さきに登録した人', purchase_token: fromApple }]
+  assertEquals(tokenTakenByOther(rows, 'あとから来た人'), true)
+})
+
+// ---- Vuln 1: 聞いた取引と答えた取引の一致 ----
+
+Deno.test('Appleが答えたのが、こちらの聞いた取引であること', () => {
+  assertEquals(appleTransactionMatches({ transactionId: '2000000999' }, '2000000999'), true)
+})
+
+Deno.test('IDが違う・入っていない応答は採用しない', () => {
+  assertFalse(appleTransactionMatches({ transactionId: '2000000111' }, '2000000999'))
+  assertFalse(appleTransactionMatches({}, '2000000999'))
+  assertFalse(appleTransactionMatches({ transactionId: '' }, ''))
+  assertFalse(
+    appleTransactionMatches(
+      { transactionId: 2000000999 } as unknown as AppleTransaction,
+      '2000000999',
+    ),
+  )
+})
+
+// ---- Vuln 2: Sandbox の許可制 ----
+
+Deno.test('Sandboxを許すのは "true" のときだけ', () => {
+  assertEquals(sandboxAllowed('true'), true)
+  // 設定を忘れたら「本番だけを見る」に倒れる。
+  assertFalse(sandboxAllowed(undefined))
+  assertFalse(sandboxAllowed(null))
+  assertFalse(sandboxAllowed(''))
+  assertFalse(sandboxAllowed('false'))
+  assertFalse(sandboxAllowed('TRUE'))
+  assertFalse(sandboxAllowed('1'))
+  assertFalse(sandboxAllowed('yes'))
+})
+
+Deno.test('許可されていなければ、そもそもSandboxへ問い直さない', () => {
+  assertFalse(shouldRetryInSandbox(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND }, false))
+  assertFalse(shouldRetryInSandbox(401, null, false))
+})
+
+Deno.test('許可されていなければ、本番で止まる(Sandboxを叩かない)', async () => {
+  const called: string[] = []
+  const r = await fetchAppleTransaction((base) => {
+    called.push(base)
+    return Promise.resolve(reply(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND }))
+  }, { allowSandbox: false })
+
+  assertEquals(called, [APPLE_API_PRODUCTION])
+  assertEquals(r.sandboxStatus, null)
+  assertEquals(r.res.ok, false)
+})
+
+Deno.test('Sandboxが答えた取引は、許可が無ければ権利にしない', () => {
+  const v = appleSourceAllowed({ environment: 'Sandbox' }, {
+    fromSandbox: true,
+    allowSandbox: false,
+  })
+  assertFalse(v.ok)
+  assertEquals(v.reason, 'sandbox response not allowed')
+})
+
+Deno.test('本番のエンドポイントが答えても、取引がSandboxなら権利にしない', () => {
+  // 二重の守りの2枚目。エンドポイントだけ見ていると取りこぼす形。
+  const v = appleSourceAllowed({ environment: 'Sandbox' }, {
+    fromSandbox: false,
+    allowSandbox: false,
+  })
+  assertFalse(v.ok)
+  assertEquals(v.reason, 'sandbox transaction not allowed')
+})
+
+Deno.test('許可されていればSandboxでも通る(審査・公開前)', () => {
+  assertEquals(
+    appleSourceAllowed({ environment: 'Sandbox' }, { fromSandbox: true, allowSandbox: true }).ok,
+    true,
+  )
+})
+
+Deno.test('本番の取引はそのまま通る', () => {
+  assertEquals(
+    appleSourceAllowed({ environment: 'Production' }, {
+      fromSandbox: false,
+      allowSandbox: false,
+    }).ok,
+    true,
+  )
+  // environment が入っていない応答は、エンドポイントのほうで決める。
+  assertEquals(
+    appleSourceAllowed({}, { fromSandbox: false, allowSandbox: false }).ok,
+    true,
+  )
 })

@@ -50,6 +50,38 @@ App Store Connect → **ユーザーとアクセス** → **統合** → **App S
 | `APPLE_ISSUER_ID` | 手順1のIssuer ID（36桁のUUID） |
 | `APPLE_PRIVATE_KEY` | `.p8` の中身を**そのまま**（`-----BEGIN PRIVATE KEY-----` を含む全文） |
 | `APPLE_BUNDLE_ID` | `com.mtpworks.teiyomi` |
+| `APPLE_ALLOW_SANDBOX` | `true`（審査に出す前）／`false`（公開承認後） |
+
+> ⚠️ **`APPLE_ALLOW_SANDBOX` は公開後に必ず `false` にしてください。**
+> Sandboxの購入は**無料**です。これを `true` のまま公開すると、TestFlightの
+> テスターや手元にSandboxの取引を作れる人が、支払わずに本番のプレミアムを
+> 取れます（2026-09-11のセキュリティ点検で指摘）。
+>
+> 値は文字列 `"true"` のときだけ許可になります。未設定・空・`TRUE`・`1` は
+> すべて不許可（＝本番だけを見る）です。忘れたら安全側に倒れます。
+
+### `APPLE_ALLOW_SANDBOX` の運用
+
+| 時期 | 値 | 理由 |
+|---|---|---|
+| 公開前（いま） | `true` | 本番のApp Store Server APIは公開まで401を返す。Sandboxに問い直せないと、iOSの購入を一度も検証できない |
+| **審査に出す前** | `true` | **審査員はSandboxで購入する。** `false` のままだと審査で「購入できない」と判定される |
+| **公開が承認された直後** | `false` | ここを戻し忘れると無料でプレミアムが取れる状態が続く |
+| 更新審査に出すとき | 一時的に `true` | 審査中だけ。承認後にまた `false` |
+
+切り替えは Secret を入れ直すだけです（関数の再デプロイは不要ですが、反映のために
+1〜2分おいてから試してください）。
+
+```bash
+supabase secrets set APPLE_ALLOW_SANDBOX=true --project-ref vynbhssakpxiikmseoja
+```
+
+```bash
+supabase secrets set APPLE_ALLOW_SANDBOX=false --project-ref vynbhssakpxiikmseoja
+```
+
+`false` のときのログは `apple api production=404 sandbox=-`（Sandboxを叩いていない）に
+なります。Sandbox由来を拒否したときは `apple source: sandbox response not allowed`。
 
 ### CLIから入れる（`<>` の中だけ埋める）
 
@@ -58,6 +90,7 @@ supabase secrets set \
   APPLE_KEY_ID=<キーID10桁> \
   APPLE_ISSUER_ID=<Issuer ID 36桁> \
   APPLE_BUNDLE_ID=com.mtpworks.teiyomi \
+  APPLE_ALLOW_SANDBOX=true \
   APPLE_PRIVATE_KEY="$(cat ~/Documents/<AuthKey_XXXXXXXXXX>.p8)" \
   --project-ref vynbhssakpxiikmseoja
 ```
@@ -176,6 +209,9 @@ Supabaseダッシュボード → Edge Functions → `verify-purchase` → **Log
 | `failed to sign apple token` | `.p8` の中身が壊れている | 改行を含めて全文が入っているか。BEGIN/END行も要る |
 | `apple api production=401 sandbox=401` | キーIDかIssuer IDが違う | 手順4で切り分ける |
 | `apple api production=404 sandbox=404` | 本番にもSandboxにも無い | 購入が成立していない。Sandboxテスターでサインインし直す |
+| `apple api production=404 sandbox=-` | Sandboxを叩いていない | `APPLE_ALLOW_SANDBOX` が `true` でない。審査・公開前は `true` に |
+| `apple source: sandbox response not allowed` | Sandboxの取引を本番の権利にしようとした | 正常な拒否。審査中なら `APPLE_ALLOW_SANDBOX=true` に |
+| `apple transaction id mismatch` | Appleが別の取引を返した | 通常は起きない。偽造されたJWSの可能性がある（記録して様子を見る） |
 | `malformed jws` | アプリが送った値が壊れている | 殻側（WP-3b）の問題。実機のログを見る |
 | `apple verdict=bundle mismatch` | `APPLE_BUNDLE_ID` が実物と違う | `com.mtpworks.teiyomi` か確認 |
 | `apple verdict=product mismatch` | 商品IDが `teiyomi_premium_monthly` でない | ASCの商品IDと `logic.ts` の `PRODUCT_IDS` を突き合わせる |
@@ -215,13 +251,19 @@ Sandboxへ回すのは **404+4040010** と **401** の2つだけ。401を足し�
 | `status` | `active` / `inactive` |
 | `price_id` | 商品ID（`teiyomi_premium_monthly`） |
 | `current_period_end` | Appleの `expiresDate` |
-| `purchase_token` | **`originalTransactionId`**（JWS本文でも `transactionId` でもない） |
+| `purchase_token` | **Appleが答えた `originalTransactionId`**（JWS本文でも `transactionId` でもない） |
 | `platform` | `ios` |
 
 `purchase_token` に `originalTransactionId` を入れるのは、**これが購読の更新を
 またいで変わらない唯一の値**だから。JWSも `transactionId` も更新のたびに変わるので、
 鍵にすると次回引けず、24時間キャッシュも使い回しの検出も永久に効かなくなる
 （レジャー帳で実際にそうなっていた）。
+
+**そして、その値は必ずAppleの応答から取る（WP-3f）。** クライアントが送ってきた
+JWSは署名を検証していないので、中の `originalTransactionId` は偽造できる。そこから
+鍵を作っていたころは、本物の `transactionId` を1つ持っていれば毎回違う鍵で行を
+作れてしまい、**支払い1件で無制限のアカウントがプレミアムになった**（2026-09-11の
+セキュリティ点検 Vuln 1）。使い回しの検出は、Appleが答えた鍵でもう一度行う。
 
 `platform` 列にCHECK制約は無いので、`ios` を足すのにマイグレーションは要らない。
 `is_premium()` を含む会員判定の4か所は `status` と `current_period_end` しか

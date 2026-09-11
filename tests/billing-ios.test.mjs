@@ -132,13 +132,13 @@ test("purchase ok → verify(platform:ios, jws) → iap.verified ok:true → rel
   assert.deepEqual(JSON.parse(store.get("teiyomi_ios_verified")).userId, "u1");
 });
 
-test("サーバーが 4xx で拒否 → iap.verified ok:false → not_verified、reload しない", async () => {
+test("409 で拒否 → iap.verified ok:false → not_verified、reload しない", async () => {
   const { win, sent, reloads } = boot({
-    fetch: () => Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) }),
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({}) }),
   });
   const r = win.TeiyomiBilling.buy();
   win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
-  assert.deepEqual(await r, { ok: false, reason: "not_verified" });
+  assert.deepEqual(await r, { ok: false, reason: "other_account" });
   assert.deepEqual(sent[1], { type: "iap.verified", requestId: "req-1", ok: false, token: "tok-1" });
   assert.equal(reloads.n, 0);
 });
@@ -239,7 +239,7 @@ test("4条件が揃ったときだけ、起動時に iap.restore を1回送る",
   const { sent, membershipListeners, store } = boot();
   store.set("teiyomi_ios_verified", JSON.stringify({ userId: "u1", at: "x" }));
   fire(membershipListeners, notActive);
-  fire(membershipListeners, notActive);   // 2回目は送らない(1セッション1回)
+  fire(membershipListeners, notActive);   // 2回目は送らない(1日1回)
   assert.deepEqual(sent.filter((m) => m.type === "iap.restore").length, 1);
 });
 
@@ -578,4 +578,82 @@ test("検証が通ったら控えは下がる", async () => {
   win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
   await flush();
   assert.equal(win.TeiyomiBilling.lastRejection(), null);
+});
+
+
+// ---- WP-3f: 確定拒否は 409 だけ ----
+
+for (const [label, status] of [["400 入口で弾かれた", 400], ["401 セッション切れ", 401], ["403 匿名", 403]]) {
+  test(`${label} は「確かめられなかった」扱い。iap.verified を送らない`, async () => {
+    // ここを拒否と読むと、殻が取引を完了させてしまい、支払い済みの購入が
+    // ストアの待ち行列から消えて拾い直せなくなる。
+    const { win, sent } = boot({
+      fetch: () => Promise.resolve({ ok: false, status, json: () => Promise.resolve({}) }),
+    });
+    const r = win.TeiyomiBilling.buy();
+    win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+    assert.deepEqual(await r, { ok: false, reason: "not_verified" });
+    assert.equal(sent.filter((m) => m.type === "iap.verified").length, 0);
+  });
+}
+
+test("200 でも retryable:true なら「確かめられなかった」(Secrets未設定・Apple照会失敗)", async () => {
+  const { win, sent } = boot({
+    fetch: () => Promise.resolve({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ is_active: false, retryable: true }),
+    }),
+  });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "not_verified" });
+  assert.equal(sent.filter((m) => m.type === "iap.verified").length, 0);
+});
+
+test("200 で retryable が無ければ判定。is_active:false は確定拒否", async () => {
+  const { win, sent } = boot({
+    fetch: () => Promise.resolve({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ is_active: false, product_id: "teiyomi_premium_monthly" }),
+    }),
+  });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-1", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "not_verified" });
+  assert.deepEqual(sent[1], { type: "iap.verified", requestId: "req-1", ok: false, token: "tok-1" });
+});
+
+// ---- WP-3f: 起動時の復元は1日1回(タブ数によらない) ----
+
+test("4タブあっても、起動時の復元は1日1回しか走らない", () => {
+  // localStorage は4つのWKWebViewで共有される。sessionStorage(タブごと)で
+  // 抑えていたころは、ここが4回になっていた。
+  const store = new Map();
+  store.set("teiyomi_ios_verified", JSON.stringify({ userId: "u1", at: "x" }));
+  const tabs = [boot({ store }), boot({ store }), boot({ store }), boot({ store })];
+  tabs.forEach((t) => fire(t.membershipListeners, notActive));
+
+  const total = tabs.reduce((n, t) => n + t.sent.filter((m) => m.type === "iap.restore").length, 0);
+  assert.equal(total, 1);
+});
+
+test("日付が変わればもう一度試す", () => {
+  const store = new Map();
+  store.set("teiyomi_ios_verified", JSON.stringify({ userId: "u1", at: "x" }));
+  store.set("teiyomi_ios_restore_checked", JSON.stringify({ userId: "u1", day: "2000-1-1" }));
+  const { sent, membershipListeners } = boot({ store });
+  fire(membershipListeners, notActive);
+  assert.equal(sent.filter((m) => m.type === "iap.restore").length, 1);
+});
+
+test("別のアカウントでログインし直したら、その人のぶんを試す", () => {
+  const store = new Map();
+  store.set("teiyomi_ios_verified", JSON.stringify({ userId: "u2", at: "x" }));
+  const d = new Date();
+  store.set("teiyomi_ios_restore_checked", JSON.stringify({
+    userId: "u1", day: d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(),
+  }));
+  const { sent, membershipListeners } = boot({ store });
+  fire(membershipListeners, { active: false, user: { id: "u2", isAnonymous: false } });
+  assert.equal(sent.filter((m) => m.type === "iap.restore").length, 1);
 });

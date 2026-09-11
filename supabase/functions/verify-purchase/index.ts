@@ -50,7 +50,10 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import {
+  appleRowKey,
   appleSecretsConfigured,
+  appleSourceAllowed,
+  appleTransactionMatches,
   canUseCache,
   entitlementFromAppleTransaction,
   fetchAppleTransaction,
@@ -60,6 +63,7 @@ import {
   membershipRowKey,
   parsePlatform,
   parseSubscription,
+  sandboxAllowed,
   secretsConfigured,
   tokenTakenByOther,
   transactionIdFromJws,
@@ -74,10 +78,24 @@ const supabaseAdmin = createClient(
   { auth: { persistSession: false } },
 )
 
-/** 無効を返す。理由はログにだけ出し、呼び出し元には返さない(手がかりを与えない)。 */
+/**
+ * 無効を返す。理由はログにだけ出し、呼び出し元には返さない(手がかりを与えない)。
+ *
+ * ## retryable が付く意味(WP-3f)
+ *
+ * **これは「確かめられなかった」であって「無効だと確かめた」ではない。**
+ * 判定を返すのは [ok] だけで、そちらに retryable は付かない。
+ *
+ * 区別が要るのは、iOSの殻が返事を見て取引を完了させるため。「確かめられなかった」を
+ * 拒否と読むと、支払い済みの取引がストアの待ち行列から消え、再配送で拾い直せなく
+ * なる(billing-ios.js の verify を参照)。Secrets未設定・Apple照会失敗・応答が
+ * 読めない、はすべてこちら側。
+ *
+ * 使い回しの検出(409)だけは**確定的な拒否**で、HTTPステータスで見分けられる。
+ */
 function denied(reason: string, status = 200): Response {
   console.log('[verify-purchase] denied: ' + reason)
-  return new Response(JSON.stringify({ is_active: false }), {
+  return new Response(JSON.stringify({ is_active: false, retryable: true }), {
     status,
     headers: JSON_HEADERS,
   })
@@ -149,6 +167,13 @@ export default {
         //
         // ここから下は鍵しか見ない。**引くときと入れるときで値が食い違わない**のが
         // 大事で、食い違うとキャッシュも使い回しの検出も永久に効かない。
+        //
+        // ## iOSでは、ここはまだ関門ではない(WP-3f)
+        //
+        // この鍵はクライアントのJWSを**署名検証せずに**復号したもので、偽造できる。
+        // 早い段階で409を返してAppleへの往復を省くための下見にすぎない。
+        // **本当の関門はApple照会のあと**——Appleが答えたIDで鍵を作り直し、
+        // そこでもう一度使い回しを見る([verifyWithApple])。
         const rowKey = membershipRowKey(purchaseToken, platform)
         if (rowKey === null) return denied('malformed jws', 400)
 
@@ -379,7 +404,11 @@ async function getGoogleAccessToken(saKeyRaw: string): Promise<string> {
 async function verifyWithApple(args: {
   userId: string
   jws: string
-  /** memberships の行を指す鍵(呼び出し元が membershipRowKey で作る)。 */
+  /**
+   * 呼び出し元が**クライアントの復号値から**作った鍵。入口の早期409に使った
+   * もので、偽造されうる。**保存にも最終判定にも使わない**——この関数は
+   * Appleの答えから鍵を作り直す(WP-3f)。ログの突き合わせ用にだけ受け取る。
+   */
   rowKey: string
   productId: string
 }): Promise<Response> {
@@ -412,7 +441,11 @@ async function verifyWithApple(args: {
     })
 
   // 本番 → 届かなければSandbox(並び順の理由は logic.ts に書いた)。
-  const { res, trace } = await fetchAppleTransaction(fetchTx)
+  // **Sandboxへ回るのは APPLE_ALLOW_SANDBOX="true" のときだけ**(WP-3f)。
+  const allowSandbox = sandboxAllowed(Deno.env.get('APPLE_ALLOW_SANDBOX'))
+  const { res, trace, sandboxStatus } = await fetchAppleTransaction(fetchTx, {
+    allowSandbox,
+  })
   // **両方のステータスを必ず1行残す。** 片方しか出ないと「本番で止まったのか、
   // Sandboxまで行って駄目だったのか」が分からない。
   console.log('[verify-purchase] apple api ' + trace)
@@ -434,6 +467,21 @@ async function verifyWithApple(args: {
     return denied('apple response unreadable: ' + e)
   }
 
+  // --- Appleの答えが、こちらの聞いた取引か ---
+  //
+  // **ここから先はAppleが言ったことしか使わない。** クライアントが送ってきた
+  // JWSは署名を見ていないので、中の値はどれも偽造できる(logic.ts の appleRowKey)。
+  if (!appleTransactionMatches(tx, transactionId)) {
+    return denied('apple transaction id mismatch')
+  }
+
+  // --- Sandbox由来を本番の権利にしない ---
+  const source = appleSourceAllowed(tx, {
+    fromSandbox: sandboxStatus !== null,
+    allowSandbox,
+  })
+  if (!source.ok) return denied('apple source: ' + source.reason)
+
   const verdict = entitlementFromAppleTransaction(tx, {
     expectedProductId: productId,
     expectedBundleId: bundleId,
@@ -446,6 +494,26 @@ async function verifyWithApple(args: {
     console.log('[verify-purchase] apple verdict=' + verdict.reason)
   }
 
+  // --- 行の鍵を、Appleの答えから作り直す(WP-3f・Vuln 1) ---
+  //
+  // 呼び出し元が持ってきた rowKey はクライアントの復号値で、偽造できる。
+  // **保存するのも、使い回しを見るのも、ここで作った鍵のほう。**
+  const appleKey = appleRowKey(tx)
+  if (appleKey === null) return denied('apple response has no transaction id')
+
+  // --- その鍵を他の人が使っていないか(**これが本当の関門**) ---
+  //
+  // 入口でも同じことを見ているが、あちらはクライアントの申告した鍵。
+  // 偽の鍵で入口を素通りしてきたものは、ここで初めて本物の鍵と突き合わされる。
+  const { data: keyRows, error: keyErr } = await supabaseAdmin
+    .from('memberships')
+    .select('user_id,purchase_token')
+    .eq('purchase_token', appleKey)
+  if (keyErr) return denied('apple key lookup failed: ' + keyErr.message, 500)
+  if (tokenTakenByOther(keyRows, userId)) {
+    return denied('purchase token belongs to another account', 409)
+  }
+
   // --- memberships に書き戻す(Play経路とまったく同じ形) ---
   const { error: upsertErr } = await supabaseAdmin
     .from('memberships')
@@ -456,7 +524,8 @@ async function verifyWithApple(args: {
       current_period_end: verdict.expiry,
       // **JWS本文も transactionId も入れない。** 前者は長いうえに再取得のたびに
       // 変わり、後者は更新のたびに変わるので、どちらも鍵にすると次回引けない。
-      purchase_token: rowKey,
+      // 入れるのは**Appleが答えた** originalTransactionId(appleKey)。
+      purchase_token: appleKey,
       platform: 'ios',
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
@@ -465,6 +534,11 @@ async function verifyWithApple(args: {
     return denied('upsert failed: ' + upsertErr.message, 500)
   }
 
+  if (appleKey !== rowKey) {
+    // 正常な利用では一致する。ずれたということは、送られてきたJWSの中身と
+    // Appleの答えが食い違っている——偽造の疑いがあるので記録に残す。
+    console.log('[verify-purchase] apple key differs from claimed key')
+  }
   console.log(
     '[verify-purchase] verified(ios) user=' + userId.slice(0, 8) +
       ' product=' + productId + ' active=' + verdict.isActive,

@@ -72,8 +72,12 @@
   // (d) の印。localStorage に {userId, at} を置く。値はアカウントの識別子だけで、
   // 購入の証跡(JWS)は入れない(端末に控えを残す理由が無い)。
   var VERIFIED_KEY = "teiyomi_ios_verified";
-  // 起動時の復元を1セッション1回に抑える印(sessionStorage)。
-  var SESSION_KEY = "teiyomi_ios_billing_checked";
+  // 起動時の復元を抑える印。**localStorage に「誰が・いつ」で置く**(WP-3f)。
+  //
+  // sessionStorage はWKWebViewごと＝タブごとに別なので、4タブあると1日に4回
+  // 走っていた。復元はApple IDの入力を求めることがあるので、回数は絞る。
+  // 日付で持つのは、更新日をまたいだら翌日はもう一度試してほしいため。
+  var RESTORE_MARK_KEY = "teiyomi_ios_restore_checked";
   // 同じ取引をタブ間で1回しか検証しないための印(localStorage)。requestId ごと。
   var VERIFY_LOCK_PREFIX = "teiyomi_ios_verify_lock:";
   var VERIFY_LOCK_TTL_MS = 60000;
@@ -232,11 +236,22 @@
         signal: ctl ? ctl.signal : undefined
       }).then(function (r) {
         if (timer) clearTimeout(timer);
-        if (r.status >= 500) return { answered: false };            // サーバー側の不調。聞き直す
-        // 明示の拒否。409 は「その購読は別のアカウントに紐づいている」
-        // (verify-purchase の tokenTakenByOther)。画面の文言を分けるために残す。
-        if (!r.ok) return { answered: true, active: false, status: r.status };
+        // **確定的な拒否は 409 だけ**(WP-3f)。「その購読は別のアカウントに
+        // 紐づいている」(verify-purchase の tokenTakenByOther)。何度送り直しても
+        // 答えは変わらないので、殻に取引を完了させてよい。
+        if (r.status === 409) return { answered: true, active: false, status: 409 };
+        // それ以外の失敗は**すべて「確かめられなかった」**。
+        //   400 … JWSの形が入口で弾かれた(Appleが証跡を長くした等)
+        //   401 … セッションが切れていた
+        //   403 … 匿名だった
+        //   5xx … サーバー側の不調
+        // これを拒否と読むと、支払い済みの取引が待ち行列から消えて拾い直せなくなる。
+        if (!r.ok) return { answered: false };
         return r.json().then(function (j) {
+          // 200 でも「確かめられなかった」ことがある(Secrets未設定・Apple照会
+          // 失敗・応答が読めない)。サーバーはそれに retryable を付ける。
+          // 判定を返すのは verify-purchase の ok() だけで、そちらには付かない。
+          if (j && j.retryable === true) return { answered: false };
           return { answered: true, active: !!(j && j.is_active), status: r.status };
         }, function () { return { answered: false }; });
       }, function () {
@@ -453,13 +468,35 @@
 
   // ---- 起動時の復元(条件付き) --------------------------------------------------
 
+  /** その日の印。ローカル時刻の YYYY-MM-DD。 */
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
+
+  /** きょう、この人のぶんの復元をもう試したか。 */
+  function restoredToday(userId) {
+    try {
+      var raw = localStorage.getItem(RESTORE_MARK_KEY);
+      if (!raw) return false;
+      var m = JSON.parse(raw);
+      return !!(m && m.userId === userId && m.day === today());
+    } catch (e) { return false; }
+  }
+
+  function markRestoredToday(userId) {
+    try {
+      localStorage.setItem(RESTORE_MARK_KEY, JSON.stringify({ userId: userId, day: today() }));
+    } catch (e) { /* 印を置けなければ、この端末では毎回試すだけ */ }
+  }
+
   function autoRestoreIfRenewalDue(state) {
     if (!ios.billingAvailable()) return;                          // (a)
     if (!state || !state.user || state.user.isAnonymous) return;  // (b)
     if (state.active !== false) return;                           // (c) 未契約のときだけ
     if (!verifiedMarkFor(state.user.id)) return;                  // (d) 以前この端末で通っている
-    try { if (sessionStorage.getItem(SESSION_KEY) === "1") return; } catch (e) {}
-    try { sessionStorage.setItem(SESSION_KEY, "1"); } catch (e) {}
+    if (restoredToday(state.user.id)) return;                     // 1日1回(タブ数によらない)
+    markRestoredToday(state.user.id);
     restore();   // 結果は見ない。反映は verifyAndReply → reload() が行う
   }
 
