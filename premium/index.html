@@ -198,6 +198,15 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
+  // Appleの購読管理(WP-1h)。**殻の許可リストと一字一句そろえること**
+  // (teiyomi-ios の external_allowlist.dart。同じホストの別ページは通らない)。
+  // 外部リンクなので、押すと殻の確認画面が挟まる。ブラウザ・Androidでは
+  // この文字列自体を描かないので、あちらの表示は変わらない。
+  var MANAGE_URL = 'https://apps.apple.com/account/subscriptions';
+  var MANAGE_LINK = '<p class="btn-note"><a href="' + MANAGE_URL +
+    '" target="_blank" rel="noopener">サブスクリプションを管理</a>' +
+    '（解約・次回の更新日の確認）</p>';
+
   var FREE_NOTE = '<p class="btn-note">無料の「バックテスト」（固定メニュー）と、' +
     'お気に入り・キャリアの直近3年ぶんは、これまで通り誰でもお使いいただけます。</p>';
   var FREE_LINK = '<a class="btn sub" style="display:block; text-align:center; ' +
@@ -245,8 +254,8 @@ body{background:var(--bg); color:var(--ink);
    * 「準備中」(renderIOSComingSoon)に倒し、購入ボタンを出さない。
    *
    * **ここに Google Play・Androidアプリの話を書かない**(3.1.1)。
-   * 「サブスクリプションを管理」への外部リンクは、殻の許可リストに
-   * apps.apple.com が無いためまだ置かない(WP-1hで足してから)。
+   * 「サブスクリプションを管理」は殻の許可リストに入ったので置く(WP-1h)。
+   * 押すと殻の確認画面(行き先を見せて承認を取る)を通ってApp Storeが開く。
    */
   function renderBuyIOS(){
     TeiyomiBilling.price().then(function(p){
@@ -264,6 +273,7 @@ body{background:var(--bg); color:var(--ink);
         '<p class="btn-msg" id="buyMsg"></p>' +
         '<p class="btn-note">お申し込みの前に<a href="../terms.html">利用規約</a>と' +
         '<a href="../privacy.html">プライバシーポリシー</a>をご確認ください。</p>' +
+        MANAGE_LINK +
         FREE_NOTE;
 
       var btn = document.getElementById("buyBtn");
@@ -361,7 +371,12 @@ body{background:var(--bg); color:var(--ink);
     });
   }
 
-  /** 既にご契約中の方。機能は従来どおり使える。 */
+  /**
+   * 既にご契約中の方。機能は従来どおり使える。
+   *
+   * **「サブスクリプションを管理」はiOSアプリの中でだけ足す**(WP-1h)。
+   * ブラウザ・Androidの表示は1文字も変えない(あちらの解約はPlay側の導線)。
+   */
   function renderActive(state){
     var until = "";
     if(state.currentPeriodEnd){
@@ -376,6 +391,7 @@ body{background:var(--bg); color:var(--ink);
       (until ? '<p class="status-detail">' + esc(until) + '</p>' : "") +
       '</div>' +
       '<a class="btn" style="display:block; text-align:center; text-decoration:none;" href="../backtest-custom.html">条件を指定して検証する</a>' +
+      (window.TeiyomiIOS && TeiyomiIOS.isIOSApp() ? MANAGE_LINK : '') +
       '<p class="btn-note">ご契約に関するお問い合わせは' +
       '<a href="mailto:mtpworks.info@gmail.com">mtpworks.info@gmail.com</a>までご連絡ください。</p>';
   }
