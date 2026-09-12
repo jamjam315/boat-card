@@ -27,6 +27,7 @@ import {
   buildMessage, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
   type Alert, type Entry,
 } from '../_shared/morning-message.ts'
+import { sendApns } from '../_shared/apns.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
 
@@ -95,7 +96,15 @@ export default {
         console.error('[send-test-push] 購読の取得に失敗:', error.message)
         return Response.json({ error: 'lookup_failed' }, { status: 500 })
       }
-      if (!subs || subs.length === 0) {
+      // iOSアプリ(殻)の送り先(WP-4)。テーブルがまだ無い環境でもテスト送信を
+      // 落とさないよう、ここのエラーは致命的に扱わない。
+      const { data: devices, error: devErr } = await supabaseAdmin
+        .from('apns_tokens').select('id,token,env').eq('user_id', userId)
+      if (devErr) console.error('[send-test-push] iOS端末の取得に失敗:', devErr.message)
+
+      const webCount = subs?.length ?? 0
+      const iosCount = devices?.length ?? 0
+      if (webCount === 0 && iosCount === 0) {
         return Response.json({ error: 'no_subscription' }, { status: 404 })
       }
 
@@ -156,7 +165,7 @@ export default {
       })
 
       let sent = 0, removed = 0
-      for (const s of subs) {
+      for (const s of subs ?? []) {
         try {
           await webPush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload,
@@ -172,8 +181,19 @@ export default {
           }
         }
       }
+      // --- iOSアプリへ(APNs直送) ---
+      // 文面はWeb Pushとまったく同じものを使う(2つ持つと片方を直し忘れる)。
+      const ios = await sendApns(
+        (devices ?? []).map((d) => ({ id: d.id as string, token: d.token as string, env: d.env as string })),
+        { title: `[テスト] ${message.title}`, body: message.body },
+      )
+      if (ios.dropped.length > 0) {
+        await supabaseAdmin.from('apns_tokens').delete().in('id', ios.dropped)
+      }
+
       return Response.json({
         sent, removedSubscriptions: removed,
+        sentIos: ios.sent, removedIosTokens: ios.dropped.length, failedIos: ios.failed,
         premium, realPremium, viewedAsFree: asFree, usedSampleEntry: usedSample,
         alerts: (alerts ?? []).length, alertHits: hits.length,
         alertRaces: hits.map((e) => `${e.venue}${e.race}R ${e.deadline} ${e.name}`),

@@ -312,7 +312,12 @@ function renderAuthBox(){
       </div></div>`;
       document.getElementById("authLogoutBtn").addEventListener("click", function(){
         this.disabled = true; this.textContent = "処理中…";
-        TeiyomiAuth.signOut().catch(()=>{}).then(()=>{ authFormOpen=false; renderAuthBox(); });
+        // **ログアウトする前に通知の行を消す**(WP-4)。消さないと、次にこの端末を
+        // 使う人へ前の人の出走通知が届く。RLSで自分の行しか消せないので、
+        // サインアウト後では手遅れになる。Web Push の disable と同じ扱い。
+        iosPushCleanup()
+          .then(()=>TeiyomiAuth.signOut().catch(()=>{}))
+          .then(()=>{ authFormOpen=false; renderAuthBox(); });
       });
       return;
     }
@@ -512,6 +517,85 @@ function renderFavList(){
 
 // ===== 通知(トップから移設。文言そのまま) =====
 const NOTIFY_LEAD = "毎朝、お気に入り選手の出走をお知らせします（3名まで。プレミアムは全員＋データの見どころつき）。";
+
+/**
+ * iOSアプリ(殻)の通知欄(WP-4)。
+ *
+ * ブラウザのWeb Pushは使えない(WKWebViewにService WorkerのPushが無い)ので、
+ * APNsのトークンを殻から受け取って保存する別経路になる。**画面の作りと文言は
+ * ブラウザ側とそろえてある**——利用者から見て同じものなので。
+ *
+ * 許可のプロンプトは enable() の中でだけ出る(=必ずタップ起点)。
+ * 起動時には出さない(iOSは一度断られると二度と出せない)。
+ */
+function renderIOSNotifyBox(box){
+  const push = window.TeiyomiIOSPushControl;
+  if(!push){ box.innerHTML = ""; return; }
+
+  push.getState().then(({state})=>{
+    if(state === "unavailable"){
+      box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">いま通知の設定ができません。時間をおいて再度お試しください。</p></div>`;
+      return;
+    }
+    if(state === "need-login"){
+      box.innerHTML = `<div class="authbox">
+        <div class="authbox-row"><span>🔔 出走のお知らせ</span></div>
+        <p class="authbox-notice">${NOTIFY_LEAD}<br>受け取るには、上のメールアドレスでのログインをお願いします。</p>
+      </div>`;
+      return;
+    }
+    if(state === "on"){
+      box.innerHTML = `<div class="authbox">
+        <div class="authbox-row"><span>🔔 出走のお知らせ：<b>オン</b></span>
+          <button type="button" class="authbox-btn" id="notifyOffBtn">オフにする</button></div>
+        <p class="authbox-notice">${NOTIFY_LEAD}</p>
+      </div>`;
+      document.getElementById("notifyOffBtn").addEventListener("click", function(){
+        this.disabled = true; this.textContent = "処理中…";
+        push.disable().catch(()=>{}).then(renderNotifyBox);
+      });
+      return;
+    }
+
+    box.innerHTML = `<div class="authbox">
+      <div class="authbox-row"><span>🔔 出走のお知らせ</span>
+        <button type="button" class="authbox-btn" id="notifyOnBtn">オンにする</button></div>
+      <p class="authbox-notice">${NOTIFY_LEAD}</p>
+      <p class="authbox-msg" id="notifyMsg"></p>
+    </div>`;
+    document.getElementById("notifyOnBtn").addEventListener("click", function(){
+      const btn = this, msg = document.getElementById("notifyMsg");
+      btn.disabled = true; btn.textContent = "処理中…";
+      push.enable().then((r)=>{
+        if(r.state === "on"){ renderNotifyBox(); return; }
+        msg.textContent =
+          r.state === "denied" ? "通知が許可されていません。iPhoneの「設定」→「艇読み」→「通知」から許可してください。" :
+          r.state === "save-failed" ? "設定を保存できませんでした。時間をおいて再度お試しください。" :
+          r.state === "need-login" ? "受け取るには、メールアドレスでのログインをお願いします。" :
+                                     "通知をオンにできませんでした。時間をおいて再度お試しください。";
+        btn.disabled = false; btn.textContent = "オンにする";
+      }).catch(()=>{
+        msg.textContent = "通知をオンにできませんでした。時間をおいて再度お試しください。";
+        btn.disabled = false; btn.textContent = "オンにする";
+      });
+    });
+  }).catch(()=>{ try{ box.innerHTML=""; }catch(e){} });
+}
+
+/**
+ * iOSアプリの通知登録を解く。ブラウザ・Androidでは何もしない。
+ *
+ * ログアウトとアカウント削除の**前に**呼ぶ。行を消せるのは本人だけ(RLS)なので、
+ * サインアウトしてからでは消せない。
+ */
+function iosPushCleanup(){
+  const push = window.TeiyomiIOSPushControl;
+  if(!push || !push.signOutCleanup) return Promise.resolve();
+  return push.signOutCleanup().catch(()=>{});
+}
+
+// 殻からトークンが届いた・解除されたら描き直す。
+window.addEventListener("teiyomi-ios-push-changed", ()=>{ try{ renderNotifyBox(); }catch(e){} });
 function renderNotifyBox(){
   const box = document.getElementById("notifyBox");
   if(!box) return;
@@ -520,14 +604,7 @@ function renderNotifyBox(){
   // "unsupported" を返し、「お使いのブラウザは通知に対応していません」と
   // 出てしまう。**アプリの中でブラウザの話をしない。**
   // 通知そのものはアプリ側の仕組みで受け取る(WP-4)。
-  if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){
-    box.innerHTML = `<div class="authbox">
-      <div class="authbox-row"><span>🔔 出走のお知らせ</span>
-        <span class="authbox-msg" style="margin:0;">準備中</span></div>
-      <p class="authbox-notice">${NOTIFY_LEAD}<br>アプリの通知設定からお受け取りいただけるよう準備しています。</p>
-    </div>`;
-    return;
-  }
+  if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){ renderIOSNotifyBox(box); return; }
   if(!window.TeiyomiNotify){ box.innerHTML=""; return; }
   TeiyomiNotify.getState().then(({state})=>{
     if(state === "unsupported"){
@@ -710,9 +787,13 @@ function runDelete(){
       // 消えたあとにこの画面を出しておく意味は無い。サインアウトして
       // トップへ戻し、そこで「削除しました」を出す。
       const done = ()=>{ location.href = "index.html?deleted=1"; };
-      if(window.TeiyomiAuth && TeiyomiAuth.signOut){
-        TeiyomiAuth.signOut().then(done, done);
-      } else { done(); }
+      // 端末側の通知登録も解いておく(サーバーは行を消すが、OSの登録は
+      // アプリの中からしか解けない)。
+      iosPushCleanup().then(()=>{
+        if(window.TeiyomiAuth && TeiyomiAuth.signOut){
+          TeiyomiAuth.signOut().then(done, done);
+        } else { done(); }
+      });
       return;
     }
     // **理由は出さない。** サーバー側も理由を返さない作りにしてある。

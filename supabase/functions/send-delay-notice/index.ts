@@ -30,6 +30,7 @@
 // 代わりに x-cron-secret ヘッダーが CRON_SECRET と一致しなければ401を返す。
 // send-morning-push と同じ仕組み・同じ鍵。
 import webPush from 'npm:web-push@^3'
+import { sendApns } from '../_shared/apns.ts'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import { fetchAllRows, loadToday, todayJst } from '../_shared/morning-message.ts'
 
@@ -107,9 +108,22 @@ export default {
       console.error('[send-delay-notice] 購読の取得に失敗:', (subErr as Error).message)
       return Response.json({ error: 'subscriptions_failed' }, { status: 500 })
     }
-    if (!subs || subs.length === 0) return Response.json({ sent: 0, users: 0, dataDate })
+    // iOSアプリ(殻)の送り先(WP-4)。テーブルがまだ無い環境でも告知を止めない。
+    const { data: devices, error: devErr } = await fetchAllRows((from, to) =>
+      supabaseAdmin.from('apns_tokens').select('id,user_id,token,env').order('id').range(from, to))
+    if (devErr) console.error('[send-delay-notice] iOS端末の取得に失敗:', (devErr as Error).message)
 
-    const userIds = [...new Set(subs.map((s) => s.user_id))]
+    if ((subs?.length ?? 0) === 0 && (devices?.length ?? 0) === 0) {
+      return Response.json({ sent: 0, users: 0, dataDate })
+    }
+
+    // 送る相手は「ブラウザの購読を持つ人」と「iOS端末を持つ人」の和集合。
+    const userIds = [
+      ...new Set([
+        ...(subs ?? []).map((s) => s.user_id),
+        ...(devices ?? []).map((d) => d.user_id as string),
+      ]),
+    ]
 
     const [favRes, alertRes, logRes] = await Promise.all([
       fetchAllRows((from, to) =>
@@ -140,8 +154,17 @@ export default {
     // ---- 条件2: その日まだ送っていない人だけ ----
     const alreadySent = new Set((logRes.data ?? []).map((r) => r.user_id))
 
+    type Device = { id: string; token: string; env: string | null }
+    const devicesByUser = new Map<string, Device[]>()
+    for (const d of devices ?? []) {
+      const uid = d.user_id as string
+      const list = devicesByUser.get(uid) ?? []
+      list.push({ id: d.id as string, token: d.token as string, env: d.env as string | null })
+      devicesByUser.set(uid, list)
+    }
+
     const subsByUser = new Map<string, typeof subs>()
-    for (const s of subs) {
+    for (const s of subs ?? []) {
       const list = subsByUser.get(s.user_id) ?? []
       list.push(s)
       subsByUser.set(s.user_id, list)
@@ -151,6 +174,7 @@ export default {
 
     // ---- 送信 ----
     let sentUsers = 0, sentPush = 0, removed = 0, skippedNoFav = 0, skippedDone = 0
+    let sentIos = 0, removedIos = 0, failedIos = 0
 
     for (const userId of userIds) {
       if (!expecting.has(userId)) { skippedNoFav++; continue }
@@ -177,6 +201,19 @@ export default {
         }
       }
 
+      // --- iOSアプリへ(APNs直送・WP-4) ---
+      const devicesOfUser = devicesByUser.get(userId) ?? []
+      if (devicesOfUser.length > 0) {
+        const ios = await sendApns(devicesOfUser, { title: TITLE, body: BODY })
+        sentIos += ios.sent
+        failedIos += ios.failed
+        if (ios.sent > 0) ok = true
+        if (ios.dropped.length > 0) {
+          await supabaseAdmin.from('apns_tokens').delete().in('id', ios.dropped)
+          removedIos += ios.dropped.length
+        }
+      }
+
       if (ok) {
         sentUsers++
         const { error } = await supabaseAdmin.from('push_notice_log')
@@ -192,6 +229,7 @@ export default {
       date: today, dataDate, users: userIds.length, sentUsers, sentPush,
       removedSubscriptions: removed, skippedNoFavorites: skippedNoFav,
       skippedAlreadySent: skippedDone,
+      sentIos, removedIosTokens: removedIos, failedIos,
     }
     console.log('[send-delay-notice]', JSON.stringify(summary))
     return Response.json(summary)

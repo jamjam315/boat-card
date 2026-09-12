@@ -68,6 +68,13 @@ Deno.test('連鎖削除の対象外は favorite_players（消し残しを作ら�
   // auth.users を消しても消えない表がここに全部入っていること。
   // 2026-09-07 時点で、外部キーを持たないのはこの1つだけ
   // （20260728120802_record_favorite_players.sql が実DBの定義を記録している）。
+  //
+  // **WP-4で足した apns_tokens はここに要らない。**
+  // 20260912120000_create_apns_tokens.sql が
+  // `references auth.users(id) on delete cascade` を付けているので、
+  // 利用者を消せば通知の送信先も一緒に消える（5.1.1(v)）。
+  // 端末側のOSへの登録を解くのはアプリの仕事で、mypage が削除の前に
+  // TeiyomiIOSPushControl.signOutCleanup() を呼んでいる。
   assertEquals([...TABLES_WITHOUT_CASCADE], ['favorite_players'])
 })
 

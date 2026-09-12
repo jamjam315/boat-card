@@ -268,3 +268,75 @@ JWSは署名を検証していないので、中の `originalTransactionId` は�
 `platform` 列にCHECK制約は無いので、`ios` を足すのにマイグレーションは要らない。
 `is_premium()` を含む会員判定の4か所は `status` と `current_period_end` しか
 見ていないので、**iOSの行でもそのまま会員として扱われる**。
+
+---
+
+# 通知（APNs）のデプロイ手順（WP-4）
+
+**Firebaseは使わない。** Edge Function が APNs のHTTP/2エンドポイントを直接叩く。
+
+## 1. Apple Developer 側
+
+1. **Certificates, Identifiers & Profiles → Identifiers** → `com.mtpworks.teiyomi`
+   → **Push Notifications** にチェック → Save
+2. **Keys** → **+** → 名前（`teiyomi-apns` など）→ **Apple Push Notifications service (APNs)**
+   にチェック → Continue → Register
+3. **`.p8` をダウンロード**（⚠️ 再ダウンロード不可。無くしたら作り直し）
+4. **Key ID**（10桁）を控える。Team ID は `574794QZ4P`
+
+> APNsキーは**アプリをまたいで使える**（チームに1つでよい）。レジャー帳で作った
+> ものがあれば流用できる。
+
+## 2. Supabase Secrets
+
+```bash
+supabase secrets set \
+  APNS_KEY_ID=<キーID10桁> \
+  APNS_TEAM_ID=574794QZ4P \
+  APNS_BUNDLE_ID=com.mtpworks.teiyomi \
+  APNS_PRIVATE_KEY="$(cat ~/Documents/<AuthKey_XXXXXXXXXX>.p8)" \
+  --project-ref vynbhssakpxiikmseoja
+```
+
+**揃うまでiOSへは1本も送らない**（`APNS_* secrets not configured` がログに出るだけで、
+ブラウザのWeb Pushは今までどおり動く）。
+
+## 3. マイグレーションと関数
+
+```bash
+supabase db push --project-ref vynbhssakpxiikmseoja
+```
+
+```bash
+supabase functions deploy send-morning-push --project-ref vynbhssakpxiikmseoja
+supabase functions deploy send-delay-notice --project-ref vynbhssakpxiikmseoja
+supabase functions deploy send-test-push --project-ref vynbhssakpxiikmseoja
+```
+
+## 4. 実機で確かめる
+
+1. アプリを入れ直す → マイページでログイン
+2. 「🔔 出走のお知らせ」の **オンにする** → iOSの許可ダイアログ → 許可
+3. 表示が **オン** に変わる（＝`apns_tokens` に行が入った）
+4. テスト通知を送る（通知をONにしたページのコンソール、または下のcurl）
+
+```bash
+curl -X POST "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/send-test-push" \
+  -H "Authorization: Bearer <ログイン中のアクセストークン>" \
+  -H "apikey: <anon key>"
+```
+
+応答の `sentIos` が 1 なら届いている。
+
+### つまずいたときの見どころ
+
+| ログ | 意味 | 直し方 |
+|---|---|---|
+| `APNS_* secrets not configured` | Secretsが揃っていない | 手順2の4つを確認 |
+| `status=403 reason=InvalidProviderToken` | キーID・チームIDが違う | 手順1で控えた値を見直す。**行は消えない** |
+| `status=400 reason=BadDeviceToken` | 環境の取り違え | 行は自動で消える。通知をONにし直せば正しい `env` で入り直る |
+| `status=400 reason=BadTopic` | `APNS_BUNDLE_ID` が違う | `com.mtpworks.teiyomi` か確認 |
+| `status=410` | アプリが消された・失効 | 正常。行は自動で消える |
+
+`env` は殻のビルドで決まる（開発ビルド・TestFlight＝`sandbox`、App Store＝`production`）。
+`apns_tokens.env` を見れば、どちらで取った端末かが分かる。

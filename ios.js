@@ -49,16 +49,20 @@
   // 付くのはアプリのときだけなので、ブラウザのDOMは1文字も変わらない。
   if (isIOSApp) {
     document.documentElement.setAttribute("data-ios-app", "1");
-    // 購入の受け口(billing-ios.js)を全ページに置く(WP-3d)。殻は起動時に
-    // 未完了の取引を再配送してくるが、受け口が無いページでは届かない。
-    // どのページを開いていても受け取れるよう、ここで差し込む。
-    // premium は静的な <script> でも読むが、billing-ios.js は二重読み込みに
-    // 耐える作り(最後に読まれたほうが TeiyomiBilling を戻す)。
+    // 購入(billing-ios.js)と通知(push-ios.js)の受け口を全ページに置く
+    // (WP-3d / WP-4)。殻は起動時に未完了の取引やトークンを渡してくるが、
+    // 受け口が無いページでは届かない。どのページを開いていても受け取れるよう、
+    // ここで差し込む。premium は billing-ios.js を静的な <script> でも読むが、
+    // どちらも二重読み込みに耐える作りにしてある。
     // ブラウザ・Androidではこの分岐に入らないので、ページは1バイトも変わらない。
-    var s = document.createElement("script");
-    s.src = "/billing-ios.js";
-    s.async = false;
-    (document.head || document.documentElement).appendChild(s);
+    // 通知の受け口(push-ios.js)も同じ理由で全ページに置く(WP-4)。殻は起動時に
+    // トークンを渡してくることがあり、受け口が無いページでは届かない。
+    ["/billing-ios.js", "/push-ios.js"].forEach(function (src) {
+      var s = document.createElement("script");
+      s.src = src;
+      s.async = false;   // 読み込み順を保つ(ios.js → billing/push)
+      (document.head || document.documentElement).appendChild(s);
+    });
   }
 
   window.TeiyomiIOS = {

@@ -325,8 +325,15 @@
 
   function noteDenial(requestId, reason) {
     lastRejection = reason;
+    var u = currentUser();
     try {
-      localStorage.setItem(DENIAL_KEY, JSON.stringify({ requestId: requestId, reason: reason, at: Date.now() }));
+      localStorage.setItem(DENIAL_KEY, JSON.stringify({
+        requestId: requestId, reason: reason, at: Date.now(),
+        // **誰に向けた案内かを持つ(WP-4同梱の小修正)。** 端末を共有していて
+        // 別の人がログインしたときに、前の人の「別のアカウントに紐づいています」
+        // が出続けるのを防ぐ。
+        userId: (u && u.id) || null
+      }));
     } catch (e) { /* 使えなければメモリの控えだけ */ }
   }
 
@@ -345,7 +352,12 @@
       var raw = localStorage.getItem(DENIAL_KEY);
       if (raw) {
         var d = JSON.parse(raw);
-        if (d && d.reason && (Date.now() - (d.at || 0)) < DENIAL_TTL_MS) return d.reason;
+        var u = currentUser();
+        var mine = !d.userId || (u && u.id === d.userId);
+        if (d && d.reason && mine && (Date.now() - (d.at || 0)) < DENIAL_TTL_MS) {
+          return d.reason;
+        }
+        // 古い、または**別の人に向けた**控えは捨てる。
         localStorage.removeItem(DENIAL_KEY);
       }
     } catch (e) {}

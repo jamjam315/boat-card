@@ -34,6 +34,7 @@ import {
   buildMessage, fetchAllRows, loadFrames, loadNightVenues, loadToday, matchAlerts, todayJst,
   type Alert, type Entry,
 } from '../_shared/morning-message.ts'
+import { sendApns } from '../_shared/apns.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
 
@@ -118,9 +119,23 @@ export default {
       console.error('[send-morning-push] 購読の取得に失敗:', (subErr as Error).message)
       return Response.json({ error: 'subscriptions_failed' }, { status: 500 })
     }
-    if (!subs || subs.length === 0) return Response.json({ sent: 0, users: 0 })
+    // iOSアプリ(殻)の送り先(WP-4)。テーブルがまだ無い環境でも朝の便を
+    // 止めないよう、ここのエラーは致命的に扱わない。
+    const { data: devices, error: devErr } = await fetchAllRows((from, to) =>
+      supabaseAdmin.from('apns_tokens').select('id,user_id,token,env').order('id').range(from, to))
+    if (devErr) console.error('[send-morning-push] iOS端末の取得に失敗:', (devErr as Error).message)
 
-    const userIds = [...new Set(subs.map((s) => s.user_id))]
+    const hasWeb = (subs?.length ?? 0) > 0
+    const hasIos = (devices?.length ?? 0) > 0
+    if (!hasWeb && !hasIos) return Response.json({ sent: 0, users: 0 })
+
+    // 送る相手は「ブラウザの購読を持つ人」と「iOS端末を持つ人」の和集合。
+    const userIds = [
+      ...new Set([
+        ...(subs ?? []).map((s) => s.user_id),
+        ...(devices ?? []).map((d) => d.user_id as string),
+      ]),
+    ]
 
     const [favRes, memRes, logRes, alertRes] = await Promise.all([
       // お気に入りは「登録が古い順」が無料プランの3名選定の意味を持つので
@@ -173,14 +188,24 @@ export default {
     }
 
     const subsByUser = new Map<string, typeof subs>()
-    for (const s of subs) {
+    for (const s of subs ?? []) {
       const list = subsByUser.get(s.user_id) ?? []
       list.push(s)
       subsByUser.set(s.user_id, list)
     }
 
+    type Device = { id: string; token: string; env: string | null }
+    const devicesByUser = new Map<string, Device[]>()
+    for (const d of devices ?? []) {
+      const uid = d.user_id as string
+      const list = devicesByUser.get(uid) ?? []
+      list.push({ id: d.id as string, token: d.token as string, env: d.env as string | null })
+      devicesByUser.set(uid, list)
+    }
+
     // ---- 送信 ----
     let sentUsers = 0, sentPush = 0, removed = 0, skippedNoRace = 0, skippedDone = 0
+    let sentIos = 0, removedIos = 0, failedIos = 0
     let alertUsers = 0   // 条件アラートが1件以上当たった人数(効きを見るための記録)
 
     for (const userId of userIds) {
@@ -203,9 +228,8 @@ export default {
       // 条件に一致していれば、お気に入りの出走が無くても知らせる。
       if (matched.length === 0 && hits.length === 0) { skippedNoRace++; continue }
 
-      const payload = JSON.stringify(
-        buildMessage(matched, { premium: isPremium, frames, alerts: hits }),
-      )
+      const message = buildMessage(matched, { premium: isPremium, frames, alerts: hits })
+      const payload = JSON.stringify(message)
 
       let ok = false
       for (const s of subsByUser.get(userId) ?? []) {
@@ -228,6 +252,21 @@ export default {
         }
       }
 
+      // --- iOSアプリへ(APNs直送・WP-4) ---
+      // 文面はWeb Pushと同じものを使う(2つ持つと片方を直し忘れる)。
+      const devicesOfUser = devicesByUser.get(userId) ?? []
+      if (devicesOfUser.length > 0) {
+        const ios = await sendApns(devicesOfUser, message)
+        sentIos += ios.sent
+        failedIos += ios.failed
+        if (ios.sent > 0) ok = true
+        if (ios.dropped.length > 0) {
+          // 届かない端末は消す(Web Push の 404/410 と同じ扱い)。
+          await supabaseAdmin.from('apns_tokens').delete().in('id', ios.dropped)
+          removedIos += ios.dropped.length
+        }
+      }
+
       if (ok) {
         sentUsers++
         const { error } = await supabaseAdmin.from('push_send_log')
@@ -242,6 +281,7 @@ export default {
     const summary = {
       date: today, trigger, users: userIds.length, sentUsers, sentPush,
       removedSubscriptions: removed, skippedNoRace, skippedAlreadySent: skippedDone,
+      sentIos, removedIosTokens: removedIos, failedIos,
       framesLoaded: !!frames,
       alerts: (alertRes.data ?? []).length, alertUsers, nightVenuesLoaded: !!nightVenues,
     }
