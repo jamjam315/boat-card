@@ -13,10 +13,10 @@ name: JS tests
 on:
   push:
     branches: [main]
-    paths: ['*.js', 'tests/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
   pull_request:
     branches: [main]
-    paths: ['*.js', 'tests/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
 
 permissions:
   contents: read
@@ -32,6 +32,8 @@ jobs:
           node-version: '22'
       # ディレクトリ指定は Node 22 では通らない(モジュール解決に失敗する)。ファイルで渡す。
       - run: node --test tests/*.test.mjs
+      # 審査用パスワードの道具の自己診断(ネットワークもキーも使わない)。
+      - run: node tools/set-review-password.mjs --self-test
 
   deno:
     name: deno test
