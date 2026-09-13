@@ -177,6 +177,11 @@ CONTACT
 mtpworks.info@gmail.com
 ```
 
+## 7.5 WP-6（通知の受け口）の設定
+
+提出の前に `apple-server-notifications.md` の手順を済ませる（App Store Server Notifications の URL・
+Billing Grace Period の有効化・テスト通知）。Google Play 側の同じ穴（RTDN）は別 WP の候補として同じ文書に記載。
+
 ## 8. 提出
 
 WP-6 と step5（TestFlight での通知・購入・ログイン直後の表示・削除の確認）が終わってから、

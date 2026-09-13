@@ -458,6 +458,15 @@ enabled = true
 # 必ずその本人の行だけになる。
 entrypoint = "./functions/verify-purchase/index.ts"
 
+[functions.apple-notifications]
+enabled = true
+# App Store Server Notifications V2 の受け口(WP-6)。Apple は Supabase の JWT を
+# 持たないためプラットフォーム側のJWT検証を無効化する。共有の秘密も送ってこないので
+# 入口では絞れない代わりに、**通知の中身は信用せず**、App Store Server API に
+# 今の状態を問い合わせてから、既にある iOS の行だけを書き換える(行は作らない)。
+verify_jwt = false
+entrypoint = "./functions/apple-notifications/index.ts"
+
 [functions.yomi-review]
 enabled = true
 # 読み採点の答案にAI講評を1本書かせる。auth: 'user'(JWT必須)で実装している
