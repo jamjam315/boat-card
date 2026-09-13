@@ -3,6 +3,9 @@
 import { assertEquals, assertFalse } from 'jsr:@std/assert@1'
 import {
   APPLE_STATUS,
+  cooldownSince,
+  RECHECK_COOLDOWN_SECONDS,
+  testRecordKey,
   APPLE_SUBSCRIPTIONS_PRODUCTION,
   APPLE_SUBSCRIPTIONS_SANDBOX,
   decodeJwsPayload,
@@ -211,4 +214,27 @@ Deno.test('知らない status・読めない答えは行に触らない', () =>
 Deno.test('記録は90日で消す', () => {
   assertEquals(NOTIFICATION_RETENTION_DAYS, 90)
   assertEquals(retentionCutoff(NOW), new Date(NOW - 90 * DAY).toISOString())
+})
+
+// ---- security-review 2026-09-13 ----
+
+Deno.test('種類・サブタイプが Apple の形でなければ通知として扱わない(表やログに長い文字列を書かせない)', () => {
+  const uuid = '11111111-2222-3333-4444-555555555555'
+  assertEquals(parseNotification({ signedPayload: jws({ notificationUUID: uuid, notificationType: 'TEST', subtype: 'A'.repeat(47000) }) }), null)
+  assertEquals(parseNotification({ signedPayload: jws({ notificationUUID: uuid, notificationType: 'TEST\nupdated active' }) }), null)
+  assertEquals(parseNotification({ signedPayload: jws({ notificationUUID: uuid, notificationType: 'did_renew' }) }), null)
+  assertEquals(parseNotification({ signedPayload: jws({ notificationUUID: uuid, notificationType: 'DID_RENEW', subtype: 42 }) }), null)
+  // Apple の実際の値は通る。
+  assertEquals(parseNotification(notification({ notificationType: 'DID_FAIL_TO_RENEW', subtype: 'GRACE_PERIOD' }))?.subtype, 'GRACE_PERIOD')
+  assertEquals(parseNotification(notification({ notificationType: 'EXPIRED', subtype: 'BILLING_RETRY' }))?.notificationType, 'EXPIRED')
+})
+
+Deno.test('TEST 通知の記録は環境ごとに1行(UUID ごとに増やさない)', () => {
+  assertEquals(testRecordKey('Production'), 'test-production')
+  assertEquals(testRecordKey('Sandbox'), 'test-sandbox')
+})
+
+Deno.test('同じ購読を問い合わせ直さない間隔は1分', () => {
+  assertEquals(RECHECK_COOLDOWN_SECONDS, 60)
+  assertEquals(cooldownSince(NOW), new Date(NOW - 60 * 1000).toISOString())
 })

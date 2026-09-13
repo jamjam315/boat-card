@@ -25,8 +25,37 @@ export const APPLE_SUBSCRIPTIONS_SANDBOX =
 /** 記録(apple_notifications)を残す日数。これより古い行は消す。 */
 export const NOTIFICATION_RETENTION_DAYS = 90
 
+/**
+ * 同じ購読について、この秒数のあいだは Apple へ問い合わせ直さない。
+ *
+ * 自分の購入の originalTransactionId を1つ持っていれば、UUID だけを変えた偽の通知を
+ * 送り続けて、Apple への問い合わせ・memberships の書き込み・記録の追加を無制限に
+ * 起こせた(security-review 2026-09-13)。Apple の本物の通知は1つの購読について
+ * 数分に1回も来ない(Sandbox の月額でも更新は約5分おき)。
+ *
+ * 間隔の内側で届いたものには **503** を返す。本物なら Apple が時間をおいて送り直すので
+ * 取りこぼさない(毎回「今の状態」を取り直すので、遅れて処理しても結果は同じ)。
+ */
+export const RECHECK_COOLDOWN_SECONDS = 60
+
+/** クールダウンの境目(これより後に処理した記録があれば、問い合わせ直さない)。 */
+export function cooldownSince(now: number, seconds = RECHECK_COOLDOWN_SECONDS): string {
+  return new Date(now - seconds * 1000).toISOString()
+}
+
 /** 受け付ける本文の上限。本物の通知は数KB。これを超えるものは読まない。 */
 export const MAX_BODY_BYTES = 64 * 1024
+
+/**
+ * TEST 通知の記録に使う固定の鍵。**通知ごとの UUID では記録しない。**
+ *
+ * TEST は購読に紐づかず、Apple にも確かめようがないので、UUID ごとに行を作ると
+ * 偽の TEST で表をいくらでも埋められる(security-review 2026-09-13)。環境ごとに
+ * 1行だけを上書きし、「最後にテスト通知を受け取った時刻」だけが分かるようにする。
+ */
+export function testRecordKey(env: AppleEnvironment): string {
+  return 'test-' + env.toLowerCase()
+}
 
 /**
  * JWS のペイロードを**署名検証せずに**取り出す。
@@ -61,6 +90,15 @@ export type ParsedNotification = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
+ * 通知の種類・サブタイプの形。Apple の値はすべて英大文字と _ (DID_RENEW・GRACE_PERIOD 等)。
+ *
+ * **この形でなければ通知として扱わない**(security-review 2026-09-13)。
+ * 以前は種類を64字まで・サブタイプを長さ無制限で受けていて、偽の本文で数十KBの
+ * 文字列を記録の表やログへ書き込めた。
+ */
+const TYPE_RE = /^[A-Z][A-Z_]{0,39}$/
+
+/**
  * 届いた本文 `{ signedPayload }` を読む。形が違えば null(Apple からの通知ではない)。
  *
  * originalTransactionId は signedTransactionInfo を優先し、無ければ signedRenewalInfo から取る。
@@ -73,7 +111,11 @@ export function parseNotification(body: unknown): ParsedNotification | null {
   const uuid = payload.notificationUUID
   const type = payload.notificationType
   if (typeof uuid !== 'string' || !UUID_RE.test(uuid)) return null
-  if (typeof type !== 'string' || type.length === 0 || type.length > 64) return null
+  if (typeof type !== 'string' || !TYPE_RE.test(type)) return null
+  const subtype = payload.subtype
+  if (subtype !== undefined && subtype !== null && (typeof subtype !== 'string' || !TYPE_RE.test(subtype))) {
+    return null
+  }
 
   const data = (typeof payload.data === 'object' && payload.data !== null)
     ? payload.data as Record<string, unknown>
@@ -89,7 +131,7 @@ export function parseNotification(body: unknown): ParsedNotification | null {
   return {
     notificationUUID: uuid.toLowerCase(),
     notificationType: type,
-    subtype: typeof payload.subtype === 'string' ? payload.subtype : null,
+    subtype: typeof subtype === 'string' ? subtype : null,
     environment,
     bundleId: typeof data.bundleId === 'string' ? data.bundleId : null,
     originalTransactionId: typeof original === 'string' && /^\d{1,32}$/.test(original)

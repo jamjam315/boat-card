@@ -21,7 +21,14 @@ Apple が送ってくる通知は「**確かめ直すきっかけ**」として�
 偽の通知を送られても、既にある行を Apple の答えどおりに取り直すだけで、誰かを勝手にプレミアムにはできない。
 
 受け取った記録は `apple_notifications` 表（service role 専用）に残し、**90日で消す**（関数が動いたついで）。
-行が見つからない通知・他のアプリの通知は、記録も残さない。
+
+URL は公開されている前提で作ってある（security-review 2026-09-13 で直した点を含む）。
+
+- 行が見つからない通知・他のアプリの通知は、記録も残さない
+- TEST 通知は環境ごとに1行（`test-production` / `test-sandbox`）を上書きするだけ
+- 種類・サブタイプが Apple の形（英大文字と `_`）でなければ読まない。本文は 64KB まで
+- **同じ購読について Apple へ問い合わせるのは1分に1回まで**。間隔の内側で届いたものは 503 を返す
+  （本物の通知なら Apple が送り直してくる。毎回「今の状態」を取り直すので、遅れても結果は同じ）
 
 ## JAM の作業（この順）
 
@@ -70,7 +77,7 @@ App Store Connect →「アプリ」→ 艇読み →「サブスクリプショ
 cd ~/dev/boat-card && node tools/apple-test-notification.mjs
 ```
 
-`2/2 送信結果: ✅ SUCCESS` なら、Apple → 関数まで届いている（`apple_notifications` に `result = 'test'` の行が増える）。
+`2/2 送信結果: ✅ SUCCESS` なら、Apple → 関数まで届いている（`apple_notifications` の `notification_uuid = 'test-sandbox'` の行の `processed_at` が今の時刻になる）。
 使う鍵は `tools/.env.local`（apple-jwt-check.mjs と同じもの）。
 
 ### 6. 実際の更新で確かめる（任意）
@@ -87,6 +94,7 @@ memberships のその行の `updated_at` と `current_period_end` が進んで�
 | `updated inactive (expired) …` | 期限切れ・返金などを反映した |
 | `no membership row type=SUBSCRIBED …` | その購入をまだアプリで検証していない（アプリを開けば verify-purchase が行を作る） |
 | `sandbox not allowed user=…` | 許可リストに無い人の Sandbox 購読（TestFlight のテスター等）。正常な無視 |
+| `cooldown user=…` | 同じ購読を1分以内に扱ったばかり。503 を返したので、本物なら Apple が送り直す。短時間に大量に出ていたら偽の通知の連打 |
 | `apple api status=401 …` | 鍵の誤り。500 を返しているので、直せば Apple が送り直してくる |
 
 ## Google Play 側の同じ穴（別 WP の候補）

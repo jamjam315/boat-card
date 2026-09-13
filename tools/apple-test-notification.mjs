@@ -18,7 +18,8 @@
 // ============================================================================
 //
 //   SUCCESS … Apple から apple-notifications まで届き、200 が返った。
-//             Supabase の apple_notifications 表に result = 'test' の行が増えている
+//             Supabase の apple_notifications 表の notification_uuid = 'test-sandbox'
+//             （--production なら 'test-production'）の行の processed_at が今の時刻になる
 //   それ以外 … Apple が付けた失敗の理由がそのまま出る（URL の誤り・TLS・タイムアウト等）
 //
 // 鍵・JWT・通知の本文は表示しない。
@@ -121,7 +122,7 @@ async function main() {
     const result = last.sendAttemptResult;
     console.log(`2/2 送信結果: ${result === "SUCCESS" ? "✅ SUCCESS" : "✖ " + result}（${new Date(last.attemptDate).toLocaleString("ja-JP")}）`);
     if (result === "SUCCESS") {
-      console.log("    Supabase の apple_notifications に result = 'test' の行が増えているはずです。");
+      console.log(`    Supabase の apple_notifications の test-${which} の行の processed_at が今の時刻になっているはずです。`);
       return;
     }
     console.log("    ASC の URL（末尾まで）と、apple-notifications をデプロイ済みか（--no-verify-jwt）を確認してください。");

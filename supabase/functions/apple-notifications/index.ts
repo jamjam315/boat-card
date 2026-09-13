@@ -21,7 +21,15 @@
 // ## 応答
 //
 // 扱った・無視した → 200。Apple や DB の一時的な失敗 → 500(Apple が時間をおいて送り直す)。
-// 形の違う本文 → 400(Apple からの通知ではない)。
+// 同じ購読を1分以内に扱ったばかり → 503(同じく送り直してもらう)。
+// 形の違う本文 → 400、大きすぎる本文 → 413(Apple からの通知ではない)。
+//
+// ## URL を知られたときの備え(security-review 2026-09-13)
+//
+// ・本文は 64KB まで。Content-Length で先に断り、読みながらも数えて打ち切る
+// ・種類・サブタイプは Apple の形(英大文字と _)でなければ読まない
+// ・記録を残すのは、memberships に行がある購読の通知だけ。TEST は環境ごとに1行を上書き
+// ・同じ購読について Apple へ問い合わせるのは1分に1回まで
 //
 // ## 起動保護
 //
@@ -31,12 +39,14 @@ import { createClient } from 'npm:@supabase/supabase-js@^2'
 import { createAppleApiToken } from '../_shared/apple_api.ts'
 import { appleSecretsConfigured, sandboxAllowedFor } from '../verify-purchase/logic.ts'
 import {
+  cooldownSince,
   MAX_BODY_BYTES,
   type ParsedNotification,
   parseNotification,
   retentionCutoff,
   stateFromSubscriptionStatuses,
   subscriptionsBase,
+  testRecordKey,
 } from './logic.ts'
 
 const TAG = '[apple-notifications]'
@@ -51,10 +61,43 @@ function reply(status: number, result: string): Response {
   return Response.json({ result }, { status })
 }
 
+/**
+ * 本文を上限まで読む。上限を超えたら読むのをやめて null。
+ *
+ * req.text() は全部を読み切ってから長さが分かるので、巨大な本文でも最後まで
+ * 受け取ってしまう(security-review 2026-09-13)。Content-Length で先に断り、
+ * 送られてこない・偽っている場合も、読みながら数えて途中で打ち切る。
+ */
+async function readBodyCapped(req: Request, max: number): Promise<string | null> {
+  const declared = Number(req.headers.get('content-length') ?? '0')
+  if (Number.isFinite(declared) && declared > max) return null
+  if (!req.body) return ''
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const all = new Uint8Array(total)
+  let off = 0
+  for (const c of chunks) {
+    all.set(c, off)
+    off += c.byteLength
+  }
+  return new TextDecoder().decode(all)
+}
+
 /** 記録を残す。失敗しても通知の処理そのものは止めない(記録は控え)。 */
-async function record(n: ParsedNotification, result: string): Promise<void> {
+async function record(n: ParsedNotification, result: string, key = n.notificationUUID): Promise<void> {
   const { error } = await supabaseAdmin.from('apple_notifications').upsert({
-    notification_uuid: n.notificationUUID,
+    notification_uuid: key,
     notification_type: n.notificationType,
     subtype: n.subtype,
     environment: n.environment,
@@ -76,8 +119,8 @@ export default {
   async fetch(req: Request): Promise<Response> {
     if (req.method !== 'POST') return reply(405, 'method not allowed')
 
-    const raw = await req.text()
-    if (raw.length > MAX_BODY_BYTES) return reply(400, 'too large')
+    const raw = await readBodyCapped(req, MAX_BODY_BYTES)
+    if (raw === null) return reply(413, 'too large')
     let body: unknown
     try {
       body = JSON.parse(raw)
@@ -89,8 +132,15 @@ export default {
     if (!n) return reply(400, 'not a notification')
 
     const bundleId = Deno.env.get('APPLE_BUNDLE_ID') ?? ''
+    // 設定が抜けていると、本物の通知まで「他のアプリ」として 200 で捨て、Apple が
+    // 送り直さなくなる。500 にして送り直してもらう(security-review の付記)。
+    if (!bundleId) {
+      console.error(TAG, 'APPLE_BUNDLE_ID not configured')
+      return reply(500, 'not configured')
+    }
     // 他のアプリの通知(または偽物)。記録も残さない(表を埋められないように)。
-    if (n.bundleId !== null && n.bundleId !== bundleId) {
+    // bundleId が入っていない通知も、TEST 以外は同じく捨てる。
+    if (n.bundleId !== bundleId && !(n.notificationType === 'TEST' && n.bundleId === null)) {
       console.log(TAG, 'bundle mismatch type=' + n.notificationType)
       return reply(200, 'ignored')
     }
@@ -100,7 +150,8 @@ export default {
     // 疎通確認用(ASC の設定後に tools/apple-test-notification.mjs で送る)。
     if (n.notificationType === 'TEST') {
       console.log(TAG, 'test notification received ' + head)
-      await record(n, 'test')
+      // UUID ごとには記録しない(偽の TEST で表を埋められないように・logic.ts の testRecordKey)。
+      await record(n, 'test', testRecordKey(n.environment))
       return reply(200, 'test')
     }
 
@@ -138,6 +189,24 @@ export default {
       return reply(200, 'no row')
     }
     const who = 'user=' + row.user_id.slice(0, 8)
+
+    // --- 同じ購読を短い間に何度も問い合わせない(logic.ts の RECHECK_COOLDOWN_SECONDS) ---
+    // 偽の通知を連打されても、Apple への問い合わせ・書き込み・記録は1分に1回まで。
+    // 本物の通知なら 503 で Apple が送り直してくるので、取りこぼさない。
+    const { data: recent, error: recentErr } = await supabaseAdmin
+      .from('apple_notifications')
+      .select('notification_uuid')
+      .eq('original_transaction_id', n.originalTransactionId)
+      .gte('processed_at', cooldownSince(Date.now()))
+      .limit(1)
+    if (recentErr) {
+      console.error(TAG, '記録の取得に失敗:', recentErr.message)
+      return reply(500, 'lookup failed')
+    }
+    if (recent && recent.length > 0) {
+      console.log(TAG, 'cooldown ' + who + ' ' + head)
+      return reply(503, 'cooldown')
+    }
 
     // --- Sandbox は許可リストの人だけ(verify-purchase と同じ基準) ---
     if (
