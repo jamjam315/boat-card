@@ -30,6 +30,55 @@
 
   var TABLE = "apns_tokens";
 
+  // この端末で登録できたトークンの控え(WP-5 step5)。{userId, token, env}
+  //
+  // 【なぜ控えるのか】
+  // 「オン」かどうかは**この端末の**行があるかで決めたいが、殻はトークンを
+  // メモリにしか持たず、アプリを開き直すと「オンにする」を押すまで分からない。
+  // 以前は分からないあいだ「そのアカウントに行が1つでもあればオン」で代用していて、
+  // 開発版の古い行が残っていた TestFlight 版で**最初からオンと表示され、登録を
+  // 一度も頼まないまま**になった(2026-09-13 実機)。
+  //
+  // 控えはアプリの中の保存領域(WKWebView の localStorage)に置くので、アプリを
+  // 削除すれば一緒に消える＝入れ直した端末は必ず「オフ」から始まる。
+  var DEVICE_KEY = "teiyomi_ios_push_device";
+
+  function readDevice() {
+    try {
+      var raw = localStorage.getItem(DEVICE_KEY);
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      if (!d || typeof d.token !== "string" || !d.token || typeof d.userId !== "string") return null;
+      return { userId: d.userId, token: d.token, env: d.env === "sandbox" ? "sandbox" : "production" };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeDevice(userId, t) {
+    try {
+      localStorage.setItem(DEVICE_KEY, JSON.stringify({ userId: userId, token: t.token, env: t.env }));
+    } catch (e) {}
+  }
+
+  function clearDevice() {
+    try { localStorage.removeItem(DEVICE_KEY); } catch (e) {}
+  }
+
+  /**
+   * 殻から今回まだトークンを受け取っていなければ、控えから戻す。
+   * **控えは、いまログインしている人のものだけ使う**(同じ端末で別の人に替わったら使わない)。
+   */
+  function ensureCurrent() {
+    if (current) return current;
+    var u = currentUser();
+    var d = readDevice();
+    if (u && !u.isAnonymous && d && d.userId === u.id) {
+      current = { token: d.token, env: d.env };
+    }
+    return current;
+  }
+
   // 直近に受け取ったトークン。画面が状態を出すのに使う。
   var current = null;      // {token, env} | null
   var registerWaiters = [];
@@ -121,8 +170,11 @@
   function onToken(e) {
     if (typeof e.token !== "string" || e.token.length === 0) return;
     current = { token: e.token, env: e.env === "sandbox" ? "sandbox" : "production" };
-    saveToken(current).then(function (ok) {
+    var saving = current;
+    saveToken(saving).then(function (ok) {
       lastProblem = ok ? null : "save-failed";
+      var u = currentUser();
+      if (ok && u && !u.isAnonymous) writeDevice(u.id, saving);
       settleRegister(ok ? { state: "on" } : { state: "save-failed" });
       notifyChanged();
     });
@@ -130,6 +182,7 @@
 
   function onDenied() {
     current = null;
+    clearDevice();
     lastProblem = "denied";
     settleRegister({ state: "denied" });
     notifyChanged();
@@ -138,6 +191,7 @@
   /** 許可は済んだのに、APNsへの登録に失敗した。**denied とは案内が違う。** */
   function onRegisterFailed() {
     current = null;
+    clearDevice();
     lastProblem = "register-failed";
     settleRegister({ state: "register-failed" });
     notifyChanged();
@@ -145,6 +199,7 @@
 
   function onUnregistered() {
     current = null;
+    clearDevice();
     lastProblem = null;
     settleRegister({ state: "off" });
     notifyChanged();
@@ -185,26 +240,41 @@
    *
    * off のときだけ、直近にオンにできなかった理由を problem に添える
    * (denied | register-failed | save-failed)。無ければ付けない。
+   *
+   * **「オン」はこの端末の行があるときだけ。** この端末のトークンが分からない
+   * (控えが無い＝入れ直し・機種変更・別の人)ときは off。同じアカウントの行が
+   * ほかにあれば elsewhere: true を添える(「この端末でも受け取るには」の案内用)。
    */
   function getState() {
     if (!ios.billingAvailable()) return Promise.resolve({ state: "unavailable" });
     if (!loggedIn()) return Promise.resolve({ state: "need-login" });
     var c = client();
     if (!c) return Promise.resolve({ state: "unavailable" });
-    // 保存してある行を見る。**この端末のぶんだけ**を見たいが、トークンは
-    // 殻から届くまで分からないので、まだ届いていなければ「自分の行が1つでも
-    // あるか」で代用する(機種変更直後は off に見えるが、ONを押せば入り直る)。
-    function toState(res) {
-      if (!res.error && res.data && res.data.length) return { state: "on" };
-      return lastProblem ? { state: "off", problem: lastProblem } : { state: "off" };
-    }
-    if (current) {
-      return c.from(TABLE).select("token").eq("token", current.token).limit(1)
-        .then(toState, function () { return { state: "unavailable" }; });
+    function off(extra) {
+      var r = { state: "off" };
+      if (lastProblem) r.problem = lastProblem;
+      if (extra) r.elsewhere = true;
+      return r;
     }
     var u = currentUser();
-    return c.from(TABLE).select("token").eq("user_id", u.id).limit(1)
-      .then(toState, function () { return { state: "unavailable" }; });
+    function checkElsewhere() {
+      return c.from(TABLE).select("token").eq("user_id", u.id).limit(1)
+        .then(function (res) {
+          return off(!res.error && res.data && res.data.length > 0);
+        }, function () { return off(false); });
+    }
+    if (ensureCurrent()) {
+      return c.from(TABLE).select("token").eq("token", current.token).limit(1)
+        .then(function (res) {
+          if (res.error) return { state: "unavailable" };
+          if (res.data && res.data.length) return { state: "on" };
+          // 控えのトークンの行が無い(APNs が失効を返して消した等)。控えは捨てる。
+          current = null;
+          clearDevice();
+          return checkElsewhere();
+        }, function () { return { state: "unavailable" }; });
+    }
+    return checkElsewhere();
   }
 
   /**
@@ -242,10 +312,11 @@
 
   /** 通知をOFFにする。行を消してから、殻にOSの登録を解いてもらう。 */
   function disable() {
-    var t = current && current.token;
+    var t = ensureCurrent() && current.token;
     return deleteToken(t).then(function () {
       send({ type: "push.unregister" });
       current = null;
+      clearDevice();
       lastProblem = null;
       notifyChanged();
       return { state: "off" };

@@ -100,7 +100,7 @@ Deno.test('Secretsが無いときは1本も送らず、行も消さない', asyn
     },
   )
   assertEquals(called, 0, 'APNsを叩いていない')
-  assertEquals(r, { sent: 0, dropped: [], failed: 0 })
+  assertEquals(r, { sent: 0, dropped: [], failed: 0, reasons: [] })
 })
 
 // ---- まとめて送る ----
@@ -173,6 +173,25 @@ Deno.test('届かない端末だけ dropped に入る（他は残す）', async 
   assertEquals(r.sent, 1)
   assertEquals(r.dropped.sort(), ['bad', 'gone'])
   assertEquals(r.failed, 1, '403は消さずに数えるだけ')
+  assertEquals(r.reasons.sort(), ['400 BadDeviceToken', '403 InvalidProviderToken', '410 Unregistered'])
+})
+
+Deno.test('鍵の環境が合わない(403 BadEnvironmentKeyInToken)は、行を消さずに理由を返す', async () => {
+  // Apple Developer で APNs キーを「Sandbox だけ」「Production だけ」に絞って作ると、
+  // もう一方の環境へ送ったときに返る。**鍵の設定の問題なので、端末の行は消さない。**
+  resetApnsJwtCache()
+  const r = await sendApns(
+    [{ id: 'tf', token: 'tok-tf', env: 'production' }],
+    { title: 'x', body: 'y' },
+    {
+      fetchImpl: fakeApns({ 'tok-tf': { status: 403, body: '{"reason":"BadEnvironmentKeyInToken"}' } }, []),
+      secrets: SECRETS,
+      jwt: 'JWT',
+    },
+  )
+  assertEquals(r.dropped, [])
+  assertEquals(r.failed, 1)
+  assertEquals(r.reasons, ['403 BadEnvironmentKeyInToken'])
 })
 
 // ---- JWT ----

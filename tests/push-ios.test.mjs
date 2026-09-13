@@ -40,7 +40,9 @@ function fakeDb(rows, log) {
               return {
                 limit() {
                   log.push({ op: "select", table, col, val });
-                  return Promise.resolve({ data: rows, error: null });
+                  // 行にその列が書いてあれば絞る(書いていない行はどの条件にも当たる)。
+                  const hit = rows.filter((r) => r[col] === undefined || r[col] === val);
+                  return Promise.resolve({ data: hit, error: null });
                 },
               };
             },
@@ -48,6 +50,17 @@ function fakeDb(rows, log) {
         },
       };
     },
+  };
+}
+
+/** アプリの中の保存領域(localStorage)。boot をまたいで渡すと「開き直した同じアプリ」になる。 */
+function makeStorage() {
+  const m = new Map();
+  return {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+    _map: m,
   };
 }
 
@@ -71,6 +84,7 @@ function boot(opts = {}) {
       getClient: () => (opts.noDb ? null : fakeDb(opts.rows ?? [], db)),
     },
     Promise, JSON, Array, String, Date, Object, CustomEvent: class { constructor(n) { this.type = n } },
+    localStorage: opts.storage ?? makeStorage(),
     // 待ち時間は既定では本物。opts.timers を渡すと、テストから手で進められる。
     // 本物のときは unref して、答えの来ない enable() がテストの終了を30秒引き留めないようにする。
     setTimeout: opts.timers
@@ -341,12 +355,89 @@ test("解除したあとは、覚えているトークンが消える", async ()
 
 // ---- 状態 ----
 
-test("保存済みなら on、無ければ off", async () => {
-  const on = boot({ rows: [{ token: "APNS-1" }] });
-  assert.deepEqual(await on.win.TeiyomiIOSPushControl.getState(), { state: "on" });
+test("この端末で登録した行があれば on、無ければ off", async () => {
+  const storage = makeStorage();
+  const first = boot({ rows: [{ token: "APNS-1", user_id: "u1" }], storage });
+  first.win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-1", env: "production" });
+  await flush();
+  assert.deepEqual(await first.win.TeiyomiIOSPushControl.getState(), { state: "on" });
 
   const off = boot({ rows: [] });
   assert.deepEqual(await off.win.TeiyomiIOSPushControl.getState(), { state: "off" });
+});
+
+// ---- 端末ごとの判定(WP-5 step5: TestFlight 版が最初からオンに見えた) ----
+
+test("入れ直した直後(控えなし)は、同じアカウントの行があっても on にしない", async () => {
+  // **ここが要点。** 開発版の古い行が残っていた TestFlight 版で「オン」と表示され、
+  // 登録を一度も頼まないまま production の行ができなかった(2026-09-13)。
+  const { win, sent } = boot({ rows: [{ token: "OLD-SANDBOX", user_id: "u1" }] });
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off", elsewhere: true });
+  assert.equal(sent.length, 0, "表示を決めるだけで、許可も登録も頼まない");
+});
+
+test("登録できたら控えを残し、アプリを開き直しても on のまま(殻にトークンが無くても)", async () => {
+  const storage = makeStorage();
+  const rows = [{ token: "APNS-TF", user_id: "u1" }];
+  const before = boot({ rows, storage });
+  before.win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-TF", env: "production" });
+  await flush();
+
+  const reopened = boot({ rows, storage });   // 開き直し: 殻からの token はまだ来ていない
+  assert.deepEqual(await reopened.win.TeiyomiIOSPushControl.getState(), { state: "on" });
+  assert.equal(reopened.win.TeiyomiIOSPushControl.currentToken().token, "APNS-TF");
+});
+
+test("控えは別の人のものなら使わない(同じ端末で別のアカウントにログイン)", async () => {
+  const storage = makeStorage();
+  const rows = [{ token: "APNS-TF", user_id: "u1" }];
+  const u1 = boot({ rows, storage });
+  u1.win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-TF", env: "production" });
+  await flush();
+
+  const u2 = boot({ rows: [], storage, user: { id: "u2", email: "c@d", isAnonymous: false } });
+  assert.deepEqual(await u2.win.TeiyomiIOSPushControl.getState(), { state: "off" });
+  assert.equal(u2.win.TeiyomiIOSPushControl.currentToken(), null);
+});
+
+test("控えのトークンの行が消えていたら(APNs が失効を返した等)、控えを捨てて off", async () => {
+  const storage = makeStorage();
+  const first = boot({ rows: [{ token: "APNS-1", user_id: "u1" }], storage });
+  first.win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-1", env: "production" });
+  await flush();
+
+  const later = boot({ rows: [], storage });
+  assert.deepEqual(await later.win.TeiyomiIOSPushControl.getState(), { state: "off" });
+  assert.equal(storage._map.size, 0, "控えを捨てた");
+});
+
+test("開き直したあとのログアウトでも、控えのトークンで行を消す", async () => {
+  // 以前は殻からトークンが届くまで current が空で、開き直してすぐログアウトすると
+  // 行を消せず、次にこの端末を使う人へ前の人の通知が届きうった。
+  const storage = makeStorage();
+  const rows = [{ token: "APNS-TF", user_id: "u1" }];
+  const before = boot({ rows, storage });
+  before.win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-TF", env: "production" });
+  await flush();
+
+  const reopened = boot({ rows, storage });
+  await reopened.win.TeiyomiIOSPushControl.signOutCleanup();
+  const del = reopened.db.find((d) => d.op === "delete");
+  assert.equal(del && del.val, "APNS-TF");
+  assert.equal(storage._map.size, 0, "控えも消す");
+});
+
+test("断られた・登録に失敗したら控えを消す", async () => {
+  for (const type of ["denied", "register-failed"]) {
+    const storage = makeStorage();
+    const { win } = boot({ storage });
+    win.TeiyomiIOSPush.onEvent({ type: "token", token: "A", env: "production" });
+    await flush();
+    assert.equal(storage._map.size, 1);
+    win.TeiyomiIOSPush.onEvent({ type });
+    await flush();
+    assert.equal(storage._map.size, 0, type);
+  }
 });
 
 test("知らない合図は捨てる", async () => {

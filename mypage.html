@@ -567,7 +567,7 @@ function renderIOSNotifyBox(box){
   const push = window.TeiyomiIOSPushControl;
   if(!push){ box.innerHTML = ""; return; }
 
-  push.getState().then(({state, problem})=>{
+  push.getState().then(({state, problem, elsewhere})=>{
     if(state === "unavailable"){
       box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">いま通知の設定ができません。時間をおいて再度お試しください。</p></div>`;
       return;
@@ -595,7 +595,7 @@ function renderIOSNotifyBox(box){
     box.innerHTML = `<div class="authbox">
       <div class="authbox-row"><span>🔔 出走のお知らせ</span>
         <button type="button" class="authbox-btn" id="notifyOnBtn">オンにする</button></div>
-      <p class="authbox-notice">${NOTIFY_LEAD}</p>
+      <p class="authbox-notice">${NOTIFY_LEAD}${elsewhere ? "<br>ほかの端末（または以前に入れたアプリ）では受け取る設定になっています。この端末でも受け取るには「オンにする」を押してください。" : ""}</p>
       <p class="authbox-msg" id="notifyMsg"></p>
     </div>`;
     // 合図が届くと描き直される。そのとき押した直後の案内が消えないよう、

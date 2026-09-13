@@ -182,7 +182,16 @@ export async function createApnsJwt(args: {
 /** 送る相手1件ぶん。 */
 export type ApnsTarget = { id: string; token: string; env: string | null }
 
-export type ApnsResult = { sent: number; dropped: string[]; failed: number }
+export type ApnsResult = {
+  sent: number
+  dropped: string[]
+  failed: number
+  /**
+   * 失敗の中身（`status reason` の短い文字列。例 `403 BadEnvironmentKeyInToken`）。
+   * 本物の端末で「送ったのに届かない」ときの切り分けに使う。**トークンは入れない。**
+   */
+  reasons: string[]
+}
 
 /**
  * まとめて送る。**行を消すのは呼び出し側**(返り値の dropped を使う)。
@@ -200,7 +209,7 @@ export async function sendApns(
     jwt?: string
   },
 ): Promise<ApnsResult> {
-  const result: ApnsResult = { sent: 0, dropped: [], failed: 0 }
+  const result: ApnsResult = { sent: 0, dropped: [], failed: 0, reasons: [] }
   if (targets.length === 0) return result
 
   const { keyId, teamId, privateKey, bundleId } = opts?.secrets ?? apnsSecretsFromEnv()
@@ -242,10 +251,12 @@ export async function sendApns(
       } else {
         result.failed++
       }
+      result.reasons.push(`${res.status} ${reason ?? '-'}`)
       // トークン本文は出さない(端末を特定できる値なので、行のidだけ)。
-      console.error(`[apns] 送信失敗 id=${t.id} status=${res.status} reason=${reason}`)
+      console.error(`[apns] 送信失敗 id=${t.id} env=${t.env} status=${res.status} reason=${reason}`)
     } catch (e) {
       result.failed++
+      result.reasons.push('exception')
       console.error(`[apns] 送信で例外 id=${t.id}: ${e}`)
     }
   }

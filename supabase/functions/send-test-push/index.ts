@@ -194,6 +194,9 @@ export default {
       return Response.json({
         sent, removedSubscriptions: removed,
         sentIos: ios.sent, removedIosTokens: ios.dropped.length, failedIos: ios.failed,
+        // 呼び出した本人の端末についてだけ、APNsが返した理由を返す(トークンは含まない)。
+        // 「sentIos が 0 で届かない」ときに、ダッシュボードのログを開かずに切り分けるため。
+        iosFailures: ios.reasons,
         premium, realPremium, viewedAsFree: asFree, usedSampleEntry: usedSample,
         alerts: (alerts ?? []).length, alertHits: hits.length,
         alertRaces: hits.map((e) => `${e.venue}${e.race}R ${e.deadline} ${e.name}`),
