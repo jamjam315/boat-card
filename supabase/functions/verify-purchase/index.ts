@@ -64,6 +64,7 @@ import {
   parsePlatform,
   parseSubscription,
   sandboxAllowed,
+  sandboxAllowedFor,
   secretsConfigured,
   tokenTakenByOther,
   transactionIdFromJws,
@@ -441,8 +442,20 @@ async function verifyWithApple(args: {
     })
 
   // 本番 → 届かなければSandbox(並び順の理由は logic.ts に書いた)。
-  // **Sandboxへ回るのは APPLE_ALLOW_SANDBOX="true" のときだけ**(WP-3f)。
-  const allowSandbox = sandboxAllowed(Deno.env.get('APPLE_ALLOW_SANDBOX'))
+  // **Sandboxへ回るのは APPLE_ALLOW_SANDBOX="true" で、かつこの人が
+  // APPLE_SANDBOX_USER_IDS に載っているときだけ**(WP-3f → WP-5で人を絞った)。
+  // 載っていない人には、Sandboxを叩きもしない。
+  const allowRaw = Deno.env.get('APPLE_ALLOW_SANDBOX')
+  const allowSandbox = sandboxAllowedFor(
+    allowRaw,
+    Deno.env.get('APPLE_SANDBOX_USER_IDS'),
+    userId,
+  )
+  if (sandboxAllowed(allowRaw) && !allowSandbox) {
+    // 設定は true なのに、この人はリストに無い。TestFlightのテスターが
+    // 買ったのか、審査用アカウントの登録漏れか、をログから見分けられるように残す。
+    console.log('[verify-purchase] sandbox not allowed for user=' + userId.slice(0, 8))
+  }
   const { res, trace, sandboxStatus } = await fetchAppleTransaction(fetchTx, {
     allowSandbox,
   })

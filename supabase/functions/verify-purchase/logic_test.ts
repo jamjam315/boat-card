@@ -27,7 +27,9 @@ import {
   parseSubscription,
   PRODUCT_IDS,
   secretsConfigured,
+  parseSandboxUserIds,
   sandboxAllowed,
+  sandboxAllowedFor,
   shouldRetryInSandbox,
   tokenTakenByOther,
   transactionIdFromJws,
@@ -683,4 +685,61 @@ Deno.test('本番の取引はそのまま通る', () => {
     appleSourceAllowed({}, { fromSandbox: false, allowSandbox: false }).ok,
     true,
   )
+})
+
+// ---- WP-5 0-1: Sandbox を受け付けるのは許可リストの人だけ ----
+
+const REVIEWER = 'aaaaaaaa-0000-4000-8000-000000000001'
+const TESTER = 'bbbbbbbb-0000-4000-8000-000000000002'
+const STRANGER = '11111111-2222-3333-4444-555555555555'
+
+Deno.test('許可リストに載っている人だけ、Sandboxを受け付ける', () => {
+  const list = `${REVIEWER},${TESTER}`
+  assertEquals(sandboxAllowedFor('true', list, REVIEWER), true)
+  assertEquals(sandboxAllowedFor('true', list, TESTER), true)
+  // **ここが要点。** true の設定でも、リストに無い人(TestFlightのテスター等)は通さない。
+  assertFalse(sandboxAllowedFor('true', list, STRANGER))
+})
+
+Deno.test('APPLE_ALLOW_SANDBOX が true でなければ、リストに居ても通さない', () => {
+  const list = `${REVIEWER},${TESTER}`
+  assertFalse(sandboxAllowedFor('false', list, REVIEWER))
+  assertFalse(sandboxAllowedFor(undefined, list, REVIEWER))
+  assertFalse(sandboxAllowedFor('TRUE', list, REVIEWER))
+})
+
+Deno.test('リストが未設定・空なら、誰も通さない(全員許すに倒さない)', () => {
+  assertFalse(sandboxAllowedFor('true', undefined, REVIEWER))
+  assertFalse(sandboxAllowedFor('true', null, REVIEWER))
+  assertFalse(sandboxAllowedFor('true', '', REVIEWER))
+  assertFalse(sandboxAllowedFor('true', ' , \n', REVIEWER))
+})
+
+Deno.test('user_id が空なら通さない', () => {
+  assertFalse(sandboxAllowedFor('true', `${REVIEWER},`, ''))
+})
+
+Deno.test('区切りはカンマ・空白・改行のどれでもよく、大文字小文字を区別しない', () => {
+  const ids = parseSandboxUserIds(` ${REVIEWER.toUpperCase()}\n${TESTER} ,`)
+  assertEquals([...ids].sort(), [REVIEWER, TESTER].sort())
+  assertEquals(sandboxAllowedFor('true', REVIEWER.toUpperCase(), REVIEWER), true)
+})
+
+Deno.test('部分一致では通さない(前方一致・他のIDの一部)', () => {
+  assertFalse(sandboxAllowedFor('true', REVIEWER, REVIEWER.slice(0, 8)))
+  assertFalse(sandboxAllowedFor('true', REVIEWER.slice(0, 8), REVIEWER))
+})
+
+Deno.test('リストに無い人は、Sandboxへ問い直しもしない(本番で止まる)', async () => {
+  const called: string[] = []
+  const allowSandbox = sandboxAllowedFor('true', REVIEWER, STRANGER)
+  const r = await fetchAppleTransaction((base) => {
+    called.push(base)
+    return Promise.resolve(reply(404, { errorCode: APPLE_TRANSACTION_NOT_FOUND }))
+  }, { allowSandbox })
+
+  assertEquals(called, [APPLE_API_PRODUCTION])
+  assertEquals(r.res.ok, false)
+  // 仮に本番がSandboxの取引を返してきても、権利にしない(二重の守りの2枚目)。
+  assertFalse(appleSourceAllowed({ environment: 'Sandbox' }, { fromSandbox: false, allowSandbox }).ok)
 })

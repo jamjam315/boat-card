@@ -72,6 +72,8 @@ body{background:var(--bg); color:var(--ink);
   touch-action:manipulation; min-height:44px;}
 .authbox-submit:disabled{opacity:.5; cursor:default;}
 .authbox-msg{font-size:11.5px; color:var(--muted); margin:6px 0 0;}
+.authbox-alt{font-size:11.5px; margin:6px 0 0;}
+.authbox-alt a{color:var(--muted);}
 .authbox-notice{font-size:11px; color:var(--muted); margin:8px 0 0; padding-top:8px; border-top:1px dashed var(--line2); line-height:1.6;}
 .authbox-email{font-weight:600; color:var(--ink);}
 
@@ -292,11 +294,19 @@ function premiumLinkHtml(){
 let authFormOpen = false;   // false=閉じている / true=メール入力フォーム表示中 / "sent"=送信済み案内
 let authSentEmail = "";     // 送信先。6桁コードの検証に同じアドレスが要るため覚えておく
 
-// ?login=password のときだけ、パスワードでのログイン欄を出す。
-// Google Playの審査員が使うためだけのもの。普通に開いた画面には現れないので、
-// 一般の利用者に見えるログイン手段は今までどおり「メールに届く6桁コード」だけ。
-// (隠しているのは目立たせないためで、守りの本体はパスワードそのもの)
-const passwordLogin = new URLSearchParams(location.search).get("login") === "password";
+// パスワードでのログイン欄を出すか。
+//
+// 使うのはストアの審査員だけ(審査用アカウントにだけパスワードが設定してある。
+// 一般の利用者はパスワードを持っていないので、ここからは入れない)。
+//
+// 【隠さない】(WP-5 step0 0-2)
+// 以前は ?login=password のときだけ出していた。Google Playの審査はURLを渡せば
+// 済んだが、iOSアプリにはアドレス欄が無く、Appleの審査員はそのURLへ行けない。
+// そこでメール入力の下に「パスワードでログイン」のリンクを常に出す。
+// 守りの本体は、もともとパスワードそのもの(隠していたのは目立たせないためだけ)。
+// ?login=password で直接開く入口も、Playの審査メモが使っているので残す。
+const PASSWORD_LOGIN_BY_URL = new URLSearchParams(location.search).get("login") === "password";
+let passwordLogin = PASSWORD_LOGIN_BY_URL;
 function renderAuthBox(){
   const box = document.getElementById("authBox");
   if(!box) return;
@@ -317,7 +327,7 @@ function renderAuthBox(){
         // サインアウト後では手遅れになる。Web Push の disable と同じ扱い。
         iosPushCleanup()
           .then(()=>TeiyomiAuth.signOut().catch(()=>{}))
-          .then(()=>{ authFormOpen=false; renderAuthBox(); });
+          .then(()=>{ authFormOpen=false; passwordLogin=PASSWORD_LOGIN_BY_URL; renderAuthBox(); });
       });
       return;
     }
@@ -333,7 +343,12 @@ function renderAuthBox(){
           <button type="submit" class="authbox-submit" id="authPwBtn">ログイン</button>
         </form>
         <p class="authbox-msg" id="authPwMsg"></p>
+        <p class="authbox-alt"><a href="#" id="authOtpSwitch">メールに届くコードでログインする</a></p>
       </div>`;
+      document.getElementById("authOtpSwitch").addEventListener("click", function(ev){
+        ev.preventDefault();
+        passwordLogin = false; authFormOpen = true; renderAuthBox();
+      });
       document.getElementById("authPwForm").addEventListener("submit", function(ev){
         ev.preventDefault();
         const btn = document.getElementById("authPwBtn");
@@ -390,9 +405,14 @@ function renderAuthBox(){
           <input type="email" class="authbox-input" id="authEmailInput" placeholder="メールアドレス" autocomplete="email" required>
           <button type="submit" class="authbox-submit" id="authSubmitBtn">送信</button>
         </form>
+        <p class="authbox-alt"><a href="#" id="authPwSwitch">パスワードでログイン</a></p>
         <p class="authbox-notice">送信すると、認証サービス「Supabase」から確認メールが届きます。メール内のリンクを押すか、記載の6桁コードを入力するとログイン完了です。英語表示の場合がありますが、正規のメールです。</p>
         <p class="authbox-msg" id="authMsg"></p>
       </div>`;
+      document.getElementById("authPwSwitch").addEventListener("click", function(ev){
+        ev.preventDefault();
+        passwordLogin = true; renderAuthBox();
+      });
       document.getElementById("authForm").addEventListener("submit", function(ev){
         ev.preventDefault();
         const btn = document.getElementById("authSubmitBtn");

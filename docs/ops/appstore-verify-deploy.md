@@ -50,38 +50,49 @@ App Store Connect → **ユーザーとアクセス** → **統合** → **App S
 | `APPLE_ISSUER_ID` | 手順1のIssuer ID（36桁のUUID） |
 | `APPLE_PRIVATE_KEY` | `.p8` の中身を**そのまま**（`-----BEGIN PRIVATE KEY-----` を含む全文） |
 | `APPLE_BUNDLE_ID` | `com.mtpworks.teiyomi` |
-| `APPLE_ALLOW_SANDBOX` | `true`（審査に出す前）／`false`（公開承認後） |
+| `APPLE_ALLOW_SANDBOX` | `true`（**公開後もずっと**。下の運用を参照） |
+| `APPLE_SANDBOX_USER_IDS` | Sandboxの購入を受け付ける user_id（審査用アカウント・JAMのテスト用）。カンマ区切り |
 
-> ⚠️ **`APPLE_ALLOW_SANDBOX` は公開後に必ず `false` にしてください。**
-> Sandboxの購入は**無料**です。これを `true` のまま公開すると、TestFlightの
-> テスターや手元にSandboxの取引を作れる人が、支払わずに本番のプレミアムを
-> 取れます（2026-09-11のセキュリティ点検で指摘）。
+> ⚠️ **Sandboxの購入を受け付けるのは、`APPLE_SANDBOX_USER_IDS` に載っている人だけです。**
+> Sandboxの購入は**無料**です。誰でも受け付けると、TestFlightのテスターなどが
+> 支払わずに本番のプレミアムを取れます（2026-09-11のセキュリティ点検 Vuln 2）。
 >
-> 値は文字列 `"true"` のときだけ許可になります。未設定・空・`TRUE`・`1` は
-> すべて不許可（＝本番だけを見る）です。忘れたら安全側に倒れます。
+> - `APPLE_ALLOW_SANDBOX` は文字列 `"true"` のときだけ許可。未設定・空・`TRUE`・`1` は不許可
+> - `APPLE_SANDBOX_USER_IDS` が未設定・空なら、**誰も**許可しない（全員許可には倒れない）
+> - リストに無い人の購入は、Sandboxに問い合わせもしない（本番だけを見る）
 
-### `APPLE_ALLOW_SANDBOX` の運用
+### Sandboxの運用（WP-5で変更）
 
-| 時期 | 値 | 理由 |
-|---|---|---|
-| 公開前（いま） | `true` | 本番のApp Store Server APIは公開まで401を返す。Sandboxに問い直せないと、iOSの購入を一度も検証できない |
-| **審査に出す前** | `true` | **審査員はSandboxで購入する。** `false` のままだと審査で「購入できない」と判定される |
-| **公開が承認された直後** | `false` | ここを戻し忘れると無料でプレミアムが取れる状態が続く |
-| 更新審査に出すとき | 一時的に `true` | 審査中だけ。承認後にまた `false` |
+**`APPLE_ALLOW_SANDBOX=true` のまま運用し、受け付ける人を許可リストで絞る。**
 
-切り替えは Secret を入れ直すだけです（関数の再デプロイは不要ですが、反映のために
-1〜2分おいてから試してください）。
+以前は「公開が承認されたら `false`、更新審査のときだけ一時的に `true`」としていた。
+やめた理由は、**Appleはアップデートの審査のたびにSandboxで購入を試す**から。
+戻し忘れれば審査で「購入できない」と却下され、戻し忘れなければ公開中ずっと
+「誰でも無料でプレミアム」が開く、という、どちらに転んでも困る運用だった。
+
+| 項目 | 決まり |
+|---|---|
+| `APPLE_ALLOW_SANDBOX` | 常に `true` |
+| `APPLE_SANDBOX_USER_IDS` | 審査用アカウント＋JAMのテスト用アカウントの user_id だけ |
+| TestFlight | **公開リンクは使わない**（招待したテスターだけ。テスターの購入は許可リストに無ければ権利にならない） |
+| 審査用アカウントを作り直したとき | 新しい user_id をリストに入れ直す（入れ忘れると審査で購入が通らない） |
+
+user_id は Supabase の Authentication → Users で、そのメールアドレスの行の「UID」。
 
 ```bash
-supabase secrets set APPLE_ALLOW_SANDBOX=true --project-ref vynbhssakpxiikmseoja
+supabase secrets set APPLE_ALLOW_SANDBOX=true "APPLE_SANDBOX_USER_IDS=<審査用のUID>,<テスト用のUID>" --project-ref vynbhssakpxiikmseoja
 ```
 
-```bash
-supabase secrets set APPLE_ALLOW_SANDBOX=false --project-ref vynbhssakpxiikmseoja
-```
+Secret を入れ直すだけで反映されます（再デプロイ不要。1〜2分おいてから試す）。
+コードを変えたときだけ `supabase functions deploy verify-purchase --project-ref vynbhssakpxiikmseoja`。
 
-`false` のときのログは `apple api production=404 sandbox=-`（Sandboxを叩いていない）に
-なります。Sandbox由来を拒否したときは `apple source: sandbox response not allowed`。
+ログの見方：
+
+| ログ | 意味 |
+|---|---|
+| `sandbox not allowed for user=xxxxxxxx` | 設定は true だが、この人はリストに無い（テスターの購入か、審査用アカウントの登録漏れ） |
+| `apple api production=404 sandbox=-` | Sandboxを叩いていない（上の行とセットで出る） |
+| `apple api production=404 sandbox=200` | リストの人のSandbox購入を検証した |
 
 ### CLIから入れる（`<>` の中だけ埋める）
 
@@ -91,6 +102,7 @@ supabase secrets set \
   APPLE_ISSUER_ID=<Issuer ID 36桁> \
   APPLE_BUNDLE_ID=com.mtpworks.teiyomi \
   APPLE_ALLOW_SANDBOX=true \
+  "APPLE_SANDBOX_USER_IDS=<審査用のUID>,<テスト用のUID>" \
   APPLE_PRIVATE_KEY="$(cat ~/Documents/<AuthKey_XXXXXXXXXX>.p8)" \
   --project-ref vynbhssakpxiikmseoja
 ```
@@ -209,8 +221,8 @@ Supabaseダッシュボード → Edge Functions → `verify-purchase` → **Log
 | `failed to sign apple token` | `.p8` の中身が壊れている | 改行を含めて全文が入っているか。BEGIN/END行も要る |
 | `apple api production=401 sandbox=401` | キーIDかIssuer IDが違う | 手順4で切り分ける |
 | `apple api production=404 sandbox=404` | 本番にもSandboxにも無い | 購入が成立していない。Sandboxテスターでサインインし直す |
-| `apple api production=404 sandbox=-` | Sandboxを叩いていない | `APPLE_ALLOW_SANDBOX` が `true` でない。審査・公開前は `true` に |
-| `apple source: sandbox response not allowed` | Sandboxの取引を本番の権利にしようとした | 正常な拒否。審査中なら `APPLE_ALLOW_SANDBOX=true` に |
+| `apple api production=404 sandbox=-` | Sandboxを叩いていない | `APPLE_ALLOW_SANDBOX` が `true` でないか、その人が `APPLE_SANDBOX_USER_IDS` に無い（直前に `sandbox not allowed for user=` が出ていれば後者） |
+| `apple source: sandbox transaction not allowed` | 本番が答えたのに取引がSandboxだった（通常は起きない） | 正常な拒否。リストの人なら出ない |
 | `apple transaction id mismatch` | Appleが別の取引を返した | 通常は起きない。偽造されたJWSの可能性がある（記録して様子を見る） |
 | `malformed jws` | アプリが送った値が壊れている | 殻側（WP-3b）の問題。実機のログを見る |
 | `apple verdict=bundle mismatch` | `APPLE_BUNDLE_ID` が実物と違う | `com.mtpworks.teiyomi` か確認 |
@@ -338,5 +350,5 @@ curl -X POST "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/send-test-pu
 | `status=400 reason=BadTopic` | `APNS_BUNDLE_ID` が違う | `com.mtpworks.teiyomi` か確認 |
 | `status=410` | アプリが消された・失効 | 正常。行は自動で消える |
 
-`env` は殻のビルドで決まる（開発ビルド・TestFlight＝`sandbox`、App Store＝`production`）。
+`env` は殻のビルドで決まる（開発ビルド（`flutter run`）＝`sandbox`、**TestFlight**・App Store＝`production`。TestFlightのAPNsは本番で、Sandboxなのは購入のほうだけ）。
 `apns_tokens.env` を見れば、どちらで取った端末かが分かる。

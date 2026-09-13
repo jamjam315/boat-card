@@ -422,6 +422,46 @@ export function sandboxAllowed(raw: string | undefined | null): boolean {
 }
 
 /**
+ * Sandboxの購入を受け付けてよい user_id の一覧(Secret `APPLE_SANDBOX_USER_IDS`)。
+ *
+ * カンマ・空白・改行のどれで区切ってもよい。大文字小文字は区別しない(UUID)。
+ */
+export function parseSandboxUserIds(raw: string | undefined | null): Set<string> {
+  if (typeof raw !== 'string') return new Set()
+  return new Set(
+    raw.split(/[\s,]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0),
+  )
+}
+
+/**
+ * **この人の購入について**、Sandboxを許してよいか(WP-5 step0 0-1)。
+ *
+ * ## なぜ人で絞るのか
+ *
+ * Appleは**アップデートの審査のたびに**Sandboxで購入を試す。公開後に
+ * `APPLE_ALLOW_SANDBOX` を false に戻すと、次の審査で「購入できない」と却下される。
+ * だから true のまま運用する。ただしSandboxの購入は無料なので、誰でも通すと
+ * TestFlightのテスターがタダでプレミアムになれる(2026-09-11 Vuln 2)。
+ *
+ * そこで**許可リストに載っている user_id(審査用アカウント・JAMのテスト用)の
+ * 購入だけ**Sandboxを受け付ける。それ以外の人は、true の設定でも本番だけを見る。
+ *
+ * ## 厳しい側が既定
+ *
+ * - `APPLE_ALLOW_SANDBOX` が "true" でなければ、リストに誰がいても許さない
+ * - リストが未設定・空なら、**誰も**許さない(「全員許す」に倒さない)
+ */
+export function sandboxAllowedFor(
+  allowRaw: string | undefined | null,
+  userIdsRaw: string | undefined | null,
+  userId: string,
+): boolean {
+  if (!sandboxAllowed(allowRaw)) return false
+  if (typeof userId !== 'string' || userId.length === 0) return false
+  return parseSandboxUserIds(userIdsRaw).has(userId.toLowerCase())
+}
+
+/**
  * その取引を、いまの設定で権利の根拠にしてよいか。
  *
  * ## なぜ要るのか
