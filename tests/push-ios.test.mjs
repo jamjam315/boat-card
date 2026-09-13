@@ -6,6 +6,7 @@
 //   2. 保存は onConflict: token。**同じ端末で別の人がログインしたら移る**
 //   3. ログアウト・通知OFFで行を消す(次に使う人へ前の人の通知が届かない)
 //   4. 合言葉が無ければ殻へ何も送らない
+//   5. 「断られた」と「登録に失敗した」を混ぜない(WP-4追補)
 // vm の中で作られた値は prototype が別なので、strict な deepEqual は使わない。
 import { test } from "node:test";
 import assert from "node:assert";
@@ -70,6 +71,12 @@ function boot(opts = {}) {
       getClient: () => (opts.noDb ? null : fakeDb(opts.rows ?? [], db)),
     },
     Promise, JSON, Array, String, Date, Object, CustomEvent: class { constructor(n) { this.type = n } },
+    // 待ち時間は既定では本物。opts.timers を渡すと、テストから手で進められる。
+    // 本物のときは unref して、答えの来ない enable() がテストの終了を30秒引き留めないようにする。
+    setTimeout: opts.timers
+      ? (fn) => { opts.timers.push(fn); return opts.timers.length; }
+      : (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; },
+    clearTimeout: opts.timers ? (id) => { opts.timers[id - 1] = null; } : clearTimeout,
     __listeners: {},
     addEventListener(n, fn) { (this.__listeners[n] ||= []).push(fn) },
     dispatchEvent(e) { (this.__listeners[e.type || e] || []).forEach((fn) => fn()); events.push(e.type || e) },
@@ -198,6 +205,101 @@ test("断られたら denied(理由は載せない)", async () => {
   win.TeiyomiIOSPush.onEvent({ type: "denied" });
   assert.deepEqual(await p, { state: "denied" });
   assert.equal(db.length, 0, "保存しない");
+});
+
+test("断られたあとの状態は off に denied を添える(描き直しても案内が消えない)", async () => {
+  const { win } = boot({ rows: [] });
+  const p = win.TeiyomiIOSPushControl.enable();
+  win.TeiyomiIOSPush.onEvent({ type: "denied" });
+  await p;
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off", problem: "denied" });
+});
+
+// ---- ⑤ 許可は済んだのに、登録に失敗したとき(WP-4追補) ----
+
+test("register-failed は denied と別の結果で返す", async () => {
+  // 実機で起きたこと: 設定で通知はONなのに「許可されていません」と案内された。
+  // 原因は署名に aps-environment が無いことで、設定を見せても直らない。
+  const { win, db } = boot({ rows: [] });
+  const p = win.TeiyomiIOSPushControl.enable();
+  win.TeiyomiIOSPush.onEvent({ type: "register-failed" });
+  assert.deepEqual(await p, { state: "register-failed" });
+  assert.equal(db.filter((d) => d.op === "upsert").length, 0, "保存しない");
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off", problem: "register-failed" });
+});
+
+test("register-failed でも画面に知らせる(箱を描き直す)", async () => {
+  const { win, events } = boot();
+  win.TeiyomiIOSPush.onEvent({ type: "register-failed" });
+  await flush();
+  assert.ok(events.includes("teiyomi-ios-push-changed"));
+});
+
+test("押し直したら前の理由は消え、もう一度 push.register を送る", async () => {
+  const { win, sent } = boot({ rows: [] });
+  const p1 = win.TeiyomiIOSPushControl.enable();
+  win.TeiyomiIOSPush.onEvent({ type: "register-failed" });
+  await p1;
+  sent.length = 0;
+
+  win.TeiyomiIOSPushControl.enable();
+  await flush();
+  assert.deepEqual(sent, [{ type: "push.register", token: "tok-1" }]);
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off" }, "理由は付かない");
+});
+
+test("失敗のあとでトークンが取れて保存できたら、理由は消えて on", async () => {
+  const { win } = boot({ rows: [] });
+  const p1 = win.TeiyomiIOSPushControl.enable();
+  win.TeiyomiIOSPush.onEvent({ type: "register-failed" });
+  await p1;
+
+  win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-1", env: "sandbox" });
+  await flush();
+  // rows: [] なので状態は off のまま見えるが、理由は付かない(保存は成功している)。
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off" });
+});
+
+test("殻から何も返ってこなければ、待ちきれずに register-failed(処理中…で止めない)", async () => {
+  const timers = [];
+  const { win } = boot({ rows: [], timers });
+  const p = win.TeiyomiIOSPushControl.enable();
+  await flush();
+  assert.equal(timers.filter(Boolean).length, 1, "待ち時間を1本だけ仕掛ける");
+
+  timers.filter(Boolean)[0]();
+  assert.deepEqual(await p, { state: "register-failed" });
+  assert.deepEqual(await win.TeiyomiIOSPushControl.getState(), { state: "off", problem: "register-failed" });
+});
+
+test("待ち時間より先に結果が届けば、待ち時間は取り消す", async () => {
+  const timers = [];
+  const { win } = boot({ timers });
+  const p = win.TeiyomiIOSPushControl.enable();
+  win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-1", env: "sandbox" });
+  assert.deepEqual(await p, { state: "on" });
+  assert.equal(timers.filter(Boolean).length, 0, "clearTimeout 済み");
+});
+
+test("諦めたあとで遅れてトークンが届いても、保存して画面に知らせる", async () => {
+  const timers = [];
+  const { win, db, events } = boot({ timers });
+  const p = win.TeiyomiIOSPushControl.enable();
+  timers.filter(Boolean)[0]();
+  await p;
+  events.length = 0;
+
+  win.TeiyomiIOSPush.onEvent({ type: "token", token: "APNS-1", env: "sandbox" });
+  await flush();
+  assert.equal(db.filter((d) => d.op === "upsert").length, 1);
+  assert.ok(events.includes("teiyomi-ios-push-changed"), "mypage が「オン」に描き直せる");
+});
+
+test("合言葉が無くて送れなかったときは待ち時間を仕掛けない", async () => {
+  const timers = [];
+  const { win } = boot({ noToken: true, timers });
+  assert.deepEqual(await win.TeiyomiIOSPushControl.enable(), { state: "unavailable" });
+  assert.equal(timers.length, 0);
 });
 
 // ---- ③ 消す ----

@@ -528,11 +528,26 @@ const NOTIFY_LEAD = "毎朝、お気に入り選手の出走をお知らせし�
  * 許可のプロンプトは enable() の中でだけ出る(=必ずタップ起点)。
  * 起動時には出さない(iOSは一度断られると二度と出せない)。
  */
+/**
+ * iOSアプリで通知をオンにできなかったときの案内。
+ *
+ * **denied と register-failed を分ける**(WP-4追補)。前者は利用者が許可して
+ * いないので設定へ案内する。後者は許可は済んでいて、APNsへの登録が
+ * 失敗しただけなので、設定を見せても直らない。どちらも「オンにする」は残す。
+ */
+function iosNotifyProblemText(problem){
+  return problem === "denied" ? "通知が許可されていません。iPhoneの「設定」→「艇読み」→「通知」で許可してから、もう一度「オンにする」を押してください。" :
+         problem === "register-failed" ? "通知の登録に失敗しました。時間をおいて、もう一度「オンにする」を押してください。" :
+         problem === "save-failed" ? "設定を保存できませんでした。時間をおいて再度お試しください。" :
+         problem === "need-login" ? "受け取るには、メールアドレスでのログインをお願いします。" :
+                                    "通知をオンにできませんでした。時間をおいて再度お試しください。";
+}
+
 function renderIOSNotifyBox(box){
   const push = window.TeiyomiIOSPushControl;
   if(!push){ box.innerHTML = ""; return; }
 
-  push.getState().then(({state})=>{
+  push.getState().then(({state, problem})=>{
     if(state === "unavailable"){
       box.innerHTML = `<div class="authbox"><p class="authbox-msg" style="margin:0;">いま通知の設定ができません。時間をおいて再度お試しください。</p></div>`;
       return;
@@ -563,19 +578,22 @@ function renderIOSNotifyBox(box){
       <p class="authbox-notice">${NOTIFY_LEAD}</p>
       <p class="authbox-msg" id="notifyMsg"></p>
     </div>`;
+    // 合図が届くと描き直される。そのとき押した直後の案内が消えないよう、
+    // push-ios.js が覚えている理由から出し直す。
+    if(problem) document.getElementById("notifyMsg").textContent = iosNotifyProblemText(problem);
     document.getElementById("notifyOnBtn").addEventListener("click", function(){
       const btn = this, msg = document.getElementById("notifyMsg");
-      btn.disabled = true; btn.textContent = "処理中…";
+      btn.disabled = true; btn.textContent = "処理中…"; msg.textContent = "";
       push.enable().then((r)=>{
         if(r.state === "on"){ renderNotifyBox(); return; }
-        msg.textContent =
-          r.state === "denied" ? "通知が許可されていません。iPhoneの「設定」→「艇読み」→「通知」から許可してください。" :
-          r.state === "save-failed" ? "設定を保存できませんでした。時間をおいて再度お試しください。" :
-          r.state === "need-login" ? "受け取るには、メールアドレスでのログインをお願いします。" :
-                                     "通知をオンにできませんでした。時間をおいて再度お試しください。";
-        btn.disabled = false; btn.textContent = "オンにする";
+        // この箱が描き直しで差し替わっていたら、新しい箱のほうに出す。
+        const live = document.getElementById("notifyMsg") || msg;
+        live.textContent = iosNotifyProblemText(r.state);
+        const liveBtn = document.getElementById("notifyOnBtn") || btn;
+        liveBtn.disabled = false; liveBtn.textContent = "オンにする";
       }).catch(()=>{
-        msg.textContent = "通知をオンにできませんでした。時間をおいて再度お試しください。";
+        const live = document.getElementById("notifyMsg") || msg;
+        live.textContent = iosNotifyProblemText(null);
         btn.disabled = false; btn.textContent = "オンにする";
       });
     });

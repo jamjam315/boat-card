@@ -34,6 +34,23 @@
   var current = null;      // {token, env} | null
   var registerWaiters = [];
 
+  // 直近の「オンにできなかった理由」。getState() が off に添えて返す。
+  //   denied          … 許可されていない(設定から許可してもらう)
+  //   register-failed … 許可は済んだが、APNsへの登録に失敗した(時間をおいてもう一度)
+  //   save-failed     … トークンは取れたが、保存に失敗した
+  //
+  // **画面の案内を、描き直しで消さないために持つ。** 合図が届くと
+  // teiyomi-ios-push-changed で mypage が描き直すが、それは getState() の
+  // 通信を待ってから箱を丸ごと書き換えるので、押した直後に出した案内が
+  // 一瞬で消えていた(WP-4追補)。理由をここに持っておけば、描き直した
+  // 箱にも同じ案内が出る。
+  var lastProblem = null;
+
+  // 殻から何も返ってこないときに諦めるまでの時間。iOSは圏外だと
+  // 登録の成否をつながるまで返さないので、「処理中…」のまま止めない。
+  // 諦めたあとでトークンが届けば、そのまま保存して「オン」に描き直す。
+  var ENABLE_TIMEOUT_MS = 30000;
+
   function settleRegister(value) {
     var ws = registerWaiters; registerWaiters = [];
     ws.forEach(function (fn) { fn(value); });
@@ -105,6 +122,7 @@
     if (typeof e.token !== "string" || e.token.length === 0) return;
     current = { token: e.token, env: e.env === "sandbox" ? "sandbox" : "production" };
     saveToken(current).then(function (ok) {
+      lastProblem = ok ? null : "save-failed";
       settleRegister(ok ? { state: "on" } : { state: "save-failed" });
       notifyChanged();
     });
@@ -112,12 +130,22 @@
 
   function onDenied() {
     current = null;
+    lastProblem = "denied";
     settleRegister({ state: "denied" });
+    notifyChanged();
+  }
+
+  /** 許可は済んだのに、APNsへの登録に失敗した。**denied とは案内が違う。** */
+  function onRegisterFailed() {
+    current = null;
+    lastProblem = "register-failed";
+    settleRegister({ state: "register-failed" });
     notifyChanged();
   }
 
   function onUnregistered() {
     current = null;
+    lastProblem = null;
     settleRegister({ state: "off" });
     notifyChanged();
   }
@@ -128,6 +156,7 @@
       switch (e.type) {
         case "token": onToken(e); break;
         case "denied": onDenied(); break;
+        case "register-failed": onRegisterFailed(); break;
         case "unregistered": onUnregistered(); break;
         default: break;   // 知らない合図は捨てる
       }
@@ -153,6 +182,9 @@
    *   unavailable … 殻の窓口が無い / Supabaseに繋がっていない
    *   need-login  … 未ログイン(トークンを誰の行として保存するか決まらない)
    *   on / off    … 保存済み / 未保存
+   *
+   * off のときだけ、直近にオンにできなかった理由を problem に添える
+   * (denied | register-failed | save-failed)。無ければ付けない。
    */
   function getState() {
     if (!ios.billingAvailable()) return Promise.resolve({ state: "unavailable" });
@@ -162,32 +194,49 @@
     // 保存してある行を見る。**この端末のぶんだけ**を見たいが、トークンは
     // 殻から届くまで分からないので、まだ届いていなければ「自分の行が1つでも
     // あるか」で代用する(機種変更直後は off に見えるが、ONを押せば入り直る)。
+    function toState(res) {
+      if (!res.error && res.data && res.data.length) return { state: "on" };
+      return lastProblem ? { state: "off", problem: lastProblem } : { state: "off" };
+    }
     if (current) {
       return c.from(TABLE).select("token").eq("token", current.token).limit(1)
-        .then(function (res) {
-          return { state: (!res.error && res.data && res.data.length) ? "on" : "off" };
-        }, function () { return { state: "unavailable" }; });
+        .then(toState, function () { return { state: "unavailable" }; });
     }
     var u = currentUser();
     return c.from(TABLE).select("token").eq("user_id", u.id).limit(1)
-      .then(function (res) {
-        return { state: (!res.error && res.data && res.data.length) ? "on" : "off" };
-      }, function () { return { state: "unavailable" }; });
+      .then(toState, function () { return { state: "unavailable" }; });
   }
 
   /**
    * 通知をONにする。**許可のプロンプトはこの中でだけ出る**(=必ずタップ起点)。
    *
-   * 返り値(Promise): {state} … "on" | "denied" | "save-failed" | "unavailable" | "need-login"
+   * 返り値(Promise): {state} … "on" | "denied" | "register-failed" | "save-failed"
+   *                             | "unavailable" | "need-login"
    */
   function enable() {
     if (!ios.billingAvailable()) return Promise.resolve({ state: "unavailable" });
     if (!loggedIn()) return Promise.resolve({ state: "need-login" });
+    lastProblem = null;   // 押し直したら、前の理由はいったん忘れる
     return new Promise(function (resolve) {
-      registerWaiters.push(resolve);
+      var done = false;
+      var timer = null;
+      function finish(value) {
+        if (done) return;
+        done = true;
+        if (timer !== null) clearTimeout(timer);
+        resolve(value);
+      }
+      registerWaiters.push(finish);
       if (!send({ type: "push.register" })) {
         settleRegister({ state: "unavailable" });
+        return;
       }
+      timer = setTimeout(function () {
+        if (done) return;
+        registerWaiters = registerWaiters.filter(function (fn) { return fn !== finish; });
+        lastProblem = "register-failed";
+        finish({ state: "register-failed" });
+      }, ENABLE_TIMEOUT_MS);
     });
   }
 
@@ -197,6 +246,7 @@
     return deleteToken(t).then(function () {
       send({ type: "push.unregister" });
       current = null;
+      lastProblem = null;
       notifyChanged();
       return { state: "off" };
     });
