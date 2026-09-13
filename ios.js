@@ -45,6 +45,67 @@
 
   var isIOSApp = detect();
 
+  // ---- 出典のリンクは、アプリの中では文字だけにする(WP-5 5.2.2) ----------------
+  //
+  // BOAT RACE公式サイトのサイトポリシーは、リンクに事前の届け出を求め、営利目的の
+  // リンクを断っている。有料プランのあるアプリからのリンクがそれに当たりうるので、
+  // **殻の外部リンク許可リストから www.boatrace.jp を外した**(teiyomi-ios)。
+  // 許可リストに無いリンクは、押しても殻が黙って捨てる(押せそうに見えて何も
+  // 起きない)。だからページ側でも、アプリの中ではリンクをやめて文字だけにする。
+  // 「出典：BOAT RACE公式サイト」という表記そのものは残す。
+  //
+  // ブラウザ・Androidでは何もしない(リンクのまま)。
+  var SOURCE_HOSTS = { "www.boatrace.jp": true, "boatrace.jp": true };
+
+  function isSourceLink(a) {
+    try {
+      var href = a.getAttribute("href") || "";
+      var host = new URL(href, "https://teiyomi.com/").hostname.toLowerCase();
+      return SOURCE_HOSTS[host] === true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** root の中の出典リンクを、同じ文字の <span> に置き換える。置き換えた数を返す。 */
+  function unlinkSources(root) {
+    if (!root || typeof root.querySelectorAll !== "function") return 0;
+    var links = root.querySelectorAll("a[href]");
+    var n = 0;
+    for (var i = 0; i < links.length; i++) {
+      var a = links[i];
+      if (!isSourceLink(a)) continue;
+      var span = document.createElement("span");
+      span.textContent = a.textContent;
+      a.parentNode.replaceChild(span, a);
+      n++;
+    }
+    return n;
+  }
+
+  if (isIOSApp) {
+    // ここより前に読み込まれた部分(フッター等)を先に直し、あとから差し込まれる部分
+    // (index の「データが古い」警告など、innerHTML で作るもの)は見張って直す。
+    unlinkSources(document);
+    try {
+      new MutationObserver(function (records) {
+        for (var i = 0; i < records.length; i++) {
+          var added = records[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var node = added[j];
+            if (node.nodeType !== 1) continue;
+            if (node.tagName === "A") {
+              if (isSourceLink(node) && node.parentNode) unlinkSources(node.parentNode);
+            } else {
+              unlinkSources(node);
+            }
+          }
+        }
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) {}
+    document.addEventListener("DOMContentLoaded", function () { unlinkSources(document); });
+  }
+
   // HTMLに印を付ける。ページ側がアプリかどうかで見た目を変えたいときに使う。
   // 付くのはアプリのときだけなので、ブラウザのDOMは1文字も変わらない。
   if (isIOSApp) {
@@ -104,6 +165,8 @@
     },
 
     uaMarker: UA_MARKER,
-    channelName: CHANNEL
+    channelName: CHANNEL,
+    /** テスト用。出典リンクの置き換え(アプリの中でだけ自動で走る)。 */
+    _unlinkSources: unlinkSources
   };
 })();

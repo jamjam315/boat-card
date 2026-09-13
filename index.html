@@ -396,7 +396,10 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   // (使えない場合は「毎回出る」側に倒す。閉じるボタン自体はその場で効く)。
   var DEVNOTICE_KEY = "teiyomi_devnotice_dismissed_v1";
   var box = document.getElementById("devNotice");
-  if(box){
+  // iOSアプリの中では出さない(WP-5 2.2)。App Store は「ベータ版・お試し版は置かない」
+  // (Guideline 2.2)としていて、審査員が最初に見る画面に「開発中」とあると却下の
+  // 口実になる。ブラウザ・Androidでは今までどおり出す。
+  if(box && !(window.TeiyomiIOS && TeiyomiIOS.isIOSApp())){
     var dismissed = false;
     try{ dismissed = localStorage.getItem(DEVNOTICE_KEY) === "1"; }catch(e){}
     if(!dismissed){
