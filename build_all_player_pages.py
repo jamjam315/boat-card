@@ -415,42 +415,73 @@ def share_card_url(toban):
     return "https://teiyomi.com/og-image.png"
 
 
-# 二つ名の変遷。scripts/x_title_watch.py が週次で追記するファイルを読むだけで、
-# ここでは計算しない(称号の定義が2か所に分かれると食い違うため)。
-# 無ければ変遷の欄を出さない(まだ1週も回っていない状態でも生成できるように)。
-TITLES_HISTORY_PATH = "titles_history.json"
-# 出すのは直近5件まで。全部出すと、古い二つ名のほうが長くなる選手が出てくる。
+# プロフィールの変遷。選手ページ冒頭の一言(build_profiles_v5 の catch)の移り変わり。
+#
+# 【「二つ名」と呼ばない】
+# 艇読みの二つ名は殿堂(titles.html)の称号のこと。ここに出すのは選手ページの
+# 一言で、別物。以前この欄を「二つ名の変遷」と呼んでいたので改めた。
+#
+# 【記録はここで持つ】
+# 以前は二つ名ウォッチ(scripts/x_title_watch.py)が書く titles_history.json を
+# 読んでいたが、ウォッチは殿堂の称号を見るものに作り直した。一言を計算して
+# いるのはこのスクリプトなので、変わったかどうかもここで見て profile_history.json に残す。
+#
+# 【初めて見た一言には日付を付けない】
+# 記録を始めた時点の一言は「その日に変わった」わけではない。日付を付けると
+# 1,635人全員が同じ日に変わったように見えるので、d=null で持ち、
+# 実際に変わったのを見届けた人だけに欄を出す。
+PROFILE_HISTORY_PATH = "profile_history.json"
+# 出すのは直近5件まで。全部出すと、古い一言のほうが長くなる選手が出てくる。
 MAX_HISTORY_ROWS = 5
 
 
-def load_titles_history():
-    if not os.path.exists(TITLES_HISTORY_PATH):
-        print(f"[title] {TITLES_HISTORY_PATH} が無いので、二つ名の変遷は出しません。")
+def load_profile_history():
+    if not os.path.exists(PROFILE_HISTORY_PATH):
         return {}
-    with open(TITLES_HISTORY_PATH, encoding="utf-8") as f:
+    with open(PROFILE_HISTORY_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
-def history_block(rows):
-    """二つ名の変遷。記録は「その二つ名になった日」なので、新しい順に並べる。
+def record_profile(history, toban, catch, today_iso):
+    """一言が前回と違えば追記する。初めて見る選手は日付なしで置くだけ。
 
-    1件しか無い＝週次ウォッチが動き始めてから一度も変わっていない、なので
-    「◯月◯日から」とだけ書く。変わっていないことを「変遷」として飾らない。"""
+    同じ日に2回走らせても重複しない(最後の行と同じ一言なら何もしない)。"""
+    rows = history.setdefault(toban, [])
     if not rows:
+        rows.append({"d": None, "c": catch})
+        return
+    if rows[-1]["c"] == catch:
+        return
+    if rows[-1].get("d") == today_iso:
+        rows[-1]["c"] = catch      # 同じ日のうちに2度変わったら、最後のものだけ残す
+        return
+    rows.append({"d": today_iso, "c": catch})
+
+
+def save_profile_history(history):
+    with open(PROFILE_HISTORY_PATH, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    changed = sum(1 for rows in history.values() if any(r.get("d") for r in rows))
+    print(f"[profile] 変遷を保存しました 記録{len(history)}人 / 変化を見届けた人{changed}人 "
+          f"({os.path.getsize(PROFILE_HISTORY_PATH) / 1024:.0f}KB)")
+
+
+def history_block(rows):
+    """プロフィールの変遷。実際に変わったのを見届けた選手だけに出す。"""
+    if not rows or not any(r.get("d") for r in rows):
         return ""
     shown = rows[-MAX_HISTORY_ROWS:][::-1]
     lis = "".join(
-        f'<li><span class="th-date">{r["d"]}</span>'
-        f'<span class="th-name">「{r["c"]}」</span></li>'
+        f'<li><span class="th-date">{r["d"] or "記録開始時"}</span>'
+        f'<span class="th-name">「{escape(r["c"])}」</span></li>'
         for r in shown
     )
-    note = ("この二つ名になったのはこの日です。" if len(rows) == 1
-            else "直近1年の成績で毎週計算し直しているため、走るほどに変わります。")
     return (f'<section class="card">'
-            f'<div class="card-ttl"><span class="pin"></span>二つ名の変遷'
+            f'<div class="card-ttl"><span class="pin"></span>プロフィールの変遷'
             f'<span class="card-sub">週次で更新</span></div>'
             f'<ul class="thist">{lis}</ul>'
-            f'<div class="th-note">{note}</div>'
+            f'<div class="th-note">冒頭の一言は直近1年の成績から毎週計算し直しているため、走るほどに変わります。'
+            f'殿堂の二つ名とは別のものです。</div>'
             f'</section>')
 
 
@@ -576,7 +607,7 @@ def generation_base_date():
 
 def main():
     fan_master = load_fan_master()
-    history = load_titles_history()
+    history = load_profile_history()
     players_k, NAT_PCT, by_venue, by_player, tenji_labels = load_k_stats()
     today_iso = generation_base_date()
     print(f"集計期間: {LAST_PERIOD['cutoff']} 〜 {LAST_PERIOD['latest']}"
@@ -608,6 +639,7 @@ def main():
                 {"t": both[i - 1], "name": fan_master[both[i - 1]]["氏名"]} if i > 0 else None,
                 {"t": both[i + 1], "name": fan_master[both[i + 1]]["氏名"]} if i + 1 < len(both) else None,
             ]
+            record_profile(history, t, prof["catch"], today_iso)
             html = render_page(prof, history.get(t), nb)
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
@@ -635,6 +667,8 @@ def main():
     # players/{登番}.html が実際に書けた登番の一覧を index.html 側へ渡す。
     # 生成できたページと完全に同じ集合(written)から作るので、このスクリプトを
     # 再実行するたびに players/ の中身と players_index.js が必ず一致する。
+    save_profile_history(history)
+
     # 五十音ページ。index_rows は上のループで積んだ「一覧に出す最小の情報」で、
     # 並びも both と同じ(五十音順)なので、行で振り分けるだけでよい。
     by_row = {}

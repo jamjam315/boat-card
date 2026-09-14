@@ -174,23 +174,14 @@ function esc(s){
 }
 function n(v){ return (v || 0).toLocaleString("ja-JP"); }
 
-// 各称号の付与条件の説明。判定(build_player_career.py)と対で更新する。
-var DESC = {
-  "荒海の覇者": "高波15cm以上のレースでの1着率が、本人の通常時をどれだけ上回るか",
-  "風神の右腕": "風速8m以上のレースでの1着率が、本人の通常時をどれだけ上回るか",
-  "雨を統べる者": "雨のレースでの1着率が、本人の通常時をどれだけ上回るか",
-  "月下の覇王": "ナイター開催での1着率が、本人の通常時をどれだけ上回るか",
-  "栄冠を狩る者": "優勝戦・準優勝戦での1着率が、本人の通常時をどれだけ上回るか",
-  "氷海の王": "冬（12〜2月）の1着率が、本人の通常時をどれだけ上回るか",
-  "炎海の王": "夏（6〜8月）の1着率が、本人の通常時をどれだけ上回るか",
-  "カド一閃": "4〜6コースからの「まくり」勝率が、全国平均をどれだけ上回るか",
-  "差しの匠": "2〜4コースからの「差し」勝率が、全国平均をどれだけ上回るか",
-  "隙間を縫う者": "「まくり差し」の勝率が、全国平均をどれだけ上回るか",
-  "絶対王政": "1コースからの「逃げ」成功率が、全国平均をどれだけ上回るか",
-  "最終章の支配者": "「抜き」の勝率が、全国平均をどれだけ上回るか（勝ち数30以上）",
-  "音速の申し子": "平均スタートタイミングの速さ（F率が全国平均以下の選手のみ）",
-  "進入の革命家": "自ら内のコースを取りにいく\"前づけ\"での1着率が、全国の前づけ平均をどれだけ上回るか"
-};
+// 各称号の付与条件の説明。titles_desc.json から読む(下の fetch で埋める)。
+// 二つ名ウォッチの投稿文も同じファイルを読むので、画面と投稿で定義が食い違わない。
+// 判定(build_player_career.py)を変えたら、titles_desc.json も対で直すこと。
+var DESC = {};
+
+// 称号ごとの着地点。投稿の「殿堂で全順位を見る」から #t-氷海の王 のように飛ぶ。
+// 会場称号は行ごとにも振る(#t-大村の守護神)。
+function anchorId(name){ return "t-" + name; }
 // カードの並び順(titles.jsonの順とは独立に、意味のまとまりで固定する)。
 var ORDER = ["絶対王政","カド一閃","差しの匠","隙間を縫う者","最終章の支配者","進入の革命家","音速の申し子",
              "荒海の覇者","風神の右腕","雨を統べる者","月下の覇王","栄冠を狩る者","氷海の王","炎海の王"];
@@ -223,7 +214,7 @@ function card(sec){
   var name = sec.name;
   var top = sec.holders[0];
   var rest = sec.holders.slice(1);
-  var html = '<section class="tcard"><h2>' + esc(name) + "</h2>" +
+  var html = '<section class="tcard" id="' + esc(anchorId(name)) + '"><h2>' + esc(name) + "</h2>" +
     '<p class="cond">' + esc(DESC[name] || "") + "</p>";
   if(top){
     html += '<div class="crown"><span>👑</span><span class="who">' + nameHtml(top) + "</span>" +
@@ -256,16 +247,25 @@ function venueCard(list, suffix, desc, fmt){
           "<div class='gval nums'>" + fmt(h.metric) + "・当地" + n(h.n) + "走</div>" +
         "</td>"
       : "<td class='empty'>空位（基準を満たす選手がいません）</td>";
-    return "<tr><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
+    return "<tr id='" + esc(anchorId(g.venue + suffix)) + "'><td class='gv'>" + esc(g.venue) + "</td>" + body + "</tr>";
   }).join("");
-  return '<section class="tcard"><h2>〇〇' + esc(suffix) + "</h2>" +
+  return '<section class="tcard" id="' + esc(anchorId("〇〇" + suffix)) + '"><h2>〇〇' + esc(suffix) + "</h2>" +
     '<p class="cond">' + esc(desc) + "</p>" +
     '<table class="gtable">' + rows + "</table></section>";
 }
 
-fetch("players/career/titles.json", {cache:"no-store"})
-  .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-  .then(function(doc){
+function getJson(url){
+  return fetch(url, {cache:"no-store"})
+    .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+}
+// 定義文が取れなくても殿堂そのものは出す(説明が空になるだけ)。
+Promise.all([
+  getJson("players/career/titles.json"),
+  getJson("titles_desc.json").catch(function(){ return {desc:{}}; })
+])
+  .then(function(pair){
+    var doc = pair[0];
+    DESC = (pair[1] && pair[1].desc) || {};
     var byName = {};
     (doc.titles || []).forEach(function(sec){ byName[sec.name] = sec; });
     var html = ORDER.filter(function(k){ return byName[k]; })
@@ -274,13 +274,16 @@ fetch("players/career/titles.json", {cache:"no-store"})
     (doc.titles || []).forEach(function(sec){
       if(ORDER.indexOf(sec.name) === -1) html += card(sec);
     });
-    html += venueCard(doc.children || [], "の申し子",
-      "その水面に来ると、普段の自分を大きく超える。当地の1着率が本人の通算を最も大きく上回る1人（+5pt以上）。各場1人だけの称号",
+    html += venueCard(doc.children || [], "の申し子", DESC["〇〇の申し子"] || "",
       function(m){ return "+" + (m*100).toFixed(1) + "pt"; });
-    html += venueCard(doc.guardians || [], "の守護神",
-      "その水面での勝率が現役最高。当地での勝ちは誰にも譲らない1人。各場1人だけの称号",
+    html += venueCard(doc.guardians || [], "の守護神", DESC["〇〇の守護神"] || "",
       function(m){ return "1着率" + (m*100).toFixed(1) + "%"; });
     document.getElementById("hall").innerHTML = html;
+    // 中身をJSで描くので、ブラウザの「#へ飛ぶ」は描画前に空振りしている。描いてから飛び直す。
+    if(location.hash){
+      var el = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if(el) el.scrollIntoView();
+    }
   })
   .catch(function(){
     document.getElementById("hall").innerHTML =

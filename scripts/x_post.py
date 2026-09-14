@@ -129,6 +129,93 @@ def post(text, dry_run=False):
     return tweet_id
 
 
+
+# ---------------------------------------------------------------- 本文 + 返信1件
+
+_replied = False
+
+
+def _send(session, payload):
+    """1回だけ送る。リトライしない理由は post() と同じ。成功したら投稿IDを返す。"""
+    res = session.post(API_URL, json=payload, timeout=TIMEOUT_SEC)
+    if res.status_code >= 300:
+        raise RuntimeError(f"HTTP {res.status_code} 応答: {res.text}")
+    return res.json()["data"]["id"]
+
+
+def post_thread(text, reply_text, dry_run=False):
+    """本文を1件出し、その返信として1件だけ付ける。(本文ID, 返信ID) を返す。
+
+    【1実行1件の原則をどう広げたか】
+    この原則は「同じ本文が2回出る事故を作らない」ためにある。返信は本文とは別の
+    文なので、本文1件 + 返信1件 までは許す。本文を2回出す経路は作らない。
+
+    【返信だけ失敗したとき】
+    本文はもう世に出ている。ここで非0終了すると、呼び出し側が状態を保存せず、
+    翌週もう一度同じ変化を拾って**本文を二重に出す**。それがいちばん悪い。
+    だから返信の失敗は、Actionsのエラー注記(::error::)で目立たせたうえで
+    終了コードは0のまま返す。握り潰すのではなく、二重投稿を防ぐほうを取る。
+    本文の失敗は post() と同じく非0で止める。
+    """
+    global _posted, _replied
+    if _posted or _replied:
+        raise RuntimeError("[x_post] 1回の実行で出せるのは本文1件+返信1件までです")
+    for label, t in (("本文", text), ("返信", reply_text)):
+        if not t or not t.strip():
+            sys.exit(f"[x_post] {label}が空です")
+        w = weighted_len(t)
+        if w > MAX_WEIGHTED:
+            sys.exit(f"[x_post] {label}が長すぎます: {w} > {MAX_WEIGHTED}（全角1文字=2で計算）")
+
+    creds = read_credentials()   # dry-runでも読む(post() と同じ理由)
+
+    print("[x_post] 認証情報: " + " / ".join(f"{k}=設定あり" for k in ENV_KEYS))
+    print(f"[x_post] 本文 文字数: {weighted_len(text)}/{MAX_WEIGHTED}（全角1文字=2）")
+    print("[x_post] 送る本文 ここから")
+    print(text)
+    print("[x_post] 送る本文 ここまで")
+    print(f"[x_post] 返信 文字数: {weighted_len(reply_text)}/{MAX_WEIGHTED}")
+    print("[x_post] 返信 ここから")
+    print(reply_text)
+    print("[x_post] 返信 ここまで")
+
+    if dry_run:
+        print("[x_post] --dry-run のため投稿しません。")
+        return None, None
+
+    from requests_oauthlib import OAuth1Session
+
+    session = OAuth1Session(
+        creds["X_API_KEY"],
+        client_secret=creds["X_API_KEY_SECRET"],
+        resource_owner_key=creds["X_ACCESS_TOKEN"],
+        resource_owner_secret=creds["X_ACCESS_TOKEN_SECRET"],
+    )
+
+    _posted = True   # 送信を試みた時点で立てる(post() と同じ)
+    try:
+        main_id = _send(session, {"text": text})
+    except Exception as e:
+        sys.exit(
+            f"[x_post] 本文を送れませんでした: {e}\n"
+            "  投稿が成立したかどうかはこちらからは分かりません。"
+            "再実行する前に、必ずXの画面で投稿の有無を確認してください。"
+        )
+    print(f"[x_post] 本文を投稿しました id={main_id}")
+    print(f"[x_post] https://x.com/teiyomi_app/status/{main_id}")
+
+    _replied = True
+    try:
+        reply_id = _send(session, {"text": reply_text,
+                                   "reply": {"in_reply_to_tweet_id": main_id}})
+    except Exception as e:
+        print(f"::error::[x_post] 本文は投稿済み(id={main_id})ですが、返信を送れませんでした: {e}")
+        print("[x_post] 本文の二重投稿を防ぐため、終了コードは0のまま返します。"
+              "返信はXの画面から手で付けてください。")
+        return main_id, None
+    print(f"[x_post] 返信を投稿しました id={reply_id}")
+    return main_id, reply_id
+
 def main():
     p = argparse.ArgumentParser(description="Xへ1件だけ投稿する")
     p.add_argument("--text", required=True, help="投稿する本文")

@@ -1,14 +1,17 @@
-# 二つ名を毎週作り直し、変化があればXへ投稿する。
+# 殿堂(titles.html)の称号の変化を週1回Xへ投稿し、選手ページを作り直す。
 #
-# 【なぜ週次で作り直すのか】
-# 二つ名は「直近1年」のローリング集計で決まるので、走らなくても窓が滑るだけで
-# 変わる。ところが選手ページは生成が手動のままで、2026-08-27から10日間
-# 据え置きになっていた。計算式だけが生き物で、画面は止まっていた。ここで配線する。
+# 【見るもの】players/career/titles.json(results.yml が毎日2回作る)
+#   ランキング型14本の首位交代・新しいトップ10入り / 会場称号48枠の交代
+# 判定と文面は scripts/x_title_watch.py。過去の週での再現は x_title_replay.py。
 #
-# 【なぜ毎日ではなく毎週か】
-# 実測(過去8週)で週あたり188人の二つ名が動く。毎日回すと1636枚の再生成
-# コミットが毎日入り、変化の粒も細かすぎて「速報」にならない。
-# 週1回にして、投稿も週1本にする。
+# 【以前の版(AI-8)について】
+# 当初は選手ページの一言(build_profiles_v5 の catch)を「二つ名」として監視して
+# いたが、殿堂の称号とは別物だった。catch は週188人が動く値で、投稿しない。
+# 2026-09-14 にその版の投稿がCronから出た(削除済み)。
+#
+# 【選手ページを毎週作り直す理由】
+# 選手ページ冒頭の一言は直近1年のローリングで決まり、走らなくても窓が滑るだけで
+# 変わる。生成を配線するまで2026-08-27から据え置きになっていた。
 #
 # 【なぜ月曜20:20 JSTか】
 # 土日の開催ぶんが results.yml(深夜01:00)で反映され終わっている。
@@ -41,7 +44,7 @@ on:
         type: boolean
         default: true
 
-# 状態ファイル(x_state/)・変遷(titles_history.json)・選手ページをコミットするため。
+# 状態ファイル(x_state/)・プロフィールの変遷(profile_history.json)・選手ページをコミットするため。
 permissions:
   contents: write
 
@@ -116,10 +119,9 @@ jobs:
         if: steps.gate.outputs.go == 'true'
         run: pip install requests requests-oauthlib
 
-      # 二つ名を計算し、状態と変遷を更新し、変化があれば投稿する。
-      # 選手ページより先に走らせるのは、変遷ファイルを更新してから
-      # ページに焼き込むため(逆にすると1週遅れのページになる)。
-      - name: 二つ名の変化を見て、あれば投稿する
+      # 殿堂の称号を前回と突き合わせ、首位交代・トップ10入りがあれば投稿する。
+      # titles.json を読むだけなので、下の選手ページ生成とは独立している。
+      - name: 殿堂の称号の変化を見て、あれば投稿する
         if: steps.gate.outputs.go == 'true'
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
@@ -148,8 +150,8 @@ jobs:
             python scripts/x_title_watch.py --dry-run
           fi
 
-      # 変遷を焼き込んだ選手ページを作り直す。
-      - name: 選手ページを作り直す(二つ名と変遷)
+      # 選手ページを作り直す。冒頭の一言が変わった選手は profile_history.json に残る。
+      - name: 選手ページを作り直す(一言とプロフィールの変遷)
         if: steps.gate.outputs.go == 'true'
         run: python build_all_player_pages.py
 
@@ -158,12 +160,12 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add x_state/ titles_history.json players/ players_index.js players_list.js sitemap.xml
+          git add x_state/ profile_history.json players/ players_index.js players_list.js sitemap.xml site_lastmod.json
           if git diff --staged --quiet; then
             echo "変化なし"
             exit 0
           fi
-          git commit -m "二つ名を週次で更新 ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          git commit -m "殿堂ウォッチ・選手ページを週次で更新 ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           # 他のワークフローとpushが重なった時のために、rebaseして数回やり直す。
           for i in 1 2 3; do
             git push && exit 0
