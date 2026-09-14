@@ -141,7 +141,7 @@ App Store Connect（以下 ASC）で入れるものを、画面の順に並べ�
 Thank you for reviewing Teiyomi (艇読み).
 
 WHAT THE APP IS
-Teiyomi is a data viewer for Japanese public boat racing (BOAT RACE). It reorganizes the official race programs and results so that users can read races by themselves. The app does not sell betting tickets, does not accept wagers, and does not show predictions. The only external links are the official BOAT RACE website (our data source), sharing to X, OpenAI's privacy policy, and Apple's subscription management page; each opens in Safari after a confirmation sheet. The in-app notice states that betting is limited to people aged 20 and over in Japan.
+Teiyomi is a data viewer for Japanese public boat racing (BOAT RACE). It reorganizes the official race programs and results so that users can read races by themselves. The app does not sell betting tickets, does not accept wagers, and does not show predictions. The data source (the official BOAT RACE website) is credited as text only, without a link. The only external links are the Consumer Affairs Agency's page on gambling addiction (a Japanese government page), sharing to X, OpenAI's privacy policy, and Apple's subscription management page; each opens in Safari after a confirmation sheet. The in-app notice states that betting is limited to people aged 20 and over in Japan.
 
 SIGN IN (demo account)
 Regular users sign in with a 6-digit code sent by email. Because you cannot receive that email, the demo account has a password.
