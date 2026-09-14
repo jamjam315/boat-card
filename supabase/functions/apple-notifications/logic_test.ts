@@ -1,9 +1,17 @@
 // apple-notifications の判定部分のテスト(WP-6)。
 //   deno test --no-check supabase/
-import { assertEquals, assertFalse } from 'jsr:@std/assert@1'
+import { assert, assertEquals, assertFalse } from 'jsr:@std/assert@1'
 import {
   APPLE_STATUS,
   cooldownSince,
+  APPLE_FETCH_TIMEOUT_MS,
+  checkKey,
+  takeoverKey,
+  TAKEOVER_DEADLINE_MS,
+  DB_TIMEOUT_MS,
+  WINNER_WAIT_MS,
+  cooldownWaitMs,
+  RETRY_DELAYS_MS,
   RECHECK_COOLDOWN_SECONDS,
   testRecordKey,
   APPLE_SUBSCRIPTIONS_PRODUCTION,
@@ -237,4 +245,46 @@ Deno.test('TEST 通知の記録は環境ごとに1行(UUID ごとに増やさな
 Deno.test('同じ購読を問い合わせ直さない間隔は1分', () => {
   assertEquals(RECHECK_COOLDOWN_SECONDS, 60)
   assertEquals(cooldownSince(NOW), new Date(NOW - 60 * 1000).toISOString())
+})
+
+// ---- 応答の後で処理する(2026-09-14・#7 の TIMED_OUT 対策) ----
+
+Deno.test('確認の鍵: 同じ購読・同じ直前の確認なら同じ鍵(先に入れた1件だけが問い合わせる)', () => {
+  const t = '2026-09-14T14:31:13.123+00:00'
+  assertEquals(checkKey('Sandbox', OTX, t), checkKey('Sandbox', OTX, t))
+  assert(checkKey('Sandbox', OTX, t) !== checkKey('Sandbox', OTX, '2026-09-14T14:32:14.000+00:00'), '次の間隔は別の鍵')
+  assert(checkKey('Sandbox', OTX, t) !== checkKey('Sandbox', '2000000000000001', t), '別の購読は別の鍵')
+  assert(checkKey('Sandbox', OTX, t) !== checkKey('Production', OTX, t), '環境ごとに別の鍵(偽の Sandbox で本番を止めさせない)')
+  assertEquals(checkKey('Production', OTX, null), 'check:production:' + OTX + ':none')
+  // 代わりの確認は元の鍵と別(先に入れた1件だけ)
+  assert(takeoverKey(checkKey('Sandbox', OTX, t)) !== checkKey('Sandbox', OTX, t))
+  // TEST 通知の鍵・Apple の UUID と重ならない
+  assert(!checkKey('Sandbox', OTX, null).startsWith('test-'))
+  assertEquals(parseNotification({ signedPayload: jws({ notificationType: 'DID_RENEW', notificationUUID: checkKey('Sandbox', OTX, null) }) }), null)
+})
+
+Deno.test('クールダウンの待ち時間: 直前の確認から1分が明けるまで', () => {
+  assertEquals(cooldownWaitMs(NOW - 20_000, NOW), 40_000)
+  assertEquals(cooldownWaitMs(NOW - 60_000, NOW), 0)
+  assertEquals(cooldownWaitMs(NOW - 3_600_000, NOW), 0)
+})
+
+Deno.test('クールダウンの待ち時間: 時計のずれで未来の記録があっても1分より長く待たない', () => {
+  assertEquals(cooldownWaitMs(NOW + 3_600_000, NOW), 60_000)
+})
+
+Deno.test('やり直しは2回まで。クールダウン・先の確認の結果待ち・代わりの確認を足しても実行時間の上限(150秒)に収まる', () => {
+  assertEquals(RETRY_DELAYS_MS.length, 2)
+  // 1件の確認が、3回とも Apple の打ち切りまで待たされたときの長さ
+  const oneCheck = RETRY_DELAYS_MS.reduce((a, b) => a + b, 0) + (RETRY_DELAYS_MS.length + 1) * APPLE_FETCH_TIMEOUT_MS
+  // 待っていた側は、先の1件を最後まで待てる
+  assert(WINNER_WAIT_MS > oneCheck + 5_000, String(oneCheck))
+  // 結果待ちは、最後の読み取りが DB の打ち切りまで掛かっても WINNER_WAIT_MS + 1回ぶん
+  const watch = WINNER_WAIT_MS + 2 * DB_TIMEOUT_MS
+  // 代わりの確認は、そこまでに締め切り(TAKEOVER_DEADLINE_MS)を過ぎていなければだけ始める
+  assert(RECHECK_COOLDOWN_SECONDS * 1000 + watch <= TAKEOVER_DEADLINE_MS, String(watch))
+  // いちばん長い道: 締め切りぎりぎりで代わりの確認を始め、3回とも Apple の打ち切りまで待たされても、
+  // DB の読み書き1回ぶんの打ち切りを残して実行時間の上限(150秒)に収まる
+  const longest = TAKEOVER_DEADLINE_MS + oneCheck + DB_TIMEOUT_MS
+  assert(longest < 150_000, String(longest))
 })

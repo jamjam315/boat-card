@@ -33,8 +33,14 @@ export const NOTIFICATION_RETENTION_DAYS = 90
  * 起こせた(security-review 2026-09-13)。Apple の本物の通知は1つの購読について
  * 数分に1回も来ない(Sandbox の月額でも更新は約5分おき)。
  *
- * 間隔の内側で届いたものには **503** を返す。本物なら Apple が時間をおいて送り直すので
- * 取りこぼさない(毎回「今の状態」を取り直すので、遅れて処理しても結果は同じ)。
+ * 間隔の内側で届いたものは**捨てずに、間隔が明けるまで待ってから**扱う(2026-09-14)。
+ * 応答はもう 200 を返してあるので、以前のように 503 で Apple に送り直してもらうことは
+ * できない。
+ *
+ * 間隔が明けたときに Apple へ問い合わせるのは、**その間隔につき1件だけ**(checkKey の行を
+ * 先に入れられた1件)。同時に待っていた他の通知は、その1件が自分の届いた後に
+ * 今の状態を取り直すので、扱わずに終える。Edge Function は通知ごとに別の実行環境で
+ * 動くことがあり、メモリ上の印だけでは揃わなかった(Sandbox の実測で2件とも問い合わせた)。
  */
 export const RECHECK_COOLDOWN_SECONDS = 60
 
@@ -42,6 +48,73 @@ export const RECHECK_COOLDOWN_SECONDS = 60
 export function cooldownSince(now: number, seconds = RECHECK_COOLDOWN_SECONDS): string {
   return new Date(now - seconds * 1000).toISOString()
 }
+
+/**
+ * 「この購読の、この間隔の確認」を表す記録の鍵。apple_notifications の主キーに入れる。
+ *
+ * 直前の確認の時刻(lastProcessedAt。記録が無ければ null)が同じ通知どうしは同じ鍵になり、
+ * 先に行を入れられた1件だけが Apple に問い合わせる(残りは主キーの重複で入れられない)。
+ * 問い合わせた1件の記録が次の「直前の確認」になるので、1つの購読につき1分に1行までしか増えない。
+ */
+export function checkKey(
+  env: AppleEnvironment,
+  originalTransactionId: string,
+  lastProcessedAt: string | null,
+): string {
+  return 'check:' + env.toLowerCase() + ':' + originalTransactionId + ':' + (lastProcessedAt ?? 'none')
+}
+
+/**
+ * 先に確認を取った1件が失敗したとき(error で終わった・実行環境ごと止まって processing の
+ * まま)に、待っていた側が1回だけ代わりに確認するための鍵。これも先に入れた1件だけ。
+ * クールダウンは待たない(失敗した確認の代わりなので、Apple への問い合わせは1間隔に2回まで)。
+ */
+export function takeoverKey(key: string): string {
+  return key + ':takeover'
+}
+
+/**
+ * 待っていた側が、先に確認を取った1件の結果を待つ長さ。その1件がやり直しを使い切っても
+ * 終わる長さ(下の RETRY_DELAYS_MS と APPLE_FETCH_TIMEOUT_MS から)より長くしておく。
+ */
+export const WINNER_WAIT_MS = 38_000
+
+/** データベースへの1回の読み書きを諦めるまでの時間(応答の後の処理を上限の時間に収めるため)。 */
+export const DB_TIMEOUT_MS = 5_000
+
+/**
+ * 代わりの確認を始めてよい、処理の開始からの経過時間の上限。これを過ぎていたら代わりはしない
+ * (代わりの確認そのものが実行時間の上限に掛かって途中で止められるくらいなら、日次の復元に任せる)。
+ */
+export const TAKEOVER_DEADLINE_MS = 108_000
+
+/**
+ * 直前の確認(lastProcessedAt)から間隔が明けるまで、あと何ミリ秒待つか。
+ * 明けていれば 0。時計のずれで未来の時刻が入っていても、間隔ぶんより長くは待たない。
+ */
+export function cooldownWaitMs(
+  lastProcessedAt: number,
+  now: number,
+  seconds = RECHECK_COOLDOWN_SECONDS,
+): number {
+  const wait = lastProcessedAt + seconds * 1000 - now
+  return Math.max(0, Math.min(wait, seconds * 1000))
+}
+
+/**
+ * Apple への問い合わせ・memberships の更新が一時的に失敗したときに、やり直すまでの待ち時間。
+ *
+ * 通知には応答を返し終えてから処理する(Apple が待ちきれずに TIMED_OUT にしないため)。
+ * そのぶん失敗しても Apple は送り直さないので、ここで2回までやり直す。
+ * クールダウンの待ち(最長60秒)・先に確認を取った1件の結果待ち(WINNER_WAIT_MS)と合わせても、
+ * Edge Function の実行時間の上限(150秒)に収まる長さ。ただし上限は実行環境ごとなので、
+ * その環境が他の処理で長く動いていれば途中で止められることはある(そのときも日次の復元で拾う)。
+ * それでも駄目なときは、アプリを開いたときの日次の復元(billing-ios.js)で取り直す。
+ */
+export const RETRY_DELAYS_MS = [2_000, 6_000]
+
+/** Apple への1回の問い合わせを諦めるまでの時間。上のやり直しと合わせて実行時間の上限に収める。 */
+export const APPLE_FETCH_TIMEOUT_MS = 8_000
 
 /** 受け付ける本文の上限。本物の通知は数KB。これを超えるものは読まない。 */
 export const MAX_BODY_BYTES = 64 * 1024

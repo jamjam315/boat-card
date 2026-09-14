@@ -24,11 +24,19 @@ Apple が送ってくる通知は「**確かめ直すきっかけ**」として�
 
 URL は公開されている前提で作ってある（security-review 2026-09-13 で直した点を含む）。
 
-- 行が見つからない通知・他のアプリの通知は、記録も残さない
+- **応答を先に返し、処理はその後**（2026-09-14）。形・大きさ・bundleId だけ確かめて 200 を返し、
+  行の確認・Apple への問い合わせ・memberships の更新は応答の後に行う。以前は全部を待ってから応答していて、
+  TestFlight の自動更新の DID_RENEW が Apple の記録で `TIMED_OUT` になった（止まっていた関数の起動と合わせて約4.5秒）
+- 応答した後なので、失敗しても Apple は送り直さない。一時的な失敗は関数の中で2回までやり直し、
+  それでも駄目なら記録の `result` が `error: …` になる。取りこぼした分は、アプリを開いたときの日次の復元で取り直す
+  （billing-ios.js の `autoRestoreIfRenewalDue`: iOSアプリ・ログイン済み・期限切れ扱い・この端末で検証済みのとき、1日1回）
+- 行が見つからない通知・他のアプリの通知・Sandbox の許可リストに無い人の通知は、記録も残さない
 - TEST 通知は環境ごとに1行（`test-production` / `test-sandbox`）を上書きするだけ
 - 種類・サブタイプが Apple の形（英大文字と `_`）でなければ読まない。本文は 64KB まで
-- **同じ購読について Apple へ問い合わせるのは1分に1回まで**。間隔の内側で届いたものは 503 を返す
-  （本物の通知なら Apple が送り直してくる。毎回「今の状態」を取り直すので、遅れても結果は同じ）
+- **同じ購読について Apple へ問い合わせるのは1分に1回まで**（環境ごと）。間隔の内側で届いたものは、明けるまで待ってから扱う。
+  問い合わせるのは確認の行（`notification_uuid` が `check:環境:取引ID:直前の確認の時刻`）を先に入れた1件だけで、
+  同時に待っていた他の通知はその結果を見届ける。その1件が失敗していたら1件だけが代わりに問い合わせる（鍵の末尾に `:takeover`）。
+  記録はこの確認の行だけなので、1つの購読につき1分に1行（失敗の代わりを入れても2行）まで
 
 ## JAM の作業（この順）
 
@@ -83,7 +91,7 @@ cd ~/dev/boat-card && node tools/apple-test-notification.mjs
 ### 6. 実際の更新で確かめる（任意）
 
 Sandbox の月額購読は数分ごとに自動更新される。許可リストにあるテスト用アカウントで Sandbox 購入をしたあと、
-Supabase の Table Editor で `apple_notifications` に `DID_RENEW` の行が `updated active: active` で増え、
+Supabase の Table Editor で `apple_notifications` に `check:sandbox:…` の行が `updated active: active` で増え、
 memberships のその行の `updated_at` と `current_period_end` が進んでいくことを見る。
 
 ## ログの見方（Edge Function のログ）
@@ -93,9 +101,13 @@ memberships のその行の `updated_at` と `current_period_end` が進んで�
 | `updated active (active) user=xxxxxxxx type=DID_RENEW env=Production` | 更新を反映した |
 | `updated inactive (expired) …` | 期限切れ・返金などを反映した |
 | `no membership row type=SUBSCRIBED …` | その購入をまだアプリで検証していない（アプリを開けば verify-purchase が行を作る） |
-| `sandbox not allowed user=…` | 許可リストに無い人の Sandbox 購読（TestFlight のテスター等）。正常な無視 |
-| `cooldown user=…` | 同じ購読を1分以内に扱ったばかり。503 を返したので、本物なら Apple が送り直す。短時間に大量に出ていたら偽の通知の連打 |
-| `apple api status=401 …` | 鍵の誤り。500 を返しているので、直せば Apple が送り直してくる |
+| `sandbox not allowed user=…` | 許可リストに無い人の Sandbox 購読（TestFlight のテスター等）。正常な無視（記録は残さない） |
+| `cooldown: wait NNs user=…` | 同じ購読を1分以内に確認したばかりなので、明けるまで待ってから扱う |
+| `cooldown: merged …` / `covered …` / `covered (watching) …` / `takeover by another …` | 同じ間隔の確認を別の1件がした（またはしている）ので、この通知は扱わずに終えた。短時間に大量に出ていたら偽の通知の連打 |
+| `takeover (error: …) …` | 先に確認した1件が失敗したので、代わりに確認した |
+| `retry in Ns (…)` | Apple への問い合わせか更新が一時的に失敗したので、やり直す |
+| `gave up (apple status 401) …` | やり直しても駄目だった（401 は鍵の誤り）。記録は `error: …`。Apple は送り直さないので、鍵を直したあとは日次の復元で取り直される |
+| `shutdown …` | 実行環境が止められた。処理の途中なら記録が `processing` のまま残る（待っていた通知があれば38秒後に代わりに確認する） |
 
 ## Google Play 側の同じ穴（別 WP の候補）
 
