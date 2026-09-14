@@ -86,7 +86,7 @@ App Store Connect（以下 ASC）で入れるものを、画面の順に並べ�
 
 | 項目 | 値 |
 |---|---|
-| スクリーンショット | teiyomi-ios `store/app-store/6.9/` の5枚（1320×2868）を **01→05 の順に**ドラッグ。Play 用の枠に iOS の画面をはめ込んだもの（作り方は同じフォルダの README） |
+| スクリーンショット | teiyomi-ios `store/app-store/6.9/` の5枚（1320×2868）を **01→05 の順に**ドラッグ。Play 用の枠に iOS の画面をはめ込んだもの（作り方は同じフォルダの README）。**価格・料金の語（¥・円・月額・無料・割引・/月）は写さない**（Guideline 2.3.7。レジャー帳の差し戻しに合わせた） |
 | プロモーションテキスト | 公式データを、読める形に。お気に入り選手の出走を毎朝お知らせします。 |
 | 概要 | 下の「概要」 |
 | キーワード（100字以内） | ボートレース,競艇,出走表,番組表,選手,モーター,データ,バックテスト,艇読み |
@@ -151,10 +151,10 @@ Regular users sign in with a 6-digit code sent by email. Because you cannot rece
 4. Enter the email and password provided above, then tap "ログイン".
 
 IN-APP PURCHASE (auto-renewable subscription)
-Product: 艇読みプレミアム / teiyomi_premium_monthly / ¥480 per month.
+Product: 艇読みプレミアム / teiyomi_premium_monthly / ¥480 per month (shown in local currency, e.g. $2.99).
 The demo account has no subscription, so the purchase flow is available.
 1. After signing in, on My Page tap "プレミアムを見る" (See Premium).
-2. Tap "¥480 / 月で登録する" (Subscribe for ¥480/month) and complete the purchase with a Sandbox account.
+2. Tap "¥480 / 月で登録する" (Subscribe for ¥480/month; the price is shown in local currency, e.g. "$2.99 / 月で登録する") and complete the purchase with a Sandbox account.
 3. Premium features unlock right away (for example "条件アラート" and "検証ノート" on My Page).
 "以前の購入を復元する" restores purchases. "サブスクリプションを管理" opens Apple's subscription management page.
 

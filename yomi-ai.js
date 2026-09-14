@@ -19,6 +19,11 @@
   //   3. サーバーの AI_PROVIDER / AI_MODEL / AI_BASE_URL を切り替える
   var AI_PROVIDER_ID = "openai";
   var AI_PROVIDER_NAME = "OpenAI, L.L.C.（米国）";
+  // 送信先での取り扱い(学習・保存期間)。**事業者ごとに違うので、上の2つと一緒に直す。**
+  // 出典: OpenAI の開発者向け文書「Your data」(API のデータは学習に使わない・
+  // 不正利用の監視のログは最長30日)。privacy.html の第5条と同じ内容にしておく。
+  var AI_PROVIDER_HANDLING = "送信先では、送った内容はAIの学習に使われず、" +
+    "不正利用の監視のため最長30日間保存されたのち削除されます。";
 
   var CONSENT_KEY = "teiyomi_yomi_ai_consent_v1_" + AI_PROVIDER_ID;
   var FUNCTION_URL = "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/yomi-review";
@@ -146,6 +151,7 @@
 
   window.TeiyomiYomiAi = {
     PROVIDER_NAME: AI_PROVIDER_NAME,
+    PROVIDER_HANDLING: AI_PROVIDER_HANDLING,
     hasConsent: hasConsent,
     setConsent: setConsent,
     buildSheet: buildSheet,
@@ -268,7 +274,8 @@
         '<p class="ai-list"><b>送らないもの</b><br>' +
           '選手名・金額・あなたのメモ（出所タグ）</p>' +
         '<p>講評の生成のみに使い、艇読みのサーバーには保存しません。' +
-        '生成された講評は、この端末の中にだけ残ります。</p>' +
+        '生成された講評は、この端末の中にだけ残ります。' +
+          esc(AI_PROVIDER_HANDLING) + '</p>' +
         '<p class="ai-act"><button type="button" class="ai-ok">同意してAI講評を読む</button>' +
         '<button type="button" class="ai-no">やめる</button></p>' +
         '</div>';

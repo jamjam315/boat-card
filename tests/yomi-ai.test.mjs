@@ -1,0 +1,62 @@
+// AI講評の同意画面とプライバシーポリシーの、送信先の書き方のテスト(App Store 5.1.2(i))。
+//   node --test tests/*.test.mjs
+//
+// レジャー帳 iOS の差し戻し(第三者AIの送信先を特定していない)と同じ水準を守る。
+//   1. 同意画面の最初の一文に、送信先の事業者名(法人名)が出る
+//   2. 同意画面とポリシーに、送信先での取り扱い(学習に使わない・保存期間)が書いてある
+//   3. 「いずれか」のような複数社の書き方や、使っていない事業者名を出さない
+import { test } from "node:test";
+import assert from "node:assert";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const SRC = readFileSync(join(ROOT, "yomi-ai.js"), "utf8");
+const PRIVACY = readFileSync(join(ROOT, "privacy.html"), "utf8");
+
+function load() {
+  const win = { localStorage: { getItem: () => null, setItem() {} } };
+  vm.runInNewContext(SRC, { window: win, localStorage: win.localStorage });
+  return win.TeiyomiYomiAi;
+}
+
+/** HTML の <p> を順に、タグを外した文字列で返す。 */
+function paragraphs(html) {
+  return [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
+}
+
+test("同意画面の最初の一文(見出しの次)に、送信先の法人名が出る", () => {
+  const ai = load();
+  assert.strictEqual(ai.PROVIDER_NAME, "OpenAI, L.L.C.（米国）");
+  const ps = paragraphs(ai.consentHtml());
+  assert.strictEqual(ps[0], "AI講評を読む前に");
+  const first = ps[1].split("。")[0];
+  assert.ok(first.includes("OpenAI, L.L.C."), first);
+});
+
+test("同意画面に、送信先での取り扱い(学習に使わない・最長30日)が出る", () => {
+  const ai = load();
+  const text = paragraphs(ai.consentHtml()).join("\n");
+  assert.ok(text.includes(ai.PROVIDER_HANDLING));
+  assert.match(ai.PROVIDER_HANDLING, /学習に使われず/);
+  assert.match(ai.PROVIDER_HANDLING, /最長30日間/);
+});
+
+test("プライバシーポリシーに、送信先・他社に送らないこと・学習・保存期間・用途が書いてある", () => {
+  const sec = PRIVACY.slice(PRIVACY.indexOf("生成AIの利用について"), PRIVACY.indexOf("2. AI講評の報告"));
+  assert.ok(sec.length > 0);
+  for (const s of ["OpenAI, L.L.C.（米国）", "他の事業者へ送ることはありません", "モデルの学習に使用しない",
+    "最長30日間保存され", "講評の生成だけ", "端末の他のアプリやセンサーから取得することはありません",
+    "変更後の社名をお知らせしたうえで"]) {
+    assert.ok(sec.includes(s), s);
+  }
+});
+
+test("使っていない事業者名や「いずれか」を出さない", () => {
+  const ai = load();
+  for (const body of [ai.consentHtml(), PRIVACY]) {
+    assert.doesNotMatch(body, /Anthropic|xAI|Grok|いずれか/);
+  }
+});

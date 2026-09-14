@@ -13,10 +13,10 @@ name: JS tests
 on:
   push:
     branches: [main]
-    paths: ['*.js', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'privacy.html', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
   pull_request:
     branches: [main]
-    paths: ['*.js', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
+    paths: ['*.js', 'privacy.html', 'tests/**', 'tools/**', 'supabase/functions/**', '.github/workflows/js-test.yml']
 
 permissions:
   contents: read
