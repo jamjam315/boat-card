@@ -53,10 +53,13 @@ concurrency:
 env:
   # データ本体(results/)は data ブランチにある。下の _data がその作業ディレクトリ。
   TEIYOMI_DATA_ROOT: ${{ github.workspace }}/_data
-  # 【投稿の元栓】true で定時実行が本番投稿になる。止めたいときは false に戻すか、
-  # Actionsタブからこのワークフロー自体を Disable する。
-  # 手動実行(workflow_dispatch)は、この値に関係なく上の dry_run 入力に従う。
-  POST_LIVE: "true"
+  # 【投稿の元栓】false のあいだは、どの経路から起動しても本番投稿しない(dry-runになる)。
+  # true のときだけ、定時実行と「dry_run=false の手動・キッカー起動」が本番投稿になる。
+  #
+  # 以前はこの値を schedule の経路でしか見ておらず、Supabase Cron → kick-github は
+  # workflow_dispatch + dry_run=false で来るので素通りしていた。2026-09-14 に
+  # catch版の投稿がCronから出たのはそのため(false にしていても止まらなかった)。
+  POST_LIVE: "false"
 
 jobs:
   titles:
@@ -126,19 +129,19 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          # 定時実行は元栓(POST_LIVE)しだい。手動実行は入力に従い、
-          # 入力が空・想定外の値なら dry-run に倒す
-          # (黙って本番投稿になるほうが怖いため)。
-          if [ "${EVENT_NAME}" = "schedule" ]; then
-            if [ "${POST_LIVE}" = "true" ]; then
-              echo "定時実行・本番投稿します"
-              python scripts/x_title_watch.py
-            else
-              echo "定時実行ですが POST_LIVE=false のため dry-run で確認します"
-              python scripts/x_title_watch.py --dry-run
-            fi
+          # まず元栓。false なら起動経路に関係なく dry-run にする。
+          # ここを最初に見るのは、キッカー(workflow_dispatch)が schedule の分岐を
+          # 通らないため。元栓を後ろに置くと、また素通りする。
+          if [ "${POST_LIVE}" != "true" ]; then
+            echo "POST_LIVE=${POST_LIVE} のため dry-run で確認します（event=${EVENT_NAME}・投稿はしません）"
+            python scripts/x_title_watch.py --dry-run
+          elif [ "${EVENT_NAME}" = "schedule" ]; then
+            echo "定時実行・本番投稿します"
+            python scripts/x_title_watch.py
           elif [ "${DRY_RUN}" = "false" ]; then
-            echo "手動実行・本番投稿します"
+            # 手動実行とキッカー。入力が空・想定外の値なら下の dry-run に倒す
+            # (黙って本番投稿になるほうが怖いため)。
+            echo "手動/キッカー起動・本番投稿します"
             python scripts/x_title_watch.py
           else
             echo "手動実行・dry-run で確認します（投稿はしません）"
