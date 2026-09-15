@@ -26,6 +26,33 @@
 <meta name="theme-color" content="#0f2a33">
 <link rel="stylesheet" href="/theme.css">
 <script src="/theme.js"></script>
+<script>
+// 描画より前に決めたい表示(開発中のお知らせ・ホーム画面へ追加)の判定。
+//
+// 本来の判定は ios.js / favorites.js にあるが、どちらも本文の末尾で読む。そこまで
+// 待つと、ヘッダーの下にお知らせ(約100px)とボタンが後から差し込まれ、注目選手から
+// 下が丸ごと押し下がる(Slow 4G相当の実測で、出走表が408px動いていた)。
+// 判定に要るのはUA・画面幅・表示モードだけなので、解析の途中で同じ判定をする。
+//
+// **ios.js の UA_MARKER、favorites.js の isIOS / isAndroid / isStandalone / isMobile と
+// 同じ条件にすること。** tests/early.test.mjs が文字列で突き合わせている。
+window.TeiyomiEarly = (function(){
+  var IOS_APP_MARKER = "TeiyomiIOS/1";
+  var ua = navigator.userAgent || "";
+  function isIOSApp(){ return ua.indexOf(IOS_APP_MARKER) !== -1; }
+  function isStandalone(){
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true;
+  }
+  function isIOS(){ return /iPhone|iPad|iPod/.test(ua) && !window.MSStream; }
+  function isAndroid(){ return /Android/.test(ua); }
+  function isMobile(){ return (isIOS() || isAndroid()) && window.innerWidth <= 768; }
+  return {
+    isIOSApp: isIOSApp,
+    canShowAddToHome: function(){ return !isIOSApp() && !isStandalone() && isMobile(); }
+  };
+})();
+</script>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -89,6 +116,30 @@ body{background:var(--bg); color:var(--ink);
   font:inherit; font-size:13.5px; padding:7px 13px; border-radius:var(--radius-pill); cursor:pointer; white-space:nowrap;
   transition:background .12s,border-color .12s,color .12s;}
 .chip:hover{border-color:var(--accent)}
+/* 読み込み中の枠(スケルトン)。
+   トップはヘッダーとガイドのリンク列だけが静的HTMLで、注目選手・会場・レース・出走表は
+   8本のJSを読み終えてから描く。そのあいだ器が空だと、ヘッダーだけが出て、あとから一覧が
+   差し込まれて下が押し下がる(2段階に見える)。実物と同じ寸法の枠を最初から置き、
+   描画で中身が置き換わるだけにする。描画側(renderVenues 等)はどれも器の中身を
+   丸ごと入れ替えるので、枠を消す処理は要らない。
+   動かさない(明滅させない)のは、データの読み込みに失敗したとき「読み込み中」のまま
+   止まって見えないようにするため。寸法は 390px / 1280px 幅での実測に合わせてある。 */
+.sk{background:var(--line); pointer-events:none;}
+/* 日付の欄。空のままだと、日付が入った瞬間に狭い画面でヘッダーが折り返して19px伸びる(実測・390px幅)。よくある長さ(10文字)の見えない文字で幅を取っておき、描画で書き換わる。 */
+.sk-date{visibility:hidden;}
+/* 会場の枠は14個。PC幅(652px)では実物が11会場以上だと横にはみ出してスクロールバーが出て、行が10px高くなる。開催は普段11会場以上あるので、枠も同じくはみ出す数にしてある(10会場以下の日だけ、描画時に10px上がる)。 */
+.chips .chip.sk{border-color:transparent; width:55px; height:38px; padding:0;}
+.chips.races .chip.sk{width:46px; min-width:46px;}
+.sk-feat{margin-top:16px; height:144px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
+.sk-bar{display:block; background:var(--line); border-radius:var(--radius-sm);}
+.sk-card .card-head{align-items:center;}
+.sk-card .sk-racelink{height:26px;}
+.sk-card .sk-cmp{height:340px; border-bottom:1px solid var(--line);}
+.sk-card .sk-boat{display:flex; align-items:center; gap:13px; padding:0 18px; height:103px; border-bottom:1px solid var(--line);}
+.sk-card .sk-boat:last-child{border-bottom:none;}
+.sk-card .sk-badge{flex:0 0 40px; width:40px; height:40px;}
+@media (max-width:460px){ .sk-card .sk-boat{height:189px;} }
+
 .chip:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 .chip[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
 .chips.races .chip{min-width:46px; text-align:center; padding:7px 10px;}
@@ -315,10 +366,49 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
       </div>
       <div><h1>艇読み</h1><p>公式番組表を、読める形に。</p></div>
     </div>
-    <div class="datepill nums" id="datepill"></div>
+    <div class="datepill nums" id="datepill"><span class="sk-date" aria-hidden="true">2026年10月1日</span></div>
   </header>
+  <script>/* テーマ切替ボタンをここで置く。theme.js の既定(DOMContentLoaded)まで待つと、一覧が出る瞬間にヘッダーが伸びて下が押し下がる。 */if(window.TeiyomiTheme)TeiyomiTheme.mount();</script>
 
   <div id="devNotice"></div>
+  <script>
+  // 「開発中のお知らせ」。閉じたらlocalStorageに記録して次回以降は出さない。
+  // localStorageが使えない環境でも表示自体は壊れないよう、読み書きは必ずtry/catchで囲む
+  // (使えない場合は「毎回出る」側に倒す。閉じるボタン自体はその場で効く)。
+  //
+  // 本文末尾のJSを待たずにここで描く(head の TeiyomiEarly を参照)。待つと、
+  // 一覧が出る瞬間にこの枠が差し込まれて下が押し下がるため。
+  (function(){
+    var DEVNOTICE_KEY = "teiyomi_devnotice_dismissed_v1";
+    var box = document.getElementById("devNotice");
+    // iOSアプリの中では出さない(WP-5 2.2)。App Store は「ベータ版・お試し版は置かない」
+    // (Guideline 2.2)としていて、審査員が最初に見る画面に「開発中」とあると却下の
+    // 口実になる。ブラウザ・Androidでは今までどおり出す。
+    if(!box || window.TeiyomiEarly.isIOSApp()) return;
+    var dismissed = false;
+    try{ dismissed = localStorage.getItem(DEVNOTICE_KEY) === "1"; }catch(e){}
+    if(dismissed) return;
+    box.className = "devnotice";
+    var p = document.createElement("p");
+    p.textContent = "🚧 艇読みは現在も開発中のサイトです。毎日レースデータを追記しながら、機能を少しずつ育てています。お気づきの点があれば ";
+    var a = document.createElement("a");
+    a.href = "mailto:mtpworks.info@gmail.com";
+    a.textContent = "mtpworks.info@gmail.com";
+    p.appendChild(a);
+    p.appendChild(document.createTextNode(" までお知らせください。"));
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "devnotice-close";
+    closeBtn.setAttribute("aria-label", "このお知らせを閉じる");
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", function(){
+      box.style.display = "none";
+      try{ localStorage.setItem(DEVNOTICE_KEY, "1"); }catch(e){}
+    });
+    box.appendChild(p);
+    box.appendChild(closeBtn);
+  })();
+  </script>
 
   <p class="datameta nums" id="dataMetaNormal">データ取得：<span id="genAt">—</span> 時点</p>
   <div class="stale-warn nums" id="staleWarn" style="display:none"></div>
@@ -329,12 +419,12 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
        7/29に一度は出走一覧の下へ移したが、当時ここに並んでいた会員向けの
        3ブロック(お気に入り・ログイン・通知)はマイページへ引っ越し済みで、
        残るのはこの1枚だけ。1枚なら出走一覧までの距離を押し下げないため戻した。 -->
-  <div id="featured"></div>
+  <div id="featured"><div class="sk-feat" aria-hidden="true"></div></div>
 
-  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><a class="guide-link" href="yomi-guide.html">✍️ 読み採点</a><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="checked/">📋 定番の検証</a><a class="guide-link" href="players/">🔍 選手一覧</a><a class="guide-link" href="titles.html">🏆 二つ名殿堂</a><a class="guide-link" href="kyusoku.html">📈 昇級ウォッチ</a><a class="guide-link" href="mypage.html">⭐ マイページ</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"></div></div>
-  <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"></div></div>
+  <div class="seg"><div class="seg-row"><p class="seg-label">レース場</p><div class="seg-links"><a class="guide-link" href="guide.html">📖 読み方ガイド</a><button class="guide-link" id="a2hsBtn" type="button" style="display:none;">📲 ホーム画面へ追加</button><script>(function(){/* 表示はここで決める(本文末尾の favorites.js を待つとリンク列が後から1行増え、下が押し下がる)。判定は head の TeiyomiEarly。押したときの案内は favorites.js が持つので、その時点で呼ぶ。 */var b=document.getElementById("a2hsBtn");if(!b||!window.TeiyomiEarly.canShowAddToHome())return;b.style.display="";b.addEventListener("click",function(){if(window.TeiyomiFavorites&&TeiyomiFavorites.showAddToHomeGuide)TeiyomiFavorites.showAddToHomeGuide();});})();</script><a class="guide-link" href="yomi-guide.html">✍️ 読み採点</a><a class="guide-link" href="backtest.html">📊 バックテスト</a><a class="guide-link" href="checked/">📋 定番の検証</a><a class="guide-link" href="players/">🔍 選手一覧</a><a class="guide-link" href="titles.html">🏆 二つ名殿堂</a><a class="guide-link" href="kyusoku.html">📈 昇級ウォッチ</a><a class="guide-link" href="mypage.html">⭐ マイページ</a></div></div><div class="chips venues" id="venues" role="tablist" aria-label="レース場"><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span></div></div>
+  <div class="seg"><p class="seg-label">レース</p><div class="chips races" id="races" role="tablist" aria-label="レース番号"><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span><span class="chip sk" aria-hidden="true"></span></div></div>
 
-  <main id="card"></main>
+  <main id="card"><div class="card sk-card" aria-hidden="true"><div class="card-head"><span class="sk-bar" style="width:96px;height:18px"></span><span class="sk-bar" style="width:70px;height:13px"></span></div><div class="sk-racelink"></div><div class="sk-cmp"></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div><div class="sk-boat"><span class="sk-bar sk-badge"></span><span class="sk-bar" style="width:40%;height:14px"></span></div></div></main>
 
   <p class="legend" aria-label="枠番の色">枠の色＝艇番（公式の枠番カラー）：
     <span><b style="background:#fff"></b>1</span><span><b style="background:#2b2b2b"></b>2</span>
@@ -391,40 +481,6 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
 <script src="favorites.js"></script>
 <script>
 (function(){
-  // 「開発中のお知らせ」。閉じたらlocalStorageに記録して次回以降は出さない。
-  // localStorageが使えない環境でも表示自体は壊れないよう、読み書きは必ずtry/catchで囲む
-  // (使えない場合は「毎回出る」側に倒す。閉じるボタン自体はその場で効く)。
-  var DEVNOTICE_KEY = "teiyomi_devnotice_dismissed_v1";
-  var box = document.getElementById("devNotice");
-  // iOSアプリの中では出さない(WP-5 2.2)。App Store は「ベータ版・お試し版は置かない」
-  // (Guideline 2.2)としていて、審査員が最初に見る画面に「開発中」とあると却下の
-  // 口実になる。ブラウザ・Androidでは今までどおり出す。
-  if(box && !(window.TeiyomiIOS && TeiyomiIOS.isIOSApp())){
-    var dismissed = false;
-    try{ dismissed = localStorage.getItem(DEVNOTICE_KEY) === "1"; }catch(e){}
-    if(!dismissed){
-      box.className = "devnotice";
-      var p = document.createElement("p");
-      p.textContent = "🚧 艇読みは現在も開発中のサイトです。毎日レースデータを追記しながら、機能を少しずつ育てています。お気づきの点があれば ";
-      var a = document.createElement("a");
-      a.href = "mailto:mtpworks.info@gmail.com";
-      a.textContent = "mtpworks.info@gmail.com";
-      p.appendChild(a);
-      p.appendChild(document.createTextNode(" までお知らせください。"));
-      var closeBtn = document.createElement("button");
-      closeBtn.type = "button";
-      closeBtn.className = "devnotice-close";
-      closeBtn.setAttribute("aria-label", "このお知らせを閉じる");
-      closeBtn.textContent = "×";
-      closeBtn.addEventListener("click", function(){
-        box.style.display = "none";
-        try{ localStorage.setItem(DEVNOTICE_KEY, "1"); }catch(e){}
-      });
-      box.appendChild(p);
-      box.appendChild(closeBtn);
-    }
-  }
-
   // アカウント削除のあとの一言（WP-2b）。
   //
   // マイページから ?deleted=1 で戻ってくる。**1回きり**にしたいので、
@@ -444,14 +500,7 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
     }catch(e){}
   })();
 
-  // 「ホーム画面に追加」の常設ボタン。スタンドアロン起動中・PC幅では
-  // もう出す意味が無いためボタンごと隠す(favorites.js側の判定を再利用)。
-  var btn = document.getElementById("a2hsBtn");
-  if(!btn || !window.TeiyomiFavorites || !TeiyomiFavorites.canShowAddToHome()) return;
-  btn.style.display = "";
-  btn.addEventListener("click", function(){
-    TeiyomiFavorites.showAddToHomeGuide();
-  });
+  // 「ホーム画面に追加」の常設ボタンは、ボタンの直後のスクリプトで表示を決めている。
 })();
 </script>
 <script>

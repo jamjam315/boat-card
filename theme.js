@@ -76,6 +76,12 @@
     }
   }
 
+  // ヘッダーを読み終えた時点で呼べるように出しておく。既定の置き場所
+  // (DOMContentLoaded)は本文末尾のJSを全部読んだあとなので、そこで差し込むと
+  // 狭い画面でヘッダーが伸び、下が押し下がる。トップ(index.html)はヘッダーの
+  // 直後でこれを呼んでいる。2回呼んでも2個目は作らない(mount の先頭で見ている)。
+  window.TeiyomiTheme = { mount: function () { mount(); syncThemeColor(); } };
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () { mount(); syncThemeColor(); });
   } else {
