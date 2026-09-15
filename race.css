@@ -61,6 +61,30 @@ body{background:var(--bg); color:var(--ink);
   font:inherit; font-size:13.5px; padding:7px 13px; border-radius:var(--radius-pill); cursor:pointer; white-space:nowrap;
   transition:background .12s,border-color .12s,color .12s;}
 .chip:hover{border-color:var(--accent)}
+/* 読み込み中の枠(スケルトン)。
+   トップはヘッダーとガイドのリンク列だけが静的HTMLで、注目選手・会場・レース・出走表は
+   8本のJSを読み終えてから描く。そのあいだ器が空だと、ヘッダーだけが出て、あとから一覧が
+   差し込まれて下が押し下がる(2段階に見える)。実物と同じ寸法の枠を最初から置き、
+   描画で中身が置き換わるだけにする。描画側(renderVenues 等)はどれも器の中身を
+   丸ごと入れ替えるので、枠を消す処理は要らない。
+   動かさない(明滅させない)のは、データの読み込みに失敗したとき「読み込み中」のまま
+   止まって見えないようにするため。寸法は 390px / 1280px 幅での実測に合わせてある。 */
+.sk{background:var(--line); pointer-events:none;}
+/* 日付の欄。空のままだと、日付が入った瞬間に狭い画面でヘッダーが折り返して19px伸びる(実測・390px幅)。よくある長さ(10文字)の見えない文字で幅を取っておき、描画で書き換わる。 */
+.sk-date{visibility:hidden;}
+/* 会場の枠は14個。PC幅(652px)では実物が11会場以上だと横にはみ出してスクロールバーが出て、行が10px高くなる。開催は普段11会場以上あるので、枠も同じくはみ出す数にしてある(10会場以下の日だけ、描画時に10px上がる)。 */
+.chips .chip.sk{border-color:transparent; width:55px; height:38px; padding:0;}
+.chips.races .chip.sk{width:46px; min-width:46px;}
+.sk-feat{margin-top:16px; height:144px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface);}
+.sk-bar{display:block; background:var(--line); border-radius:var(--radius-sm);}
+.sk-card .card-head{align-items:center;}
+.sk-card .sk-racelink{height:26px;}
+.sk-card .sk-cmp{height:340px; border-bottom:1px solid var(--line);}
+.sk-card .sk-boat{display:flex; align-items:center; gap:13px; padding:0 18px; height:103px; border-bottom:1px solid var(--line);}
+.sk-card .sk-boat:last-child{border-bottom:none;}
+.sk-card .sk-badge{flex:0 0 40px; width:40px; height:40px;}
+@media (max-width:460px){ .sk-card .sk-boat{height:189px;} }
+
 .chip:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 .chip[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
 .chips.races .chip{min-width:46px; text-align:center; padding:7px 10px;}
