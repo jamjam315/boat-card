@@ -446,6 +446,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="billing.js"></script>
 <script src="alerts.js"></script>
 <script src="notes.js"></script>
+<script src="rule-match.js"></script>
 <script>
 // ---------- プレミアムの壁 ----------
 // 【重要・将来サーバー側防御へ移すときの目印】
@@ -541,73 +542,12 @@ body{background:var(--bg); color:var(--ink);
   ];
 
   // ---------- しぼり込みの選択肢 ----------
-  // 判定に使う値は backtest-data の "m"(1レース1整数のビット詰め)から取り出す。
-  // ビットの割り当ては build_backtest_custom.py と必ず一致させること:
-  //   bit 0-3 レース番号 / 4-6 天候 / 7-11 風速 / 12-14 決まり手 / 15 枠なり / 16-20 会場
-  var MONTH_OPTS = [
-    {key:"all",    label:"すべて",     months:null},
-    {key:"spring", label:"春(3〜5月)",  months:[3,4,5]},
-    {key:"summer", label:"夏(6〜8月)",  months:[6,7,8]},
-    {key:"autumn", label:"秋(9〜11月)", months:[9,10,11]},
-    {key:"winter", label:"冬(12〜2月)", months:[12,1,2]},
-    {key:"custom", label:"月を選ぶ",    months:null}
-  ];
-  var RNO_OPTS = [
-    {key:"all",    label:"すべて",    races:null},
-    {key:"early",  label:"1〜3R",     races:[1,2,3]},
-    {key:"mid",    label:"4〜9R",     races:[4,5,6,7,8,9]},
-    {key:"late",   label:"10〜12R",   races:[10,11,12]},
-    {key:"custom", label:"レースを選ぶ", races:null}
-  ];
-  var WEATHER_OPTS = [
-    {key:"all",    label:"すべて", codes:null},
-    {key:"sunny",  label:"晴",     codes:[0]},
-    {key:"cloudy", label:"曇",     codes:[1]},
-    {key:"rain",   label:"雨",     codes:[2]},
-    {key:"snow",   label:"雪・霧", codes:[3,4]}
-  ];
-  var WIND_OPTS = [
-    {key:"all", label:"すべて",  min:null, max:null},
-    {key:"lo",  label:"〜2m",    min:0,    max:2},
-    {key:"mid", label:"3〜4m",   min:3,    max:4},
-    {key:"hi",  label:"5m以上",  min:5,    max:30}
-  ];
-  var SESSION_OPTS = [
-    {key:"all",   label:"すべて"},
-    {key:"night", label:"ナイター場"},
-    {key:"day",   label:"デイ場"}
-  ];
-  var KIND_OPTS = [
-    {key:"all",   label:"すべて",     codes:null},
-    {key:"yusho", label:"優勝戦",     codes:[0]},
-    {key:"jun",   label:"準優勝戦",   codes:[1]},
-    {key:"yosen", label:"予選",       codes:[2]},
-    {key:"ippan", label:"一般",       codes:[3]},
-    {key:"other", label:"その他",     codes:[4]}
-  ];
-  var DIST_OPTS = [
-    {key:"all",  label:"すべて",  codes:null},
-    {key:"1800", label:"1800m",  codes:[0]},
-    {key:"1200", label:"1200m",  codes:[1]}
-  ];
-  var FIXED_OPTS = [
-    {key:"all", label:"すべて",           want:null},
-    {key:"on",  label:"進入固定のみ",     want:1},
-    {key:"off", label:"進入固定を除く",   want:0}
-  ];
-  var ENTRY_OPTS = [
-    {key:"all",    label:"すべて"},
-    {key:"waku",   label:"枠なり"},
-    {key:"change", label:"進入変化あり"}
-  ];
-  var KIMARITE_OPTS = [
-    {key:"all",   label:"すべて",      codes:null},
-    {key:"nige",  label:"逃げ",        codes:[0]},
-    {key:"sashi", label:"差し",        codes:[1]},
-    {key:"mak",   label:"まくり",      codes:[2]},
-    {key:"maksa", label:"まくり差し",  codes:[3]},
-    {key:"nuki",  label:"抜き・恵まれ", codes:[4,5]}
-  ];
+  // 表そのものは rule-match.js にある(マイページの「今日の番組表で該当するレース」と同じ表を使うため)。
+  var OPTS = TeiyomiRuleMatch.OPTS;
+  var MONTH_OPTS = OPTS.month, RNO_OPTS = OPTS.rno, WEATHER_OPTS = OPTS.weather,
+      WIND_OPTS = OPTS.wind, SESSION_OPTS = OPTS.session, KIND_OPTS = OPTS.kind,
+      DIST_OPTS = OPTS.dist, FIXED_OPTS = OPTS.fixed, ENTRY_OPTS = OPTS.entry,
+      KIMARITE_OPTS = OPTS.kimarite;
 
   var state = {
     venue: "zenkoku",
@@ -975,10 +915,7 @@ body{background:var(--bg); color:var(--ink);
   }
 
   // ---------- しぼり込みUI ----------
-  function optByKey(opts, key){
-    for(var i=0;i<opts.length;i++){ if(opts[i].key === key) return opts[i]; }
-    return opts[0];
-  }
+  var optByKey = TeiyomiRuleMatch.optByKey;
 
   /** 選択肢をピルの列として描く(1つだけ選べる)。onPickは選ばれたkeyを受け取る。 */
   function renderPills(rowId, opts, currentKey, onPick){
@@ -1798,37 +1735,16 @@ body{background:var(--bg); color:var(--ink);
   }
 
   // ---------- 条件アラートの保存 ----------
-  // 朝に判定できる条件だけを cond に入れる。形は alerts.js の先頭と
-  // _shared/morning-message.ts の AlertCond に合わせる(独自に項目を足さない)。
+  // 朝に判定できる条件だけを cond に入れる。直し方は rule-match.js の condFromFilter に
+  // 1つだけ書いてある(マイページで検証ノートを今日の番組表と照らすときも同じものを使う)。
   function buildAlertCond(){
-    var f = state.filter, cond = {};
-    // 会場を選んでいれば入れる。全国のままなら入れない(=会場では絞らない)。
-    if(state.venue !== "zenkoku"){
-      var v = (meta.venues || []).filter(function(x){ return x.romaji === state.venue; })[0];
-      if(v && v.name) cond.venues = [v.name];
-    }
-    var months = f.month === "custom" ? (f.months.length ? f.months.slice() : null)
-                                      : optByKey(MONTH_OPTS, f.month).months;
-    if(months && months.length) cond.months = months.slice().sort(function(a,b){ return a-b; });
-    var races = f.rno === "custom" ? (f.races.length ? f.races.slice() : null)
-                                   : optByKey(RNO_OPTS, f.rno).races;
-    if(races && races.length) cond.races = races.slice().sort(function(a,b){ return a-b; });
-    if(f.kind !== "all") cond.kinds = [optByKey(KIND_OPTS, f.kind).label];
-    if(f.dist !== "all") cond.dists = [Number(f.dist)];
-    if(f.fixed !== "all") cond.fixed = (f.fixed === "on");
-    if(f.session === "night" || f.session === "day") cond.session = f.session;
-    return cond;
+    return TeiyomiRuleMatch.condFromFilter(state.filter, state.venue, meta.venues);
   }
 
   // レースが終わるまで分からない条件。保存はするが照合には使えないので、
   // 何が使えないのかを保存前に正直に見せる。
   function unusableLabels(){
-    var f = state.filter, out = [];
-    if(f.weather !== "all") out.push("天候：" + optByKey(WEATHER_OPTS, f.weather).label);
-    if(f.wind !== "all") out.push("風速：" + optByKey(WIND_OPTS, f.wind).label);
-    if(f.kimarite !== "all") out.push("決まり手：" + optByKey(KIMARITE_OPTS, f.kimarite).label);
-    if(f.entry !== "all") out.push("進入：" + optByKey(ENTRY_OPTS, f.entry).label);
-    return out;
+    return TeiyomiRuleMatch.unusableLabels(state.filter);
   }
 
   function alertLabelFor(name, cond){
