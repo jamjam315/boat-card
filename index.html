@@ -471,14 +471,11 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>勝率・モーター2率を並べ、会場のコース傾向と選手のスタート傾向を添えるので、見て自分で決めるための道具です。<br>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。「この会場のクセ」「選手のST癖（8走以上の平均ST）」は直近の結果データの集計です。<br>「F1」等の赤いバッジは、直近半年のフライング回数です。持っている選手は次のスタートを警戒し慎重になりやすい傾向があります。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
 </div>
 
-<script src="data.js"></script>
-<script src="stats.js" onerror="window.STATS=null"></script>
-<script src="players.js" onerror="window.PLAYERS=null"></script>
-<script src="players_index.js" onerror="window.PLAYER_PAGES=null"></script>
-<script src="featured.js" onerror="window.FEATURED=null"></script>
-<script src="motors.js" onerror="window.MOTORS=null"></script>
-<script src="ios.js"></script>
-<script src="favorites.js"></script>
+<!-- 最初の1画面ぶんだけを先に読む(build_top_first.py が作る。gzip後で約6KB)。
+     以前はここで data.js など8本(gzip後で約101KB)を同期で読み終えるまで一覧を描けず、
+     Slow 4G 相当でヘッダーから一覧まで約1.5秒あいていた。本体と ios.js / favorites.js は
+     描いたあとで読む(下のスクリプトの loadRest)。 -->
+<script src="top-first.js" onerror="window.TOP_FIRST=null"></script>
 <script>
 (function(){
   // アカウント削除のあとの一言（WP-2b）。
@@ -524,15 +521,38 @@ function raceUrl(venueName, raceNo){
   const iso = `${md[1]}-${String(md[2]).padStart(2,"0")}-${String(md[3]).padStart(2,"0")}`;
   return `/race/${iso}/${romaji}/${raceNo}R.html`;
 }
-if(!window.DATA){document.getElementById("card").innerHTML="<p style=\"padding:20px;color:#888\">データ読み込み中…</p>";}
+// ---- 先出しと後追い ----
+// top-first.js(最初の1画面ぶんの写し)があれば、それを仮の DATA 等にして先に描く。
+// 本体の data.js 等は描いたあとで読み(loadRest)、届いたら reconcile() で突き合わせて、
+// 違うところだけ描き直す。**正しさは本体のファイルが持つ**。先出しは早く見せるための写し。
+const FIRST = window.TOP_FIRST;
+if(FIRST){
+  window.DATA = FIRST.data; window.STATS = FIRST.stats; window.PLAYERS = FIRST.players;
+  window.MOTORS = FIRST.motors; window.FEATURED = FIRST.featured; window.PLAYER_PAGES = FIRST.player_pages;
+}
+// 読み込み中の枠(静的HTMLに置いてあるもの)。本体が届く前に別の会場を押されたときにも出す。
+const SK = {card: document.getElementById("card").innerHTML, races: document.getElementById("races").innerHTML};
+const FAIL_HTML = "<p style=\"padding:20px;color:#888\">データを読み込めませんでした。時間をおいて再読み込みしてください。</p>";
 const PLAYER_PAGES = new Set(window.PLAYER_PAGES || []);
 let vi=0, rno=null;
-document.getElementById("datepill").textContent = DATA.date;
-if(DATA.generated_at){
-  const m = DATA.generated_at.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/);
-  if(m) document.getElementById("genAt").textContent = `${m[1]}年${Number(m[2])}月${Number(m[3])}日 ${m[4]}`;
+let curVenueName = null;     // いま選んでいる会場の名前(本体が届いたとき、名前で引き直す)
+let restState = "loading";   // loading → ready / failed(data.js が読めなかった)
+// 描いた中身を控えておき、同じならDOMに触らない(本体が届いて描き直すときに、
+// 中身が変わらない部分を作り直して画面をちらつかせないため)。
+const lastHtml = {};
+function setHtml(id, html){
+  if(lastHtml[id] === html) return;
+  lastHtml[id] = html;
+  document.getElementById(id).innerHTML = html;
 }
-checkStaleData();
+function paintHeader(){
+  document.getElementById("datepill").textContent = DATA.date;
+  if(DATA.generated_at){
+    const m = DATA.generated_at.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/);
+    if(m) document.getElementById("genAt").textContent = `${m[1]}年${Number(m[2])}月${Number(m[3])}日 ${m[4]}`;
+  }
+  checkStaleData();
+}
 
 function checkStaleData(){
   // 「data.jsの対象日が今日でない」かつ「朝の更新時刻を十分に過ぎている」場合だけ、
@@ -648,27 +668,31 @@ function konSetsuLine(ks){
 }
 
 function renderFeatured(){
-  const box=document.getElementById("featured");
   const F=window.FEATURED;
-  if(!F || !PLAYER_PAGES.has(F.toban)){ box.innerHTML=""; return; }
+  if(!F || !PLAYER_PAGES.has(F.toban)){ setHtml("featured", ""); return; }
   // featured.jsはdata.jsと一緒に毎朝作り直される。作り直しに失敗した日は前回ぶんが
   // そのまま残るので、data.jsの対象日と一致しない限り枠ごと出さない。
   // 会場・レース番号はその日限りの情報で、古いまま出すと事実と食い違うため
   // (2026-07-13〜08-26、生成スクリプトの失敗に気づけず45日ぶん出し続けた)。
   const fmd = (DATA.date || "").match(/^(\d+)年(\d+)月(\d+)日$/);
   const fiso = fmd ? `${fmd[1]}-${String(fmd[2]).padStart(2,"0")}-${String(fmd[3]).padStart(2,"0")}` : null;
-  if(!fiso || F.date !== fiso){ box.innerHTML=""; return; }
+  if(!fiso || F.date !== fiso){ setHtml("featured", ""); return; }
   const racesTxt = F.races.length<=1 ? `${F.races[0]}R`
     : F.races.slice(0,-1).map(r=>`${r}R`).join("・") + "と" + F.races[F.races.length-1] + "R";
-  box.innerHTML = `<a class="feat" href="players/${F.toban}.html" target="_blank" rel="noopener">
+  setHtml("featured", `<a class="feat" href="players/${F.toban}.html" target="_blank" rel="noopener">
     <div class="feat-eyebrow">📖 今日の注目選手</div>
     <div class="feat-catch">「${F.catch}」</div>
     <div class="feat-basis">${F.basis}</div>
     <div class="feat-meta"><b>${F.name}</b><span class="feat-k">${F.k}</span> ・ ${F.age}歳 ・ ${F.br}支部 ・ 今日 ${F.venue} ${racesTxt} に出走</div>
-  </a>`;
+  </a>`);
 }
 
 function renderVenues(){
+  curVenueName = DATA.venues[vi] ? DATA.venues[vi].name : null;
+  // 並びと選択が同じなら作り直さない(本体が届いたときの描き直しでちらつかせない)
+  const sig = vi + "|" + DATA.venues.map(v=>v.name).join(",");
+  if(lastHtml.venues === sig) return;
+  lastHtml.venues = sig;
   const box=document.getElementById("venues"); box.innerHTML="";
   DATA.venues.forEach((v,i)=>{
     const c=el(`<button class="chip" role="tab" aria-selected="${i===vi}">${v.name}</button>`);
@@ -677,8 +701,15 @@ function renderVenues(){
   });
 }
 function renderRaces(){
-  const v=DATA.venues[vi], box=document.getElementById("races"); box.innerHTML="";
+  const v=DATA.venues[vi], box=document.getElementById("races");
+  // 先出しに無い会場(本体の data.js がまだ届いていない)。届いたら reconcile() が描く。
+  // 読めなかったときは枠を出さない(読み込み中のまま止まって見えないように)。
+  if(!v.races){ lastHtml.races = null; box.innerHTML = restState === "failed" ? "" : SK.races; return; }
   if(rno==null) rno=v.races[0].no;
+  const sig = vi + "|" + v.name + "|" + rno + "|" + v.races.map(r=>r.no).join(",");
+  if(lastHtml.races === sig) return;
+  lastHtml.races = sig;
+  box.innerHTML="";
   v.races.forEach(r=>{
     const c=el(`<button class="chip" role="tab" aria-selected="${r.no===rno}">${r.no}R</button>`);
     c.onclick=()=>{rno=r.no; renderRaces(); renderCard();};
@@ -862,7 +893,13 @@ function compareTable(r){
     <div class="cmp-note">数字は事実（全国勝率・モーター2率・平均ST）の並びで、予想印ではありません。</div></div>`;
 }
 function renderCard(){
-  const v=DATA.venues[vi], r=v.races.find(x=>x.no===rno);
+  const v=DATA.venues[vi];
+  if(!v.races){
+    // 先出しに無い会場。本体が届くまで枠を出し、読めなかったらその旨を出す。
+    setHtml("card", restState === "failed" ? FAIL_HTML : SK.card);
+    return;
+  }
+  const r=v.races.find(x=>x.no===rno);
   const crewParam = encodeURIComponent(
     r.boats.filter(x=>PLAYER_PAGES.has(x.t)).map(x=>`${x.t}:${x.n}:${x.name}`).join(",")
   );
@@ -889,14 +926,61 @@ function renderCard(){
   // 同じタブで開く(戻ってこられるほうがよい)。#yomiBox で記録欄まで運ぶ。
   const raceLinkHtml = rurl ? `<div class="racelink"><a href="${rurl}#yomiBox">✍️ 予想を記録</a><a class="share" href="${rurl}" target="_blank" rel="noopener">このレースのページ（共有用リンク）</a></div>` : "";
   const cmpHtml = compareTable(r);
-  document.getElementById("card").innerHTML=
+  setHtml("card",
     `<div class="card"><div class="card-head">
        <div class="ttl">${v.name} <span>${r.no}R</span></div>
        <div class="dl nums term" title="締切＝このレースの投票締切時刻">締切 ${r.dl||"—"}</div>
      </div>${raceLinkHtml}${cmpHtml}${rows}</div>`
-    + trendPanel(v.name);
+    + trendPanel(v.name));
 }
-renderFeatured(); renderVenues(); renderRaces(); renderCard();
+// 先出しがあれば、すぐ描く。無ければ(top-first.js が読めなかった)本体を待って描く。
+if(window.DATA){ paintHeader(); renderFeatured(); renderVenues(); renderRaces(); renderCard(); }
+
+// 本体が届いたときの突き合わせ。選んでいる会場は名前で引き直す(先出しと本体で
+// 日付がずれていても、CDNのキャッシュでどちらかが古くても、同じ会場に居続ける)。
+// 各 render は中身が同じならDOMに触らないので、違うところだけが描き直される。
+function reconcile(dataOk){
+  restState = dataOk ? "ready" : "failed";
+  PLAYER_PAGES.clear();
+  (window.PLAYER_PAGES || []).forEach(t => PLAYER_PAGES.add(t));
+  if(!window.DATA || !DATA.venues || !DATA.venues.length){ setHtml("card", FAIL_HTML); return; }
+  const idx = DATA.venues.findIndex(v => v.name === curVenueName);
+  if(idx < 0){ vi = 0; rno = null; } else { vi = idx; }
+  const v = DATA.venues[vi];
+  if(v.races && rno != null && !v.races.some(r => r.no === rno)) rno = null;
+  paintHeader(); renderFeatured(); renderVenues(); renderRaces(); renderCard();
+}
+
+// 本体のデータと ios.js / favorites.js を、描いたあとで読む。async=false で入れた順に
+// 実行されるので、ios.js → favorites.js の順番も今までどおり。
+// ここは本文を読んでいる途中(load の前)なので、ページの load はこれらを待つ。iOSの殻は
+// onPageFinished(load のあと)で合図を送るので、ios.js が差し込む課金・通知の受け口
+// (billing-ios.js / push-ios.js)は、合図が来る前にそろっている。
+(function loadRest(){
+  const REST = [
+    ["data.js", "DATA"], ["stats.js", "STATS"], ["players.js", "PLAYERS"],
+    ["players_index.js", "PLAYER_PAGES"], ["featured.js", "FEATURED"], ["motors.js", "MOTORS"],
+  ];
+  let pending = REST.length, dataOk = true;
+  function add(src, done){
+    const el = document.createElement("script");
+    el.src = src;
+    el.async = false;
+    if(done){ el.onload = () => done(true); el.onerror = () => done(false); }
+    document.body.appendChild(el);
+  }
+  REST.forEach(([src, name]) => add(src, ok => {
+    if(!ok){
+      if(name === "DATA") dataOk = false;
+      // 先出しが無いときは、以前の onerror と同じく null にする。先出しがあるときは
+      // その写しを残す(先頭の会場は正しい値のまま描ける)。
+      else if(!FIRST) window[name] = null;
+    }
+    if(--pending === 0) reconcile(dataOk && !!window.DATA);
+  }));
+  add("ios.js");
+  add("favorites.js");
+})();
 </script>
 </body>
 </html>
