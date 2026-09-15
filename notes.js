@@ -101,8 +101,23 @@
       "・的中率 " + pct(r.hitRate) + (races ? "・" + races : "");
   }
 
+  /**
+   * マイページの「今日の番組表で該当するレース」に添える数字の1行。
+   * 数字は記録したときのもので、データが伸びれば動く。数字だけが独り歩きしないよう、
+   * 「いつ時点の検証か」を必ず同じ行に刷る。記録した数字が無ければ null(何も添えない)。
+   */
+  function verifiedLine(result, createdAt) {
+    var r = result || {};
+    if (typeof r.returnRate !== "number" && typeof r.hitRate !== "number") return null;
+    var when = ymd(r.runAt || createdAt);
+    var races = (typeof r.races === "number") ? "・" + r.races.toLocaleString("ja-JP") + "レース" : "";
+    return "回収率 " + pct(r.returnRate) + "・的中率 " + pct(r.hitRate) + races +
+      (when ? "（" + when + "時点の検証）" : "（記録時点の検証）");
+  }
+
   window.TeiyomiNotes = {
     MAX: MAX,
+    verifiedLine: verifiedLine,
     list: list,
     get: get,
     create: create,

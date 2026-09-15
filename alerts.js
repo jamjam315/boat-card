@@ -198,7 +198,8 @@
       ".bell-pop .bell-sub{display:block; width:100%; margin-top:8px; padding:9px;" +
       "border-radius:9px; border:1px solid var(--line2,#d3d8d2); background:none;" +
       "color:var(--ink2,#4a5a61); font:inherit; font-size:12.5px; text-align:center;" +
-      "cursor:pointer; text-decoration:none; box-sizing:border-box;}";
+      "cursor:pointer; text-decoration:none; box-sizing:border-box;}" +
+      ".bell-pop.bell-inline{max-width:none; box-sizing:border-box;}";
     document.head.appendChild(s);
   }
 
@@ -213,13 +214,22 @@
    * 同じものを出す。Androidアプリ(TWA)では購入への導線も購入を促す文言も出さない
    * (Playのポリシー)。この規則を守る場所を1か所にしておく。
    */
-  function gateHtml(title, body) {
+  function gateHtml(title, body, inline) {
     var inApp = window.TeiyomiTWA && TeiyomiTWA.isTWA();
     return "<h3>" + escText(title) + "</h3>" +
       "<p>" + escText(body) +
       (inApp ? TeiyomiTWA.gateText() : "プレミアム（月額）でご利用いただけます。") + "</p>" +
       '<a class="bell-cta" href="/premium/">プレミアムを見る</a>' +
-      '<button type="button" class="bell-sub bell-close">閉じる</button>';
+      (inline ? "" : '<button type="button" class="bell-sub bell-close">閉じる</button>');
+  }
+
+  /**
+   * 同じ壁を、重ねて出すのではなくページの中にそのまま置く形(マイページの欄で使う)。
+   * 閉じるものが無いので「閉じる」は付けない。中身と TWA の扱いは gateHtml のまま。
+   */
+  function inlineGateHtml(title, body) {
+    ensureBellStyle();
+    return '<div class="bell-pop bell-inline">' + gateHtml(title, body, true) + "</div>";
   }
 
   /**
@@ -383,6 +393,7 @@
     findSame: findSame,
     titlePreset: titlePreset,
     bellFlow: bellFlow,
-    premiumGate: premiumGate
+    premiumGate: premiumGate,
+    inlineGateHtml: inlineGateHtml
   };
 })();

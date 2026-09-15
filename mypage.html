@@ -192,6 +192,18 @@ body{background:var(--bg); color:var(--ink);
   font-variant-numeric:tabular-nums lining-nums; overflow-wrap:anywhere;}
 .nt-memo{margin:4px 0 0; font-size:12px; color:var(--muted); line-height:1.7; overflow-wrap:anywhere;}
 .nt-act{margin:6px 0 0; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+/* ---- 今日の番組表で該当するレース(検証ノートを番組表と照らす)。骨格は .nt- と同じ ---- */
+.rm-head{margin:0 0 4px; font-size:12px; color:var(--ink2); line-height:1.6;}
+.rm-stale{margin:0 0 6px; font-size:11.5px; color:var(--ink); font-weight:600; line-height:1.6;}
+.rm-count{margin:6px 0 0; font-size:12.5px; color:var(--ink); font-weight:600;}
+.rm-none{margin:6px 0 0; font-size:12px; color:var(--muted);}
+.rm-races{list-style:none; margin:4px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:6px;}
+.rm-races li{font-size:12px; font-variant-numeric:tabular-nums lining-nums;}
+.rm-races a{display:inline-block; padding:3px 8px; border:1px solid var(--line2); border-radius:8px; color:var(--accent); text-decoration:none;}
+.rm-races .rm-dl{color:var(--muted); margin-left:4px;}
+.rm-more{margin-top:6px; font-size:12px; color:var(--ink2);}
+.rm-more summary{cursor:pointer; color:var(--accent);}
+.rm-unusable{margin:4px 0 0; font-size:11px; color:var(--muted); line-height:1.6;}
 .nt-open{font-size:12.5px; color:var(--accent); text-decoration:underline; text-decoration-color:var(--line2);}
 
 .foot{margin-top:20px; padding:14px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:12px;}
@@ -227,6 +239,9 @@ body{background:var(--bg); color:var(--ink);
   <p class="sec-label">🔔 条件アラート</p>
   <div id="alertsBox"></div>
 
+  <p class="sec-label">🗓 今日の番組表で該当するレース</p>
+  <div id="ruleMatchBox"></div>
+
   <p class="sec-label">📝 検証ノート</p>
   <div id="notesBox"></div>
 
@@ -256,6 +271,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="billing.js"></script>
 <script src="alerts.js"></script>
 <script src="notes.js"></script>
+<script src="rule-match.js"></script>
 <!-- ?v= は yomi.js / yomi-race.js のキャッシュ避け。GitHub Pages は
      max-age=600 を返すので、HTMLだけ新しくJSが古い、という食い違いが
      10分間起こりうる(実機で講評が出なかったのがこれ)。HTMLとJSの版を
@@ -931,6 +947,115 @@ function renderAlertsBox(){
     if(inner) inner.textContent = "条件アラートを読み込めませんでした。";
   });
 }
+// ===== 今日の番組表で該当するレース(検証ノート×今日の番組表) =====
+// 検証ノートに残した条件のうち、朝の時点で分かるもの(会場・月・R番・種別・距離・固定・
+// ナイター/デイ・選手)で今日の data.js を照らし、当てはまるレースを並べる。
+// 照合は rule-match.js(朝の通知と同じ判定。一致はテストで見ている)。艇読みの印は出さない。
+// ノートは renderNotesBox が1回だけ読み、その行をここへ渡す(同じ一覧を2回取りに行かない)。
+
+// 会場名→ローマ字とナイター会場は backtest-data/meta.json から取る(5bと同じ出どころ)。
+// 読めなかったときは照合しない。会場の対応が無いまま照らすと、会場で絞ったノートが
+// 全会場に当てはまって見えてしまうため。
+let ruleMeta = null;   // null=未取得 / 取得中・取得済みの Promise
+function loadRuleMeta(){
+  if(!ruleMeta){
+    ruleMeta = fetch("backtest-data/meta.json")
+      .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(m => { if(!m || !Array.isArray(m.venues) || !m.venues.length) throw new Error("empty"); return m; })
+      .catch(err => { ruleMeta = null; throw err; });
+  }
+  return ruleMeta;
+}
+function todayJstIso(){
+  return new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Tokyo", year:"numeric", month:"2-digit", day:"2-digit"}).format(new Date());
+}
+function mdLabel(iso){
+  const p = iso.split("-");
+  return `${Number(p[1])}月${Number(p[2])}日`;
+}
+const RULE_RACES_OPEN = 8;   // これより多い該当は折りたたむ
+
+function ruleRaceItem(x, dateIso, romajiOf){
+  const romaji = romajiOf[x.venue];
+  const text = `${esc(x.venue)} ${x.race}R`;
+  const dl = x.deadline ? `<span class="rm-dl">締切 ${esc(x.deadline)}</span>` : "";
+  // レースページは build_race_pages.py が /race/{日付}/{ローマ字}/{R}R.html に作る
+  const link = romaji ? `<a href="/race/${dateIso}/${encodeURIComponent(romaji)}/${x.race}R.html">${text}</a>` : text;
+  return `<li>${link}${dl}</li>`;
+}
+
+// rows: undefined=読み込み中 / null=読めなかった / 配列=ノートの行
+let ruleMatchSeq = 0;   // 描き直しが重なったとき、古い meta 待ちの結果で上書きしない
+function renderRuleMatchBox(rows){
+  const box = document.getElementById("ruleMatchBox");
+  if(!box) return;
+  const seq = ++ruleMatchSeq;
+  if(alertsPremium !== true){
+    // 契約が確定するまでは何も出さない(点滅を避ける)。未契約なら壁をその場に置く。
+    box.innerHTML = (alertsPremium === false && window.TeiyomiAlerts)
+      ? TeiyomiAlerts.inlineGateHtml("🗓 今日の番組表で該当するレースはプレミアムの機能です",
+          "検証ノートに記録した条件に、今日の番組表で当てはまるレースを並べます。")
+      : "";
+    return;
+  }
+  if(rows === undefined){ box.innerHTML = `<div class="authbox">読み込み中…</div>`; return; }
+  if(rows === null){ box.innerHTML = `<div class="authbox">検証ノートを読み込めませんでした。</div>`; return; }
+  if(!window.TeiyomiRuleMatch){ box.innerHTML = ""; return; }
+  if(rows.length === 0){
+    box.innerHTML = `<div class="authbox">検証ノートを記録すると、その条件に今日の番組表で当てはまるレースがここに並びます。</div>`;
+    return;
+  }
+  const RM = TeiyomiRuleMatch;
+  const dateIso = window.DATA ? RM.parseDataDate(DATA.date) : null;
+  if(!dateIso){ box.innerHTML = `<div class="authbox">今日の番組表を読み込めませんでした。</div>`; return; }
+
+  loadRuleMeta().then(meta=>{
+    if(seq !== ruleMatchSeq) return;
+    const night = RM.nightVenuesFrom(meta.venues);
+    const romajiOf = {};
+    meta.venues.forEach(v => { if(v && v.name && v.romaji) romajiOf[v.name] = v.romaji; });
+    // 朝の更新(daily.yml)の前は、前日の番組表のまま。どの日の番組表で照らしたかを必ず見せる。
+    const head = dateIso === todayJstIso()
+      ? `<p class="rm-head">${mdLabel(dateIso)}の番組表で照らしています。</p>`
+      : `<p class="rm-stale">番組表はまだ${mdLabel(dateIso)}のものです（朝の更新前）。${mdLabel(dateIso)}の番組表で照らしています。</p>`;
+
+    const items = rows.map(r=>{
+      const rule = RM.ruleFromNote(r.cond, meta.venues);
+      const line = TeiyomiNotes.verifiedLine(r.result, r.created_at);
+      let body;
+      if(!rule.narrowable){
+        body = `<p class="rm-none">朝の時点で絞れる条件がありません。</p>`;
+      }else{
+        const hits = RM.matchRaces(DATA, rule, night);
+        if(!hits.length){
+          body = `<p class="rm-none">該当するレースはありません。</p>`;
+        }else{
+          const first = hits.slice(0, RULE_RACES_OPEN).map(x => ruleRaceItem(x, dateIso, romajiOf)).join("");
+          const rest = hits.slice(RULE_RACES_OPEN).map(x => ruleRaceItem(x, dateIso, romajiOf)).join("");
+          body = `<p class="rm-count">該当 ${hits.length}レース</p><ul class="rm-races">${first}</ul>` +
+            (rest ? `<details class="rm-more"><summary>ほか${hits.length - RULE_RACES_OPEN}レースを見る</summary><ul class="rm-races">${rest}</ul></details>` : "");
+        }
+      }
+      const unusable = rule.unusable.length
+        ? `<p class="rm-unusable">照らせなかった条件：${esc(rule.unusable.join(" ／ "))}（レースが終わるまで分からないため）</p>`
+        : "";
+      // .rm-v2 は、ルールごとの直近1年の回収率を後から足すための場所(v2)。今は空で出さない。
+      return `<div class="nt-row rm-row" data-id="${esc(r.id)}">
+        <p class="nt-label">${esc(r.label || "（名前のないノート）")}</p>
+        ${line ? `<p class="nt-result">${esc(line)}</p>` : ""}
+        <p class="nt-result rm-v2" hidden></p>
+        ${body}
+        ${unusable}
+      </div>`;
+    }).join("");
+    box.innerHTML = `<div class="authbox">${head}${items}
+      <p class="authbox-notice">券種・買い目は照らしていません。天候・風速・決まり手・進入はレースが終わるまで分からないため、条件に入っていても使っていません。数字は記録したときの検証で、今のデータで計算し直したものではありません。</p></div>`;
+  }).catch(()=>{
+    if(seq !== ruleMatchSeq) return;
+    box.innerHTML = `<div class="authbox">会場の情報を読み込めなかったため、今日の番組表と照らせませんでした。時間をおいて再読み込みしてください。</div>`;
+  });
+}
+
 // ===== 検証ノート(5bで記録した検証の見返し) =====
 function renderNotesBox(){
   const box = document.getElementById("notesBox");
@@ -939,11 +1064,14 @@ function renderNotesBox(){
     box.innerHTML = alertsPremium === false
       ? `<div class="authbox">検証ノートはプレミアムの機能です。${premiumLinkHtml()}</div>`
       : "";
+    renderRuleMatchBox();
     return;
   }
-  if(!window.TeiyomiNotes){ box.innerHTML = ""; return; }
+  if(!window.TeiyomiNotes){ box.innerHTML = ""; renderRuleMatchBox(null); return; }
   box.innerHTML = `<div class="authbox" id="notesInner">読み込み中…</div>`;
+  renderRuleMatchBox(undefined);
   TeiyomiNotes.list().then(rows=>{
+    renderRuleMatchBox(rows || []);
     const inner = document.getElementById("notesInner");
     if(!inner) return;
     if(!rows || rows.length === 0){
@@ -973,6 +1101,7 @@ function renderNotesBox(){
       });
     });
   }).catch(()=>{
+    renderRuleMatchBox(null);
     const inner = document.getElementById("notesInner");
     if(inner) inner.textContent = "検証ノートを読み込めませんでした。";
   });
