@@ -1,17 +1,18 @@
 {
-  "_comment": "レースページ「波と風で、1コースの1着率はこう動く」の数字(AI-13)。波高は読み採点 v1.1 の D 表(yomi.js の YOMI_TABLE.D.lane[1])を一字一句写したもの。風は scripts/measure_wind_course.py で同じ手法で測った値(〜2026-09-01)。手で直すときは tests/course1-wave-wind.test.mjs が D 表との一致を見る。",
+  "_comment": "レースページ「波と風で、1コースの1着率はこう変わる」の数字(AI-13・AI-13c)。scripts/measure_wind_course.py --wave で測った値(〜2026-09-01)を手で写したもの。画面に出すのは base と各帯の rate(実際の1着率)だけ。lift は同じ測定で出した「会場ごとの平均との差」で、画面には出さず、tests/course1-wave-wind.test.mjs が波高の lift と読み採点 v1.1 の D 表(yomi.js の YOMI_TABLE.D.lane[1])との一致(±0.1)を見るために置いている。",
   "version": "v1.1 2026-09",
   "period": "10年・334万走",
+  "base": { "rate": 55.2, "n": 552329 },
   "wave": [
-    { "band": "0〜1cm", "lift": "+2.6pt" },
-    { "band": "2〜3cm", "lift": "−0.4pt" },
-    { "band": "4〜5cm", "lift": "−3.0pt" },
-    { "band": "6cm以上", "lift": "−5.0pt" }
+    { "band": "0〜1cm", "rate": 58.7, "lift": 2.6, "n": 192506 },
+    { "band": "2〜3cm", "rate": 54.5, "lift": -0.4, "n": 246166 },
+    { "band": "4〜5cm", "rate": 51.7, "lift": -3.0, "n": 84637 },
+    { "band": "6cm以上", "rate": 48.4, "lift": -4.9, "n": 29020 }
   ],
   "wind": [
-    { "band": "〜2m", "lift": "+2.3pt", "rate": 57.8, "n": 270498 },
-    { "band": "3〜4m", "lift": "−1.2pt", "rate": 54.2, "n": 195910 },
-    { "band": "5m以上", "lift": "−4.6pt", "rate": 49.6, "n": 85921 }
+    { "band": "〜2m", "rate": 57.8, "lift": 2.3, "n": 270498 },
+    { "band": "3〜4m", "rate": 54.2, "lift": -1.2, "n": 195910 },
+    { "band": "5m以上", "rate": 49.6, "lift": -4.6, "n": 85921 }
   ],
-  "wind_measured": { "script": "scripts/measure_wind_course.py", "through": "2026-09-01", "starters": 3306534 }
+  "measured": { "script": "scripts/measure_wind_course.py --wave", "through": "2026-09-01", "starters": 3306534 }
 }

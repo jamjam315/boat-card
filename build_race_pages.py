@@ -128,11 +128,13 @@ def build_race_css():
         '.yamt{margin-left:auto; color:var(--muted);}\n'
         '.ydel{background:none; border:none; color:var(--muted); font-size:16px;'
         ' cursor:pointer; padding:0 2px;}\n'
-        # ---- 波と風で、1コースの1着率はこう動く(AI-13) ----
+        # ---- 波と風で、1コースの1着率はこう変わる(AI-13・AI-13c) ----
         # 天候欄(.wsec/.wgrid/.wcell)の骨格をそのまま使い、波高の4帯ぶんだけ列を増やす。
+        '.cwbase{font-size:12.5px; color:var(--ink2); margin:2px 0 0;}\n'
+        '.cwbase b{color:var(--ink); font-weight:700;}\n'
         '.cwlabel{font-size:11.5px; color:var(--ink2); margin:8px 0 5px;}\n'
         '.wgrid.cw4{grid-template-columns:repeat(4,1fr);}\n'
-        '.cwlift{font-size:16px; font-weight:700; margin-top:2px;}\n'
+        '.cwrate{font-size:16px; font-weight:700; margin-top:2px;}\n'
     )
     with open(CSS_PATH, "w", encoding="utf-8") as f:
         f.write(css + extra)
@@ -269,25 +271,21 @@ def weather_block(stats, venue_name):
                       f'<div class="wwin">—</div><div class="wn">少</div></div>')
     rain = next((b for b in solid if b["w"] == "雨"), None)
     base = next((b for b in solid if b["w"] == "晴"), None) or next((b for b in solid if b["w"] == "曇"), None)
+    # 差の数字は書かず、実数の%を2つ並べる(読者が自分で比べられる)。高い/低いの語も書かない(AI-13c)
     if rain and base:
         d = round((rain["win"] - base["win"]) * 10) / 10
-        if d <= -8:
-            hint = (f'<b>☔ 雨の{venue_name}では、1コースの1着率が{abs(d):.1f}pt低い。</b>1コース{rain["win"]}%'
-                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。')
-        elif d >= 8:
-            hint = (f'<b>☔ 雨の{venue_name}では、1コースの1着率が{d:.1f}pt高い。</b>1コース{rain["win"]}%'
-                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。')
+        if abs(d) >= 8:
+            hint = (f'<b>☔ 雨の{venue_name}：1コースの1着率 {rain["win"]}%</b>'
+                    f'（{base["w"]}のときは {base["win"]}%）。')
         else:
-            hint = f'☔ 雨でも1コースの1着率の差は小さい（1コース{rain["win"]}% / {WEMO[base["w"]]}{base["w"]}{base["win"]}%）。'
+            hint = f'☔ 雨でも1コースの1着率はほぼ同じ（雨 {rain["win"]}%・{base["w"]} {base["win"]}%）。'
     elif len(solid) >= 2:
         hi = max(solid, key=lambda b: b["win"])
         lo = min(solid, key=lambda b: b["win"])
         if hi["win"] - lo["win"] >= 8:
-            gap = round((hi["win"] - lo["win"]) * 10) / 10
-            hint = (f'<b>1コースの1着率は、{WEMO[lo["w"]]}{lo["w"]}で{lo["win"]}%、'
-                    f'{WEMO[hi["w"]]}{hi["w"]}で{hi["win"]}%。</b>天候によって{gap:.1f}ptの差がある。')
+            hint = f'<b>1コースの1着率は、{lo["w"]}で {lo["win"]}%、{hi["w"]}で {hi["win"]}%。</b>'
         else:
-            hint = "天候による1コースの1着率の差は、今のところ小さい。"
+            hint = f'天候による1コースの1着率の差は小さい（{lo["win"]}%〜{hi["win"]}%）。'
     else:
         hint = "天候別はまだデータが少なめ。毎晩たまって、この会場の「雨のクセ」が見えてきます。"
     if solid:
@@ -303,12 +301,12 @@ COURSE1_WAVE_WIND_PATH = "course1_wave_wind.json"
 
 
 def course1_wave_wind_block():
-    """「波と風で、1コースの1着率はこう動く」(AI-13)。
+    """「波と風で、1コースの1着率はこう変わる」(AI-13・AI-13c)。
 
-    数字は course1_wave_wind.json から写すだけで、ここでは計算しない。波高は読み採点 v1.1 の
-    D 表と同じ数字(答案の内訳・AI講評に出る数字と揃える)。会場によらず同じ表を出す。
+    数字は course1_wave_wind.json から写すだけで、ここでは計算しない。全国の1コース平均と、
+    帯ごとの実際の1着率(%)を並べる。差の数字は書かない。会場によらず同じ表を出す。
     当日の波高・風速はレース前に手に入らない(結果ファイルにしか無い)ので、当日の値は載せず、
-    帯ごとの一覧だけを置く。予想・推奨に読める語(狙い目・堅い・荒れる・買い・有利)は使わない。
+    帯ごとの一覧だけを置く。予想・推奨に読める語は使わない(tests の語のテストが見る)。
     ファイルが読めなければ欄ごと出さない(ページの他の部分は普通に出る)。
     """
     try:
@@ -320,21 +318,21 @@ def course1_wave_wind_block():
 
     # 母数は波高と風で違うので分けて書く。波高は答案と同じ表記(「10年・334万走」の後ろ)、
     # 風は測った走者数を万で丸める。
-    wave_n = t["period"].split("・")[-1]
-    wind_n = f'{round(t["wind_measured"]["starters"] / 10000)}万走'
+    years, wave_n = t["period"].split("・")
+    wind_n = f'{round(t["measured"]["starters"] / 10000)}万走'
 
     def cells(items):
         return "".join(
             f'<div class="wcell"><div class="wemo">{escape(x["band"])}</div>'
-            f'<div class="cwlift nums">{escape(x["lift"])}</div></div>'
+            f'<div class="cwrate nums">{x["rate"]:.1f}%</div></div>'
             for x in items)
 
-    return (f'<div class="wsec"><div class="wsec-head">波と風で、1コースの1着率はこう動く <span>1コース・基準比</span></div>'
+    return (f'<div class="wsec"><div class="wsec-head">波と風で、1コースの1着率はこう変わる</div>'
+            f'<div class="cwbase">全国の1コース平均 <b class="nums">{t["base"]["rate"]:.1f}%</b>（{escape(years)}）</div>'
             f'<div class="cwlabel">波高</div><div class="wgrid cw4">{cells(t["wave"])}</div>'
             f'<div class="cwlabel">風速</div><div class="wgrid">{cells(t["wind"])}</div>'
-            f'<div class="wnote">会場ごとの1コースの平均1着率との差。10年。'
-            f'波高は読み採点({escape(t["version"])})と同じ表({escape(wave_n)})、'
-            f'風は同じ手法で{escape(wind_n)}を測ったものです。</div>'
+            f'<div class="wnote">波高は読み採点({escape(t["version"])})と同じ集計（{escape(wave_n)}）、'
+            f'風は同じ手法で測ったもの（{escape(wind_n)}）。</div>'
             f'<div class="wnote">当日の波高・風速は、公式の直前情報でご確認ください。</div></div>')
 
 
@@ -398,10 +396,8 @@ def trend_panel(stats, venue_name):
                  f'<span class="tval-sub nums">3着内{x["p3"]}%</span></span></div>')
     v1 = vs["1"]["win"]; n1 = nat["1"]["win"]; v1p3 = vs["1"]["p3"]; n1p3 = nat["1"]["p3"]
     thin1 = vs["1"]["n"] < MIN_N
-    if v1 >= n1 + 3:
-        hint = f'1コースの1着率が全国平均({n1}%)より高い。'
-    elif v1 <= n1 - 3:
-        hint = f'1コースの1着率が全国平均({n1}%)より低い。'
+    if v1 >= n1 + 3 or v1 <= n1 - 3:
+        hint = f'1コースの1着率 {v1}%（全国平均 {n1}%）。'
     else:
         hint = f'1コースの強さはほぼ全国平均({n1}%)どおり。'
     ref = "（本数少なめ・参考程度）" if thin1 else f"（全国平均{n1p3}%）"
