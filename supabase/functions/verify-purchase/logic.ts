@@ -31,6 +31,7 @@ export type MembershipRow = {
   current_period_end?: string | null
   purchase_token?: string | null
   updated_at?: string | null
+  platform?: string | null
 }
 
 /** Googleの応答から必要なところだけ取り出した形。 */
@@ -129,6 +130,30 @@ export function isRowActive(
   const t = new Date(row.current_period_end).getTime()
   if (Number.isNaN(t)) return true
   return t > nowMs
+}
+
+/**
+ * 運営が手で付けた権利(platform = 'manual')を、ストアの検証結果で上書きしないか。
+ *
+ * ## なぜ要るのか(2026-09-16)
+ * 開発者・審査用のアカウントに、ストアの購入記録が残っていることがある
+ * (例: iOSのSandbox購入が期限切れのまま残った行に、手で権利を付け直す)。
+ * verify-purchase は user_id で upsert するので、この人が購入・復元を押したり、
+ * キャッシュ(24時間)が切れたあとに検証が走ったりすると、ストアの答え
+ * (期限切れ＝inactive)で手の権利が消え、黙って非会員に戻る。
+ *
+ * ## 守るのは「今有効な manual 行」だけ
+ * 期限を過ぎた・inactive にした manual 行は守らない。運営が権利を外したあとは、
+ * 普通にストアの検証で上書きされてよい(外し方は status を inactive にするだけ)。
+ * manual の行はクライアントからは作れない(memberships はRLSで書き込み全面禁止)ので、
+ * これが検証の抜け道になることはない。
+ */
+export function keepsManualGrant(
+  row: MembershipRow | null | undefined,
+  nowMs: number,
+): boolean {
+  if (!row || row.platform !== 'manual') return false
+  return isRowActive(row, nowMs)
 }
 
 /**

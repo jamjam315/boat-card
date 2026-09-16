@@ -61,6 +61,7 @@ import {
   isAcceptableToken,
   isKnownProduct,
   isRowActive,
+  keepsManualGrant,
   membershipRowKey,
   parsePlatform,
   parseSubscription,
@@ -70,6 +71,7 @@ import {
   tokenTakenByOther,
   transactionIdFromJws,
 } from './logic.ts'
+import type { MembershipRow } from './logic.ts'
 
 const JSON_HEADERS = { 'content-type': 'application/json' }
 const API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications'
@@ -101,6 +103,26 @@ function denied(reason: string, status = 200): Response {
     status,
     headers: JSON_HEADERS,
   })
+}
+
+/**
+ * この人に、運営が手で付けた有効な権利(manual)があるか(logic.ts の keepsManualGrant)。
+ * あれば、その行を返す。書き戻しの直前に呼び、あれば**書かずに**その権利を答える。
+ *
+ * ストアへの照会・使い回しの検出・Playの受領(acknowledge)はこの前に済ませてあり、
+ * 飛ばすのは memberships への書き戻しだけ。読めなかったときは書かずに無効を返す
+ * (手の権利を消してしまう側には倒さない)。
+ */
+async function readManualGrant(
+  userId: string,
+): Promise<{ ok: true; row: MembershipRow | null } | { ok: false; error: string }> {
+  const { data, error } = await supabaseAdmin
+    .from('memberships')
+    .select('user_id,status,price_id,current_period_end,platform')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, row: keepsManualGrant(data, Date.now()) ? data : null }
 }
 
 function ok(active: boolean, productId: string, expiry: string | null): Response {
@@ -256,6 +278,15 @@ export default {
         // もう一度試される。ログには必ず残す。
         if (state.active && state.needsAcknowledge) {
           await acknowledge(packageName, productId, purchaseToken, accessToken, userId)
+        }
+
+        // --- 手で付けた権利があれば、書き戻さない(keepsManualGrant) ---
+        const manualPlay = await readManualGrant(userId)
+        if (!manualPlay.ok) return denied('manual grant lookup failed: ' + manualPlay.error, 500)
+        if (manualPlay.row) {
+          console.log('[verify-purchase] manual grant kept user=' + userId.slice(0, 8) +
+            ' store_active=' + state.active)
+          return ok(true, productId, manualPlay.row.current_period_end ?? null)
         }
 
         // --- memberships に書き戻す ---
@@ -526,6 +557,15 @@ async function verifyWithApple(args: {
   if (keyErr) return denied('apple key lookup failed: ' + keyErr.message, 500)
   if (tokenTakenByOther(keyRows, userId)) {
     return denied('purchase token belongs to another account', 409)
+  }
+
+  // --- 手で付けた権利があれば、書き戻さない(Play経路と同じ) ---
+  const manualApple = await readManualGrant(userId)
+  if (!manualApple.ok) return denied('manual grant lookup failed: ' + manualApple.error, 500)
+  if (manualApple.row) {
+    console.log('[verify-purchase] manual grant kept(ios) user=' + userId.slice(0, 8) +
+      ' store_active=' + verdict.isActive)
+    return ok(true, productId, manualApple.row.current_period_end ?? null)
   }
 
   // --- memberships に書き戻す(Play経路とまったく同じ形) ---

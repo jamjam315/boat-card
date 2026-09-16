@@ -20,6 +20,7 @@ import {
   isAcceptableToken,
   isKnownProduct,
   isRowActive,
+  keepsManualGrant,
   looksLikeJws,
   MAX_APPLE_JWS_LENGTH,
   membershipRowKey,
@@ -742,4 +743,29 @@ Deno.test('リストに無い人は、Sandboxへ問い直しもしない(本番�
   assertEquals(r.res.ok, false)
   // 仮に本番がSandboxの取引を返してきても、権利にしない(二重の守りの2枚目)。
   assertFalse(appleSourceAllowed({ environment: 'Sandbox' }, { fromSandbox: false, allowSandbox }).ok)
+})
+
+// ---- 手で付けた権利(manual)をストアの検証で上書きしない(2026-09-16) ----
+
+Deno.test('有効な manual 行は守る(ストアの答えで上書きしない)', () => {
+  const now = Date.parse('2026-09-16T00:00:00Z')
+  assert(keepsManualGrant(
+    { platform: 'manual', status: 'active', current_period_end: '2099-12-31T00:00:00Z' }, now))
+  // 期限の記録が無い manual も有効(is_premium と同じ)
+  assert(keepsManualGrant({ platform: 'manual', status: 'active', current_period_end: null }, now))
+})
+
+Deno.test('外した・期限切れの manual 行と、ストアの行は守らない', () => {
+  const now = Date.parse('2026-09-16T00:00:00Z')
+  // 運営が外した(inactive)あとは、普通に検証で上書きされてよい
+  assertFalse(keepsManualGrant(
+    { platform: 'manual', status: 'inactive', current_period_end: '2099-12-31T00:00:00Z' }, now))
+  assertFalse(keepsManualGrant(
+    { platform: 'manual', status: 'active', current_period_end: '2026-09-10T00:00:00Z' }, now))
+  // ストア由来の行は今までどおり検証結果で書き換える
+  for (const platform of ['ios', 'play', null, undefined, 'Manual']) {
+    assertFalse(keepsManualGrant(
+      { platform, status: 'active', current_period_end: '2099-12-31T00:00:00Z' }, now), String(platform))
+  }
+  assertFalse(keepsManualGrant(null, now))
 })
