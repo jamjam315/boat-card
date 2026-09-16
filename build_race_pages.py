@@ -272,21 +272,22 @@ def weather_block(stats, venue_name):
     if rain and base:
         d = round((rain["win"] - base["win"]) * 10) / 10
         if d <= -8:
-            hint = (f'<b>☔ 雨の{venue_name}はインが崩れやすい。</b>1コース{rain["win"]}%'
-                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。荒れ（外の差し・まくり）が出やすい狙い目。')
+            hint = (f'<b>☔ 雨の{venue_name}では、1コースの1着率が{abs(d):.1f}pt低い。</b>1コース{rain["win"]}%'
+                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。')
         elif d >= 8:
-            hint = (f'<b>☔ 雨の{venue_name}はむしろインが堅い。</b>1コース{rain["win"]}%'
-                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。人の逆を行ける場面。')
+            hint = (f'<b>☔ 雨の{venue_name}では、1コースの1着率が{d:.1f}pt高い。</b>1コース{rain["win"]}%'
+                    f'（{WEMO[base["w"]]}{base["w"]}は{base["win"]}%）。')
         else:
-            hint = f'☔ 雨でもインの強さはあまり変わらない（1コース{rain["win"]}% / {WEMO[base["w"]]}{base["w"]}{base["win"]}%）。'
+            hint = f'☔ 雨でも1コースの1着率の差は小さい（1コース{rain["win"]}% / {WEMO[base["w"]]}{base["w"]}{base["win"]}%）。'
     elif len(solid) >= 2:
         hi = max(solid, key=lambda b: b["win"])
         lo = min(solid, key=lambda b: b["win"])
         if hi["win"] - lo["win"] >= 8:
-            hint = (f'<b>{WEMO[lo["w"]]}{lo["w"]}はインが落ちやすく（1コース{lo["win"]}%）、'
-                    f'{WEMO[hi["w"]]}{hi["w"]}は堅い（{hi["win"]}%）。</b>天候で狙い方を変えられる場。')
+            gap = round((hi["win"] - lo["win"]) * 10) / 10
+            hint = (f'<b>1コースの1着率は、{WEMO[lo["w"]]}{lo["w"]}で{lo["win"]}%、'
+                    f'{WEMO[hi["w"]]}{hi["w"]}で{hi["win"]}%。</b>天候によって{gap:.1f}ptの差がある。')
         else:
-            hint = "天候によるインの強さの差は今のところ小さめ。"
+            hint = "天候による1コースの1着率の差は、今のところ小さい。"
     else:
         hint = "天候別はまだデータが少なめ。毎晩たまって、この会場の「雨のクセ」が見えてきます。"
     if solid:
@@ -317,6 +318,11 @@ def course1_wave_wind_block():
         print(f"[warn] {COURSE1_WAVE_WIND_PATH} を読めないため、波と風の表は出さない: {e}")
         return ""
 
+    # 母数は波高と風で違うので分けて書く。波高は答案と同じ表記(「10年・334万走」の後ろ)、
+    # 風は測った走者数を万で丸める。
+    wave_n = t["period"].split("・")[-1]
+    wind_n = f'{round(t["wind_measured"]["starters"] / 10000)}万走'
+
     def cells(items):
         return "".join(
             f'<div class="wcell"><div class="wemo">{escape(x["band"])}</div>'
@@ -326,8 +332,9 @@ def course1_wave_wind_block():
     return (f'<div class="wsec"><div class="wsec-head">波と風で、1コースの1着率はこう動く <span>1コース・基準比</span></div>'
             f'<div class="cwlabel">波高</div><div class="wgrid cw4">{cells(t["wave"])}</div>'
             f'<div class="cwlabel">風速</div><div class="wgrid">{cells(t["wind"])}</div>'
-            f'<div class="wnote">会場ごとの1コースの平均1着率との差。{escape(t["period"])}。'
-            f'波高は読み採点({escape(t["version"])})と同じ表、風は同じ手法で測ったものです。</div>'
+            f'<div class="wnote">会場ごとの1コースの平均1着率との差。10年。'
+            f'波高は読み採点({escape(t["version"])})と同じ表({escape(wave_n)})、'
+            f'風は同じ手法で{escape(wind_n)}を測ったものです。</div>'
             f'<div class="wnote">当日の波高・風速は、公式の直前情報でご確認ください。</div></div>')
 
 
@@ -353,10 +360,10 @@ def kimarite_block_venue(stats, venue_name):
         diff = round((k["逃げ"] - nat["逃げ"]) * 10) / 10
         makuri = round((k["まくり"] + k["まくり差し"]) * 10) / 10
         if diff >= 8:
-            hint = f'<b>逃げが決まりやすい、堅い場。</b>逃げ決着{k["逃げ"]}%（全国平均{nat["逃げ"]}%）。イン逃げの信頼度が高い。'
+            hint = f'<b>逃げで決まるレースが全国より多い。</b>逃げ決着{k["逃げ"]}%（全国平均{nat["逃げ"]}%）。'
         elif diff <= -8:
-            hint = (f'<b>荒れやすい場。</b>逃げ決着は{k["逃げ"]}%にとどまり（全国平均{nat["逃げ"]}%）、'
-                    f'まくり系（まくり＋まくり差し）が{makuri}%と多め。')
+            hint = (f'<b>逃げで決まるレースが全国より少ない。</b>逃げ決着{k["逃げ"]}%（全国平均{nat["逃げ"]}%）、'
+                    f'まくり系（まくり＋まくり差し）は{makuri}%。')
         else:
             hint = f'決まり手の傾向はほぼ全国平均どおり（逃げ{k["逃げ"]}% / 全国{nat["逃げ"]}%）。'
         note = ""
@@ -392,9 +399,9 @@ def trend_panel(stats, venue_name):
     v1 = vs["1"]["win"]; n1 = nat["1"]["win"]; v1p3 = vs["1"]["p3"]; n1p3 = nat["1"]["p3"]
     thin1 = vs["1"]["n"] < MIN_N
     if v1 >= n1 + 3:
-        hint = f'1コースの1着率が全国平均({n1}%)より高め。インが信頼されやすい場。'
+        hint = f'1コースの1着率が全国平均({n1}%)より高い。'
     elif v1 <= n1 - 3:
-        hint = f'1コースの1着率が全国平均({n1}%)より低め。波乱（外の差し・まくり）が起きやすい場。'
+        hint = f'1コースの1着率が全国平均({n1}%)より低い。'
     else:
         hint = f'1コースの強さはほぼ全国平均({n1}%)どおり。'
     ref = "（本数少なめ・参考程度）" if thin1 else f"（全国平均{n1p3}%）"

@@ -75,3 +75,61 @@ test("いちばん新しい日のレースページ全部に表が出ていて�
   }
   assert.ok(pages > 0);
 });
+
+// ---- 天候欄・決まり手欄・コース別欄に、推奨に読める語を戻さない(AI-13 追補) ----
+//
+// 3欄の説明文(hint)は、条件の分岐ごとに別の文になる。今日のページに出ていない分岐の文も
+// 見たいので、生成するコード(build_race_pages.py とトップの index.html)の該当関数を丸ごと調べる。
+// 用語の説明(class="term" の title)は語の定義なのでここでは対象にしない。コメントも外す。
+const BANNED = ["狙い", "堅い", "荒れ", "崩れ", "買い", "有利", "おすすめ", "信頼", "波乱", "人の逆"];
+
+function sliceFrom(src, start, nextMarker) {
+  const i = src.indexOf(start);
+  assert.ok(i >= 0, `${start} が見つからない`);
+  const j = src.indexOf(nextMarker, i + start.length);
+  return src.slice(i, j < 0 ? undefined : j);
+}
+
+function assertNoBanned(label, body) {
+  const text = body.replace(/title="[^"]*"/g, "");
+  for (const w of BANNED) {
+    assert.ok(!text.includes(w), `${label} に「${w}」`);
+  }
+}
+
+test("レースページ側(build_race_pages.py)の3欄の文言に推奨語が無い", () => {
+  const py = readFileSync(join(ROOT, "build_race_pages.py"), "utf8");
+  for (const fn of ["weather_block", "kimarite_block_venue", "trend_panel"]) {
+    const body = sliceFrom(py, `def ${fn}(`, "\ndef ")
+      .split("\n").map((l) => l.replace(/^\s*#.*$/, "")).join("\n");
+    assertNoBanned(`build_race_pages.py ${fn}`, body);
+  }
+});
+
+test("トップ側(index.html)の3欄の文言に推奨語が無い", () => {
+  const html = readFileSync(join(ROOT, "index.html"), "utf8");
+  for (const fn of ["weatherBlock", "kimariteBlock", "trendPanel"]) {
+    const body = sliceFrom(html, `function ${fn}(`, "\nfunction ")
+      .split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+    assertNoBanned(`index.html ${fn}`, body);
+  }
+});
+
+test("いちばん新しい日のレースページで、3欄の説明文と波と風の注が確定稿どおり", () => {
+  const dir = join(ROOT, "race");
+  if (!existsSync(dir)) return;
+  const days = readdirSync(dir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  if (!days.length) return;
+  const day = join(dir, days[days.length - 1]);
+  const NOTE = "会場ごとの1コースの平均1着率との差。10年。波高は読み採点(v1.1 2026-09)と同じ表(334万走)、" +
+    "風は同じ手法で331万走を測ったものです。";
+  for (const venue of readdirSync(day)) {
+    for (const f of readdirSync(join(day, venue)).filter((x) => /^\d+R\.html$/.test(x))) {
+      const html = readFileSync(join(day, venue, f), "utf8");
+      assert.ok(html.includes(NOTE), `${venue}/${f} の注1`);
+      const hints = [...html.matchAll(/<div class="(?:thint|whint)">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+      assert.ok(hints.length >= 1, `${venue}/${f} に説明文が無い`);
+      hints.forEach((h) => assertNoBanned(`${venue}/${f}`, h));
+    }
+  }
+});
