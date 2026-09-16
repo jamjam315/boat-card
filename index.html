@@ -460,7 +460,7 @@ button.guide-link{background:none; border:none; padding:0; font-family:inherit; 
         </ul>
       </dd>
       <dt>進入コース</dt>
-      <dd>スタート時に何コース（1〜6）に入ったか。内側（1コース）ほど有利とされます。</dd>
+      <dd>スタート時に何コース（1〜6）に入ったか。内側（1コース）ほど1着率が高い。</dd>
       <dt>今節・直近</dt>
       <dd>「今節」は今の開催中の成績、「直近」は過去1か月・全会場の成績（今節の走行数が少ない時に表示）。</dd>
       <dt>締切</dt>
@@ -837,7 +837,7 @@ function trendPanel(venueName){
   return `<div class="trend">
     <div class="trend-head">
       <span class="trend-ttl"><span class="pin"></span>この会場のクセ</span>
-      <span class="trend-sub"><span class="term" title="進入コース＝スタート時に何コース(1〜6)に入ったか。内側(1コース)ほど有利とされる">進入コース</span>別 1着率・3着以内率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
+      <span class="trend-sub"><span class="term" title="進入コース＝スタート時に何コース(1〜6)に入ったか。内側(1コース)ほど1着率が高い">進入コース</span>別 1着率・3着以内率 ・ 過去${S.days}日 ${vs[1].n}レース</span>
     </div>
     <div class="tlegend"><span><b class="win"></b>1着率</span><span><b class="p3"></b>3着以内率（1〜3着に入った割合）</span></div>
     ${rows}

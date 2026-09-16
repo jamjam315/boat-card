@@ -410,7 +410,7 @@ def trend_panel(stats, venue_name):
     return (f'<div class="trend"><div class="trend-head">'
             f'<span class="trend-ttl"><span class="pin"></span>この会場のクセ</span>'
             f'<span class="trend-sub"><span class="term" title="進入コース＝スタート時に何コース(1〜6)に入ったか。'
-            f'内側(1コース)ほど有利とされる">進入コース</span>別 1着率・3着以内率 ・ 過去{stats["days"]}日 '
+            f'内側(1コース)ほど1着率が高い">進入コース</span>別 1着率・3着以内率 ・ 過去{stats["days"]}日 '
             f'{vs["1"]["n"]}レース</span></div>'
             f'<div class="tlegend"><span><b class="win"></b>1着率</span>'
             f'<span><b class="p3"></b>3着以内率（1〜3着に入った割合）</span></div>'
