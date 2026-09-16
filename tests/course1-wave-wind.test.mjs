@@ -6,7 +6,7 @@
 //      1号艇)の pt と ±0.1 で一致する。答案の内訳・AI講評と、別の測定の数字を載せない
 //      (「帯の % − 全国平均」は会場の偏りが入るので D 表の pt と合わない。
 //       scripts/measure_wind_course.py の docstring 参照)
-//   2. 版の表記・期間の表記も答案と同じ
+//   2. 比べた D 表の版が今の答案の版と同じ・期間(10年)も同じ
 //   3. いちばん新しい日のレースページ全部に表が出ていて、予想・推奨に読める語と「pt」を使っていない
 import { test } from "node:test";
 import assert from "node:assert";
@@ -44,10 +44,11 @@ test("波高の %と同じ測定の lift が、読み採点 D 表の1号艇と �
   );
 });
 
-test("版と期間の表記が答案と同じ", () => {
+test("比べた D 表の版が今の答案の版と同じ・期間も同じ10年", () => {
+  // 答案の版が上がったら(v1.2 など)、測り直して lift を比べ直す合図としてここが落ちる
   const Y = loadYomi();
   assert.strictEqual(T.version, Y.YOMI_VERSION);
-  assert.strictEqual(T.period, Y.YOMI_TABLE.D.period);
+  assert.strictEqual(T.period, Y.YOMI_TABLE.D.period.split("・")[0]);
 });
 
 test("数字は測定値の形(1着率は小数1桁の%・母数あり)", () => {
@@ -96,7 +97,9 @@ test("いちばん新しい日のレースページ全部に表が出ていて�
 // 見たいので、生成するコード(build_race_pages.py とトップの index.html)の該当関数を丸ごと調べる。
 // 用語の説明(class="term" の title)は語の定義なのでここでは対象にしない。コメントも外す。
 // 答案(読み採点の内訳)とAI講評は v2 で扱うので、ここでは見ない。
-const BANNED = ["狙い", "堅い", "荒れ", "崩れ", "買い", "有利", "おすすめ", "信頼", "波乱", "人の逆"];
+// 「ほぼ同じ」「小さい」「どおり」は評価の語。文は数字を並べるだけにする(AI-13c)
+const BANNED = ["狙い", "堅い", "荒れ", "崩れ", "買い", "有利", "おすすめ", "信頼", "波乱", "人の逆",
+  "ほぼ同じ", "小さい", "どおり"];
 // 「pt」は単位としての pt だけを見る(except・script のような英単語の一部は数えない)
 const PT = /(?<![A-Za-z])pt(?![A-Za-z])/;
 
@@ -139,7 +142,8 @@ test("いちばん新しい日のレースページで、3欄の説明文と波�
   const days = readdirSync(dir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
   if (!days.length) return;
   const day = join(dir, days[days.length - 1]);
-  const NOTE = "波高は読み採点(v1.1 2026-09)と同じ集計（334万走）、風は同じ手法で測ったもの（331万走）。";
+  const NOTE = "波高・風ともに同じ手法で測ったものです（10年・331万走）。" +
+    "帯ごとの数字には会場の違いも含まれます（高い波・強い風は、1コースが弱い会場で多く起きます）。";
   for (const venue of readdirSync(day)) {
     for (const f of readdirSync(join(day, venue)).filter((x) => /^\d+R\.html$/.test(x))) {
       const html = readFileSync(join(day, venue, f), "utf8");

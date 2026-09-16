@@ -1,7 +1,7 @@
 {
-  "_comment": "レースページ「波と風で、1コースの1着率はこう変わる」の数字(AI-13・AI-13c)。scripts/measure_wind_course.py --wave で測った値(〜2026-09-01)を手で写したもの。画面に出すのは base と各帯の rate(実際の1着率)だけ。lift は同じ測定で出した「会場ごとの平均との差」で、画面には出さず、tests/course1-wave-wind.test.mjs が波高の lift と読み採点 v1.1 の D 表(yomi.js の YOMI_TABLE.D.lane[1])との一致(±0.1)を見るために置いている。",
+  "_comment": "レースページ「波と風で、1コースの1着率はこう変わる」の数字(AI-13・AI-13c)。scripts/measure_wind_course.py --wave で測った値(〜2026-09-01)を手で写したもの。画面に出すのは base と各帯の rate(実際の1着率)だけ。lift は同じ測定で出した「会場ごとの平均との差」で、画面には出さず、tests/course1-wave-wind.test.mjs が波高の lift と読み採点 D 表(yomi.js の YOMI_TABLE.D.lane[1])との一致(±0.1)を見るために置いている。version はその D 表の版。母数は measured.starters(画面の注は「10年・331万走」)。",
   "version": "v1.1 2026-09",
-  "period": "10年・334万走",
+  "period": "10年",
   "base": { "rate": 55.2, "n": 552329 },
   "wave": [
     { "band": "0〜1cm", "rate": 58.7, "lift": 2.6, "n": 192506 },

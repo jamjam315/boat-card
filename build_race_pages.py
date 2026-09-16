@@ -271,21 +271,19 @@ def weather_block(stats, venue_name):
                       f'<div class="wwin">—</div><div class="wn">少</div></div>')
     rain = next((b for b in solid if b["w"] == "雨"), None)
     base = next((b for b in solid if b["w"] == "晴"), None) or next((b for b in solid if b["w"] == "曇"), None)
-    # 差の数字は書かず、実数の%を2つ並べる(読者が自分で比べられる)。高い/低いの語も書かない(AI-13c)
+    # 文は実数の%を2つ並べるだけ。差の数字も、高い/低い・ほぼ同じ・小さいといった評価の語も
+    # 書かない(読者が自分で比べられる)。差が8以上のときだけ太字にする(AI-13c)
     if rain and base:
         d = round((rain["win"] - base["win"]) * 10) / 10
+        hint = f'☔ 雨のとき {rain["win"]}%、{base["w"]}のとき {base["win"]}%。'
         if abs(d) >= 8:
-            hint = (f'<b>☔ 雨の{venue_name}：1コースの1着率 {rain["win"]}%</b>'
-                    f'（{base["w"]}のときは {base["win"]}%）。')
-        else:
-            hint = f'☔ 雨でも1コースの1着率はほぼ同じ（雨 {rain["win"]}%・{base["w"]} {base["win"]}%）。'
+            hint = f'<b>{hint}</b>'
     elif len(solid) >= 2:
         hi = max(solid, key=lambda b: b["win"])
         lo = min(solid, key=lambda b: b["win"])
+        hint = f'1コースの1着率は、{lo["w"]}で {lo["win"]}%、{hi["w"]}で {hi["win"]}%。'
         if hi["win"] - lo["win"] >= 8:
-            hint = f'<b>1コースの1着率は、{lo["w"]}で {lo["win"]}%、{hi["w"]}で {hi["win"]}%。</b>'
-        else:
-            hint = f'天候による1コースの1着率の差は小さい（{lo["win"]}%〜{hi["win"]}%）。'
+            hint = f'<b>{hint}</b>'
     else:
         hint = "天候別はまだデータが少なめ。毎晩たまって、この会場の「雨のクセ」が見えてきます。"
     if solid:
@@ -316,10 +314,8 @@ def course1_wave_wind_block():
         print(f"[warn] {COURSE1_WAVE_WIND_PATH} を読めないため、波と風の表は出さない: {e}")
         return ""
 
-    # 母数は波高と風で違うので分けて書く。波高は答案と同じ表記(「10年・334万走」の後ろ)、
-    # 風は測った走者数を万で丸める。
-    years, wave_n = t["period"].split("・")
-    wind_n = f'{round(t["measured"]["starters"] / 10000)}万走'
+    # 波高・風ともに同じ測定(measure_wind_course.py --wave)の値。母数は測った走者数を万で丸める。
+    starters = f'{round(t["measured"]["starters"] / 10000)}万走'
 
     def cells(items):
         return "".join(
@@ -328,11 +324,11 @@ def course1_wave_wind_block():
             for x in items)
 
     return (f'<div class="wsec"><div class="wsec-head">波と風で、1コースの1着率はこう変わる</div>'
-            f'<div class="cwbase">全国の1コース平均 <b class="nums">{t["base"]["rate"]:.1f}%</b>（{escape(years)}）</div>'
+            f'<div class="cwbase">全国の1コース平均 <b class="nums">{t["base"]["rate"]:.1f}%</b>（{escape(t["period"])}）</div>'
             f'<div class="cwlabel">波高</div><div class="wgrid cw4">{cells(t["wave"])}</div>'
             f'<div class="cwlabel">風速</div><div class="wgrid">{cells(t["wind"])}</div>'
-            f'<div class="wnote">波高は読み採点({escape(t["version"])})と同じ集計（{escape(wave_n)}）、'
-            f'風は同じ手法で測ったもの（{escape(wind_n)}）。</div>'
+            f'<div class="wnote">波高・風ともに同じ手法で測ったものです（{escape(t["period"])}・{escape(starters)}）。'
+            f'帯ごとの数字には会場の違いも含まれます（高い波・強い風は、1コースが弱い会場で多く起きます）。</div>'
             f'<div class="wnote">当日の波高・風速は、公式の直前情報でご確認ください。</div></div>')
 
 
@@ -363,7 +359,7 @@ def kimarite_block_venue(stats, venue_name):
             hint = (f'<b>逃げで決まるレースが全国より少ない。</b>逃げ決着{k["逃げ"]}%（全国平均{nat["逃げ"]}%）、'
                     f'まくり系（まくり＋まくり差し）は{makuri}%。')
         else:
-            hint = f'決まり手の傾向はほぼ全国平均どおり（逃げ{k["逃げ"]}% / 全国{nat["逃げ"]}%）。'
+            hint = f'逃げ決着{k["逃げ"]}%（全国平均{nat["逃げ"]}%）。'
         note = ""
     return (f'<div class="wsec"><div class="wsec-head">🎯 決まり手のクセ <span>直近{stats["days"]}日 {k["n"]}レース</span></div>'
             f'{rows}<div class="whint">{hint}</div>{note}</div>')
@@ -396,10 +392,7 @@ def trend_panel(stats, venue_name):
                  f'<span class="tval-sub nums">3着内{x["p3"]}%</span></span></div>')
     v1 = vs["1"]["win"]; n1 = nat["1"]["win"]; v1p3 = vs["1"]["p3"]; n1p3 = nat["1"]["p3"]
     thin1 = vs["1"]["n"] < MIN_N
-    if v1 >= n1 + 3 or v1 <= n1 - 3:
-        hint = f'1コースの1着率 {v1}%（全国平均 {n1}%）。'
-    else:
-        hint = f'1コースの強さはほぼ全国平均({n1}%)どおり。'
+    hint = f'1コースの1着率 {v1}%（全国平均 {n1}%）。'
     ref = "（本数少なめ・参考程度）" if thin1 else f"（全国平均{n1p3}%）"
     hint += f' 1コースの3着以内率は{v1p3}%{ref}。'
     tna_html = '<div class="tna">本数が少ないコース(20走未満)は薄く表示・参考程度に。</div>' if any_thin else ""
