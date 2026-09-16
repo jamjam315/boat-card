@@ -11,7 +11,7 @@
 公式サーバーに優しく：1ファイルごとに数秒あけてダウンロードします。
 """
 import sys, os, glob, time, json, shutil, datetime, zoneinfo, subprocess, urllib.request, urllib.error
-from parse_results import parse_results, boat_record
+from parse_results import parse_results, boat_record, absent_record
 import results_store
 import data_paths
 
@@ -109,6 +109,9 @@ def append_from_txt(txt_path, date_iso, keys, fout):
                # 艇1件ぶんの形は parse_results.boat_record() に集約している
                # (書き出す側が2か所あり、片方だけ直すと食い違うため)。
                "結果": [boat_record(x) for x in r["結果"]]}
+        # 進入・STの欄が無い艇(欠場・出遅れ)。いるレースだけキーを持つ(2026-09-17)
+        if r.get("欠場"):
+            rec["欠場"] = [absent_record(x) for x in r["欠場"]]
         fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
         added += 1
     return added

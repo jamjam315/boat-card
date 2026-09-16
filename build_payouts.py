@@ -22,7 +22,10 @@
 
 【中止・返還】
 払戻が1つも無いレースは status:"不成立" とだけ書く。採点側はこれを見て
-そのレースを勘定から外す(的中でも不的中でもない)。実データで1〜2%ある。
+そのレースを勘定から外す(的中でも不的中でもない)。
+欠場・フライング・出遅れの艇がいるレースは、払戻はあるが、その艇を含む舟券は
+返還になる(公式の用語集「欠場」「返還」)。その艇番を refund に書き、採点側は
+refund の艇を含む買い目を返還として扱う(2026-09-17)。
 
 【キー】
 "日付:会場:レース番号"。results の重複排除キー・端末の記録のキーと同じ規約で、
@@ -83,7 +86,10 @@ def race_doc(r):
               ファイルと「枠なりだった」の区別が付かなくなる。
       pay   … 券種ごとの払戻。c=組 / y=金額 / p=人気。
       wx    … 気象。ここだけ日本語のままにしてある(4つしか無く、
-              講評で人が読む値なので、短くする利得より読みやすさを取る)。"""
+              講評で人が読む値なので、短くする利得より読みやすさを取る)。
+      refund … 返還になる艇番の配列(昇順)。いるレースだけ持つ。
+              欠場(K0/K1)・出遅れ(L0/L1)は results の「欠場」、フライング(F)と
+              結果表に載る出遅れ(L)は「結果」の 状 から拾う。失格(S)は返還にならない。"""
     pay = r.get("払戻") or {}
     hit = {}
     for k in KEN:
@@ -104,7 +110,7 @@ def race_doc(r):
         if isinstance(lane, int) and 1 <= lane <= 6:
             order[lane - 1] = x.get("着")
             course[lane - 1] = x.get("進")
-    return {
+    doc = {
         "order": order,
         "in": course,
         "kimarite": r.get("決まり手"),
@@ -114,6 +120,12 @@ def race_doc(r):
         },
         "pay": hit,
     }
+    refund = {x.get("艇") for x in r.get("欠場") or []}
+    refund |= {x.get("艇") for x in r.get("結果", []) if str(x.get("状") or "")[:1] in ("F", "L", "K")}
+    refund = sorted(n for n in refund if isinstance(n, int) and 1 <= n <= 6)
+    if refund:
+        doc["refund"] = refund
+    return doc
 
 
 def build_one(date_iso, rows):

@@ -77,6 +77,26 @@ RESULT = re.compile(
     r'(?:\s+(\S+))?'       # レースタイム（落水等は無い場合あり）
 )
 
+# 結果表に載るが、進入コースとSTの欄が無い艇の行(2026-09-17)。
+#   欠場  : "  K0  3 4404 岸　蔭　　　　亮 60   59 K .         K .        .  . "
+#   出遅れ: "  L0  2 4501 ○　○　　○○○ 35   73  6.93       L .        .  . "
+# 着順欄は K0/K1(欠場)・L0/L1(出遅れ)。展示の欄は欠場だと "K ."、出遅れだと展示タイム
+# (欠場でもまれに展示タイムや 0.00 が入る)。RESULT は進入コースを必須にしているので
+# この行を取れず、以前は「6艇そろわない」ために払戻まで読み飛ばしていた
+# (2016〜2026年で約3,300艇ぶん)。結果[] には入れず(進入・STが無い艇を混ぜると
+# 結果を集計する側が壊れるため)、レース単位の「欠場」に分けて持つ。
+# 欠場艇・出遅れ艇を含む舟券は返還になる(公式の用語集「欠場」「返還」)。
+ABSENT = re.compile(
+    r'^\s*([KL]\d)\s+'      # 着順欄: K0/K1/L0/L1
+    r'([1-6])\s+'            # 艇番
+    r'(\d{4})\s+'            # 登番
+    r'(.+?)\s+'              # 選手名
+    r'(\d+)\s+'              # モーター番号
+    r'(\d+)\s+'              # ボート番号
+    r'(K\s*\.|[\d.]+)\s+'    # 展示タイム(欠場は "K .")
+    r'[KL]\s*\.'             # 進入の欄が無く、STの欄に "K ." / "L ."
+)
+
 # 結果ヘッダ行（この行の末尾に決まり手が入っている）
 #   例) "  着 艇 登番 ...ﾚｰｽﾀｲﾑ 逃げ　　　"
 HEADER = re.compile(r'着\s*艇\s*登番')
@@ -224,6 +244,8 @@ def parse_results(path):
         if mv:
             jcd = mv.group(1); jname = JCD.get(jcd, jcd)
             active_payout = None
+            # 前の会場の最終レースに、この会場の払戻早見表を足さないよう切り離す
+            cur = None
             continue
 
         mr = RACE.match(line)
@@ -239,6 +261,7 @@ def parse_results(path):
                    "風速": weather["風速"], "波高": weather["波高"],
                    "決まり手": None,          # 直後のヘッダ行で埋める
                    "結果": [],
+                   "欠場": [],               # 進入・STの欄が無い艇(ABSENT参照)
                    "払戻": {v: [] for v in PAYOUT_LABELS.values()}}
             races.append(cur)
             active_payout = None
@@ -279,9 +302,27 @@ def parse_results(path):
             })
             continue
 
-        # 払戻行(着順6艇がそろった直後だけを対象にする。会場冒頭の払戻早見表は
-        # まだ6艇そろっていない時点に出てくるためここには入らず、二重取りを避けられる)
-        if cur is not None and len(cur["結果"]) == 6:
+        mabs = ABSENT.match(line)
+        if mabs and cur is not None:
+            code, tei, touban, name, mo, bo, tenji = mabs.groups()
+            try:
+                tenji_v = float(tenji)
+            except ValueError:
+                tenji_v = None
+            cur["欠場"].append({
+                "着状態": code, "艇番": int(tei), "登番": touban,
+                "選手名": name.replace("　", "").strip(),
+                "モーター番号": int(mo), "ボート番号": int(bo),
+                # 欠場で 0.00 が入っていることがある。計時していないので値として持たない
+                "展示": tenji_v if tenji_v else None,
+            })
+            continue
+
+        # 払戻行(そのレースの着順表を読んだ後だけを対象にする)。
+        # 【2026-09-17】以前は「着順が6艇そろった直後」に限っていたため、欠場・出遅れで
+        # 結果が5艇以下のレースは払戻を丸ごと読み飛ばしていた(払戻が空=不成立扱い)。
+        # 会場冒頭の払戻早見表は、会場の見出しで cur を切り離しているので入らない。
+        if cur is not None and cur["結果"]:
             if not line.strip():
                 active_payout = None
                 continue
@@ -305,6 +346,15 @@ def parse_results(path):
     # いまは非完走艇も結果に持つので、艇が1つでも取れたレースは返す。
     # 0艇のまま残るのは中止・不成立(結果表そのものが無い)なので、これだけ除く。
     return [r for r in races if r["結果"]]
+
+
+def absent_record(x):
+    """results/{年}.jsonl のレース単位「欠場」に書き出す艇1件ぶん。
+    キーは boat_record に合わせる(進入・ST・レースタイムは無い)。
+    状: K0/K1=欠場、L0/L1=出遅れ。この艇を含む舟券は返還。
+    """
+    return {"艇": x["艇番"], "状": x["着状態"], "登番": x["登番"], "名": x["選手名"],
+            "モ": x.get("モーター番号"), "ボ": x.get("ボート番号"), "展": x.get("展示")}
 
 
 def boat_record(x):

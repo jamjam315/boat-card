@@ -30,7 +30,7 @@ K票の生データを取り込み後に毎回消していたため、この作�
 """
 import sys, os, glob, json, time, shutil, datetime, zoneinfo, subprocess
 import urllib.request, urllib.error
-from parse_results import parse_results, boat_record
+from parse_results import parse_results, boat_record, absent_record
 import data_paths
 
 JST = zoneinfo.ZoneInfo("Asia/Tokyo")
@@ -116,7 +116,7 @@ def extract(lzh, d):
 def to_record(date_iso, r):
     """results/{年}.jsonl の1行の形。既存のキー・順序をそのまま維持し、
     新しいキー(レース名・種別・距離・ボ・RT)を足しただけにしてある。"""
-    return {
+    rec = {
         "date": date_iso, "会場": r["会場"], "レース番号": r["レース番号"],
         "天候": r.get("天候"), "風向": r.get("風向"),
         "風速": r.get("風速"), "波高": r.get("波高"),
@@ -126,6 +126,10 @@ def to_record(date_iso, r):
         "払戻": r.get("払戻"),
         "結果": [boat_record(x) for x in r["結果"]],
     }
+    # 進入・STの欄が無い艇(欠場・出遅れ)。いるレースだけキーを持つ(2026-09-17)
+    if r.get("欠場"):
+        rec["欠場"] = [absent_record(x) for x in r["欠場"]]
+    return rec
 
 
 def main():

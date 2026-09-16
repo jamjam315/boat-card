@@ -294,7 +294,7 @@ body{background:var(--bg); color:var(--ink);
      なってしまう)。twa.js はアプリ内での文言の出し分け用。 -->
 <script src="/membership.js"></script>
 <script src="/alerts.js"></script>
-<script src="/yomi.js?v=12"></script>
+<script src="/yomi.js?v=13"></script>
 <script src="/yomi-ai.js?v=13"></script>
 <script>
 (function(){
@@ -381,7 +381,9 @@ body{background:var(--bg); color:var(--ink);
     '<span class="of">100点満点</span></div></div>';
 
   if(res.status === "void"){
-    html += '<p class="p-note" style="padding:0 14px">不成立（返還）のため、結果点は付きません。</p>';
+    html += '<p class="p-note" style="padding:0 14px">' +
+      (res.refund ? '欠場などの艇を含む買い目で返還になったため' : '不成立（返還）のため') +
+      '、結果点は付きません。</p>';
   }
 
   // ---- 3. 軸・押さえ ----
@@ -457,7 +459,7 @@ body{background:var(--bg); color:var(--ink);
       var hit = s && s.st === "hit";
       var badge = !s ? '<span class="p-badge off">採点待ち</span>'
         : hit ? '<span class="p-badge">的中</span>'
-        : s.st === "void" ? '<span class="p-badge off">不成立</span>'
+        : s.st === "void" ? '<span class="p-badge off">' + (s.refund ? '返還' : '不成立') + '</span>'
         : s.st === "nodata" ? '<span class="p-badge off">結果なし</span>'
         : '<span class="p-badge off">不的中</span>';
       return '<tr><td>' + esc(r.ken) + '</td>' +

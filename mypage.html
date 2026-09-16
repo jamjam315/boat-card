@@ -278,7 +278,7 @@ body{background:var(--bg); color:var(--ink);
      URLで結びつけて、必ず対になったものが読まれるようにする。
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="yomi.js?v=12"></script>
+<script src="yomi.js?v=13"></script>
 <script>
 (function(){
 "use strict";
@@ -1158,7 +1158,7 @@ function yomiSummaryHtml(s){
     ${rows(s.byKen, "券種別")}
     <p class="authbox-notice">直近${s.days}日（${s.since}以降）の記録から集計しています。
       ${s.all.pending ? `うち${s.all.pending}件は採点待ちです。` : ""}
-      採点待ちと不成立（返還）は件数だけ数え、的中率と回収率には入れていません。</p>
+      採点待ちと返還（不成立・欠場など）は件数だけ数え、的中率と回収率には入れていません。</p>
   </div>`;
 }
 
@@ -1169,7 +1169,7 @@ function yomiScoreHtml(r){
   // 何日も前の記録に「翌朝に結果が出ます」と出し続けるのは嘘になるので、
   // 取得を諦めたものは言い分ける。
   if(s.st === "nodata") return `<span class="ym-wait">結果を取得できませんでした</span>`;
-  if(s.st === "void") return `<span class="ym-void">不成立（返還）</span>`;
+  if(s.st === "void") return `<span class="ym-void">${s.refund ? "返還（欠場など）" : "不成立（返還）"}</span>`;
   const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
   const top = (s.top3 || []).join("-");
   return `<span>${esc(top)}${s.kimarite ? "／" + esc(s.kimarite) : ""}</span>` +
@@ -1242,7 +1242,7 @@ function renderYomiBox(){
 /** 答案1件ぶんの結果表示。買い目ごとの内訳は答案ページに任せる。 */
 function yomiPaperHtml(res){
   if(res.status === "pending") return `<span class="ym-wait">採点待ち（翌朝に結果が出ます）</span>`;
-  if(res.status === "void") return `<span class="ym-void">不成立（返還）</span>`;
+  if(res.status === "void") return `<span class="ym-void">${res.refund ? "返還（欠場など）" : "不成立（返還）"}</span>`;
   const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
   return res.status === "hit"
     ? `<span class="ym-hit">的中</span><span>払戻 ${res.yen.toLocaleString()}円</span>

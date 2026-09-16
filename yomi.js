@@ -268,6 +268,22 @@
     return out;
   }
 
+  // 【採点し直し】2026-09-17まで、欠場・出遅れのあったレースの払戻を取り込めておらず、
+  // 払戻JSONでは「不成立」になっていた(返還として採点)。また欠場・フライング・出遅れの艇を
+  // 含む買い目を、返還でなく外れとして採点していた。払戻JSONを直したので、この時刻より前に
+  // 「返還」「外れ」で採点した記録は、一度だけ結果を取り直して採点し直す。
+  // 時刻は、直した払戻JSONが公開サイトのキャッシュ(最大10分)を抜けた後にしてある。
+  // それより前に採点し直したものは、もう一度だけ取り直す(結果は同じになる)。
+  var RESCORE_BEFORE = "2026-09-16T17:00:00.000Z";
+
+  /** 採点済みでも、結果を取り直して採点し直すべき記録か。 */
+  function staleScore(s) {
+    if (!s) return false;
+    // 波高・進入を持っていない(読み点Dと講評に要る。P1-3の採点では拾っていなかった)
+    if ((s.st === "hit" || s.st === "miss") && (s.wave === undefined || s.inn === undefined)) return true;
+    return (s.st === "void" || s.st === "miss") && typeof s.at === "string" && s.at < RESCORE_BEFORE;
+  }
+
   function resultPoints(hit, roi) {
     if (!hit) return 0;
     var pt = PT_HIT;
@@ -286,6 +302,16 @@
     if (race.status) {
       // 中止・返還。当たりでも外れでもないので、点も付けず集計からも外す。
       return { at: new Date().toISOString(), st: "void", pt: null };
+    }
+    // 欠場・フライング・出遅れの艇を含む買い目は返還(公式の用語集「欠場」「返還」)。
+    // 当たりでも外れでもないので点も付けないが、レースそのものは成立しているので、
+    // 読み点(波高)と講評に要る結果の事実は一緒に残す(2026-09-17)。
+    if (race.refund && (rec.lanes || []).some(function (n) { return race.refund.indexOf(n) >= 0; })) {
+      return {
+        at: new Date().toISOString(), st: "void", refund: true, pt: null,
+        top3: top3(race.order), kimarite: race.kimarite || null,
+        wave: race.wx ? race.wx["波高"] : null, inn: race["in"] || null
+      };
     }
     var row = matchPay(rec.ken, rec.lanes, (race.pay || {})[rec.ken]);
     var unit = rec.amount / 100;              // 払戻は100円あたりの金額
@@ -813,17 +839,22 @@
    * 的中が1つでもあれば的中、回収率は束全体の払戻÷投入で計算し直す。
    */
   function groupResult(records) {
-    var bet = 0, yen = 0, hit = false, judged = 0, voided = 0, pending = 0;
+    var bet = 0, yen = 0, hit = false, judged = 0, voided = 0, refunded = 0, pending = 0;
     records.forEach(function (r) {
       var s = r.score;
       if (!s) { pending++; return; }
-      if (s.st === "void") { voided++; return; }
+      if (s.st === "void") { voided++; if (s.refund) refunded++; return; }
       if (s.st === "nodata") { pending++; return; }
       judged++;
       bet += r.amount; yen += s.yen;
       if (s.st === "hit") hit = true;
     });
-    if (!judged) return { status: voided && !pending ? "void" : "pending" };
+    if (!judged) {
+      if (!voided || pending) return { status: "pending" };
+      // 全部が欠場などの艇を含む買い目だった(レース自体は成立している)なら、画面で
+      // 「不成立」ではなく「返還」と言い分けられるように refund を付ける
+      return { status: "void", refund: refunded === voided };
+    }
     var roi = bet > 0 ? Math.round(yen / bet * 1000) / 10 : 0;
     return {
       status: hit ? "hit" : "miss", bet: bet, yen: yen,
@@ -1090,17 +1121,15 @@
     /**
      * 払戻JSONを取りに行くべき日付の一覧(古い順・重複なし)。
      *
-     * まだ採点していないものに加え、採点済みでも波高を持っていないものを含める。
+     * まだ採点していないものに加え、採点済みでも取り直すべきもの(staleScore)を含める。
      * 波高は読み点(D)に要るが、P1-3の採点では拾っていなかった。取り直して
-     * 書き直せば、以前の記録にも遡って読み点が付く。
+     * 書き直せば、以前の記録にも遡って読み点が付く。欠場の払戻を取り込む前に
+     * 返還・外れで採点した記録も、ここで一度だけ取り直す。
      */
     unscoredDates: function () {
       var seen = {};
       readAll().forEach(function (r) {
-        var s = r.score;
-        var stale = s && (s.st === "hit" || s.st === "miss") &&
-          (s.wave === undefined || s.inn === undefined);
-        if (!s || stale) seen[r.key.split(":")[0]] = true;
+        if (!r.score || staleScore(r.score)) seen[r.key.split(":")[0]] = true;
       });
       return Object.keys(seen).sort();
     },
@@ -1135,13 +1164,15 @@
       var n = 0;
       all.forEach(function (r) {
         if (r.key.split(":")[0] !== dateIso) return;
-        // 採点済みでも、波高を持っていないものは採点し直す(読み点Dに要るため)。
-        // 結果は変わらないので上書きして問題ない。
-        var stale = r.score && (r.score.st === "hit" || r.score.st === "miss") &&
-          (r.score.wave === undefined || r.score.inn === undefined);
-        if (r.score && !stale) return;
+        // 採点済みでも、staleScore に当たるものは採点し直す(波高・進入が無い/
+        // 欠場の払戻を取り込む前に採点した)。結果の事実は同じなので上書きして問題ない。
+        if (r.score && !staleScore(r.score)) return;
         var s = scoreOne(r, races[r.key]);
-        if (s) { r.score = s; n++; }
+        if (s) {
+          // 採点し直しでも、生成済みのAI講評は引き継ぐ(消すと開き直しで再送信になり、回数が減る)
+          if (r.score && r.score.ai) s.ai = r.score.ai;
+          r.score = s; n++;
+        }
       });
       if (n) writeAll(all);
       return n;
