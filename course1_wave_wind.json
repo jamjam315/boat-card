@@ -1,0 +1,17 @@
+{
+  "_comment": "レースページ「波と風で、1コースの1着率はこう動く」の数字(AI-13)。波高は読み採点 v1.1 の D 表(yomi.js の YOMI_TABLE.D.lane[1])を一字一句写したもの。風は scripts/measure_wind_course.py で同じ手法で測った値(〜2026-09-01)。手で直すときは tests/course1-wave-wind.test.mjs が D 表との一致を見る。",
+  "version": "v1.1 2026-09",
+  "period": "10年・334万走",
+  "wave": [
+    { "band": "0〜1cm", "lift": "+2.6pt" },
+    { "band": "2〜3cm", "lift": "−0.4pt" },
+    { "band": "4〜5cm", "lift": "−3.0pt" },
+    { "band": "6cm以上", "lift": "−5.0pt" }
+  ],
+  "wind": [
+    { "band": "〜2m", "lift": "+2.3pt", "rate": 57.8, "n": 270498 },
+    { "band": "3〜4m", "lift": "−1.2pt", "rate": 54.2, "n": 195910 },
+    { "band": "5m以上", "lift": "−4.6pt", "rate": 49.6, "n": 85921 }
+  ],
+  "wind_measured": { "script": "scripts/measure_wind_course.py", "through": "2026-09-01", "starters": 3306534 }
+}

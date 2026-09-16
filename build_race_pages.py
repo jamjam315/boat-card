@@ -128,6 +128,11 @@ def build_race_css():
         '.yamt{margin-left:auto; color:var(--muted);}\n'
         '.ydel{background:none; border:none; color:var(--muted); font-size:16px;'
         ' cursor:pointer; padding:0 2px;}\n'
+        # ---- 波と風で、1コースの1着率はこう動く(AI-13) ----
+        # 天候欄(.wsec/.wgrid/.wcell)の骨格をそのまま使い、波高の4帯ぶんだけ列を増やす。
+        '.cwlabel{font-size:11.5px; color:var(--ink2); margin:8px 0 5px;}\n'
+        '.wgrid.cw4{grid-template-columns:repeat(4,1fr);}\n'
+        '.cwlift{font-size:16px; font-weight:700; margin-top:2px;}\n'
     )
     with open(CSS_PATH, "w", encoding="utf-8") as f:
         f.write(css + extra)
@@ -293,6 +298,39 @@ def weather_block(stats, venue_name):
             f'日々たまって精度が上がります。</div></div>')
 
 
+COURSE1_WAVE_WIND_PATH = "course1_wave_wind.json"
+
+
+def course1_wave_wind_block():
+    """「波と風で、1コースの1着率はこう動く」(AI-13)。
+
+    数字は course1_wave_wind.json から写すだけで、ここでは計算しない。波高は読み採点 v1.1 の
+    D 表と同じ数字(答案の内訳・AI講評に出る数字と揃える)。会場によらず同じ表を出す。
+    当日の波高・風速はレース前に手に入らない(結果ファイルにしか無い)ので、当日の値は載せず、
+    帯ごとの一覧だけを置く。予想・推奨に読める語(狙い目・堅い・荒れる・買い・有利)は使わない。
+    ファイルが読めなければ欄ごと出さない(ページの他の部分は普通に出る)。
+    """
+    try:
+        with open(COURSE1_WAVE_WIND_PATH, encoding="utf-8") as f:
+            t = json.load(f)
+    except (OSError, ValueError) as e:
+        print(f"[warn] {COURSE1_WAVE_WIND_PATH} を読めないため、波と風の表は出さない: {e}")
+        return ""
+
+    def cells(items):
+        return "".join(
+            f'<div class="wcell"><div class="wemo">{escape(x["band"])}</div>'
+            f'<div class="cwlift nums">{escape(x["lift"])}</div></div>'
+            for x in items)
+
+    return (f'<div class="wsec"><div class="wsec-head">波と風で、1コースの1着率はこう動く <span>1コース・基準比</span></div>'
+            f'<div class="cwlabel">波高</div><div class="wgrid cw4">{cells(t["wave"])}</div>'
+            f'<div class="cwlabel">風速</div><div class="wgrid">{cells(t["wind"])}</div>'
+            f'<div class="wnote">会場ごとの1コースの平均1着率との差。{escape(t["period"])}。'
+            f'波高は読み採点({escape(t["version"])})と同じ表、風は同じ手法で測ったものです。</div>'
+            f'<div class="wnote">当日の波高・風速は、公式の直前情報でご確認ください。</div></div>')
+
+
 def kimarite_block_venue(stats, venue_name):
     k = stats.get("venues_kimarite", {}).get(venue_name)
     nat = stats.get("kimarite_overall")
@@ -330,7 +368,8 @@ def trend_panel(stats, venue_name):
     if not stats or venue_name not in stats.get("venues", {}):
         return ('<div class="trend"><div class="trend-head">'
                 '<span class="trend-ttl"><span class="pin"></span>この会場のクセ</span></div>'
-                '<div class="tna">傾向データは集計中です（毎晩たまっていきます）。</div></div>')
+                '<div class="tna">傾向データは集計中です（毎晩たまっていきます）。</div>'
+                f'{course1_wave_wind_block()}</div>')
     vs = stats["venues"][venue_name]
     nat = stats["overall"]
     MIN_N = 20
@@ -369,7 +408,8 @@ def trend_panel(stats, venue_name):
             f'<div class="tlegend"><span><b class="win"></b>1着率</span>'
             f'<span><b class="p3"></b>3着以内率（1〜3着に入った割合）</span></div>'
             f'{rows}<div class="thint">{hint}</div>{tna_html}'
-            f'{weather_block(stats, venue_name)}{kimarite_block_venue(stats, venue_name)}</div>')
+            f'{weather_block(stats, venue_name)}{course1_wave_wind_block()}'
+            f'{kimarite_block_venue(stats, venue_name)}</div>')
 
 
 def course_cell(ks):
