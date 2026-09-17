@@ -90,11 +90,34 @@ jobs:
       - name: 読み採点用の払戻JSONを作る(payouts/)
         run: python build_payouts.py --days 3
 
+      # ---- 今日の一問(AI-14 v1③) ----
+      # 過去の実レースで読む練習。本線(結果・バックテスト・払戻)ではないので、ここで失敗しても
+      # 後のコミットは止めない(continue-on-error)。
+      # 1) 前日のレースページと同じ番組表の数字(data.js)を、出題の池として data ブランチの snapshots/ に貯める。
+      #    この時刻の data.js は前日の最後の版(今日の版なら貯めずに飛ばす)
+      - name: 今日の一問の池を貯める(前日の data.js → snapshots/)
+        continue-on-error: true
+        run: python scripts/archive_race_snapshots.py
+      # 2) 今日から1週間先まで、まだ無い日の出題を quiz/{出題日}.json に作る(作った日は作り直さない)。
+      #    作ったらコミットの前にテストを流す。崩れていたら QUIZ_OK=0 を立て、下のコミットで quiz/ を足さない
+      #    (その晩の出題は配らない。次の晩に作り直される)
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: 今日の一問を1週間先まで作り置く(崩れていたら配らない)
+        continue-on-error: true
+        run: |
+          echo "QUIZ_OK=0" >> "$GITHUB_ENV"
+          python build_quiz.py
+          node --test tests/quiz-data.test.mjs
+          echo "QUIZ_OK=1" >> "$GITHUB_ENV"
+
       - name: 変化があればコミット(main・公開サイト)
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
           git add -A backtest-data/ players/career/ players/bt/ payouts/
+          if [ "$QUIZ_OK" = "1" ]; then git add -A quiz/; else echo "今日の一問の出題は配らない(QUIZ_OK=$QUIZ_OK)"; fi
           git add stats.js players.js backtest.js frames.js kyusoku.json
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
           git push
@@ -107,7 +130,7 @@ jobs:
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
-          git add -A results/ raw/ fan/
+          git add -A results/ raw/ fan/ snapshots/
           if git diff --staged --quiet; then
             echo "変化なし"
             exit 0
