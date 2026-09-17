@@ -133,6 +133,8 @@
     unauthorized: "AI講評を読むには、マイページからログインしてください。",
     limit_free: "お試しの5回を使い切りました。プレミアムでは毎日3回使えます。",
     limit_premium: "本日ぶんの3回を使い切りました。明朝また使えます。",
+    // 匿名アカウント全体の1日上限(サーバーの code: anon_limit)
+    anon_limit: "本日のお試し枠が上限に達しました。",
     blocked: "講評を生成できませんでした。回数は消費していません。",
     ai_unavailable: "いまAI講評を使えません。時間をおいて試してください。",
     bad_request: "この答案の形では送れませんでした。",
@@ -184,6 +186,9 @@
               ok: true, text: b.text, model: b.model || "",
               remaining: b.remaining, premium: !!b.premium
             };
+          }
+          if (res.status === 429 && b.code === "anon_limit") {
+            return { ok: false, remaining: 0, message: MSG.anon_limit };
           }
           if (res.status === 429) {
             return {

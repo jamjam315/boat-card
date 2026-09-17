@@ -60,3 +60,28 @@ test("使っていない事業者名や「いずれか」を出さない", () =>
     assert.doesNotMatch(body, /Anthropic|xAI|Grok|いずれか/);
   }
 });
+
+// ---- 回数の上限の言い分け(2026-09-17 匿名アカウント全体の1日上限) ----
+function loadWith(status, body) {
+  const win = {
+    localStorage: { getItem: () => null, setItem() {} },
+    TeiyomiAuth: { getAccessToken: () => Promise.resolve("token") },
+  };
+  const fetch = () => Promise.resolve({ status, json: () => Promise.resolve(body) });
+  vm.runInNewContext(SRC, { window: win, localStorage: win.localStorage, fetch, setTimeout, clearTimeout, AbortController });
+  return win.TeiyomiYomiAi;
+}
+const P = { key: "2026-09-11:大村:11", records: [], snapshot: { boats: [] }, wave: 1, yomi: null, inn: null };
+
+test("サーバーが匿名全体の上限(anon_limit)を返したら「本日のお試し枠が上限に達しました」", async () => {
+  const r = await loadWith(429, { ok: false, code: "anon_limit", premium: false, remaining: 0 }).generate(P);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.message, "本日のお試し枠が上限に達しました。");
+});
+
+test("ひとりぶんの上限は、これまでどおり無料/プレミアムで言い分ける", async () => {
+  assert.strictEqual((await loadWith(429, { ok: false, code: "limit", premium: false }).generate(P)).message,
+    "お試しの5回を使い切りました。プレミアムでは毎日3回使えます。");
+  assert.strictEqual((await loadWith(429, { ok: false, code: "limit", premium: true }).generate(P)).message,
+    "本日ぶんの3回を使い切りました。明朝また使えます。");
+});

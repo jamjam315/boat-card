@@ -5,6 +5,21 @@
 
 export const MAX_DAILY_PREMIUM = 3; // プレミアム: 1日3回
 export const MAX_FREE_TOTAL = 5; // 無料: お試し累計5回
+// 匿名アカウント全体の1日の上限の既定値(環境変数 YOMI_AI_ANON_DAILY_LIMIT で変える)。
+// 無料お試しは匿名で開いた人全員向けだが、匿名は作り直せるので、合計にも上限を置く。
+// メールでログインした利用者(匿名でない)は対象外。
+export const ANON_DAILY_DEFAULT = 100;
+
+/** 環境変数の値から、匿名全体の1日の上限を決める。0以上の整数でなければ既定値。 */
+export function anonDailyLimit(raw: string | undefined): number {
+  if (raw === undefined || !/^\d{1,7}$/.test(raw.trim())) return ANON_DAILY_DEFAULT;
+  return Number(raw.trim());
+}
+
+/** 匿名全体の上限に当たっているか。匿名でなければ常に false。 */
+export function anonLimitReached(isAnonymous: boolean, usedToday: number, limit: number): boolean {
+  return isAnonymous && usedToday >= limit;
+}
 
 /** システムプロンプト。**この全文を変えない**(指示文AI-1で確定した文面)。 */
 export const SYSTEM_PROMPT =
@@ -68,6 +83,23 @@ const KEN = [
   "拡連複",
 ];
 
+// 会場・決まり手・読み点の項目名は、AIへの指示文にそのまま入る。長さだけで通すと、
+// 手作りのデータで指示を紛れ込ませられるので、決まった表記の一覧に一致するものだけ通す。
+// 会場は data.js / renren.json と同じ表記(24場)。
+export const VENUES = [
+  "桐生", "戸田", "江戸川", "平和島", "多摩川", "浜名湖", "蒲郡", "常滑", "津", "三国", "びわこ", "住之江",
+  "尼崎", "鳴門", "丸亀", "児島", "宮島", "徳山", "下関", "若松", "芦屋", "福岡", "唐津", "大村",
+];
+// 決まり手は parse_results.py の KIMARITE と同じ6種(無ければ null)。
+export const KIMARITE = ["逃げ", "差し", "まくり", "まくり差し", "抜き", "恵まれ"];
+// 読み点の項目は yomi.js の YOMI_TABLE と同じ4つ(記号と名前の組)。
+export const YOMI_LABELS: Record<string, string> = {
+  A: "全国勝率",
+  B: "平均ST",
+  C: "直近3走の調子",
+  D: "波高とコース",
+};
+
 function isLane(v: unknown): v is number {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 6;
 }
@@ -86,8 +118,12 @@ export function parseSheet(raw: unknown): { sheet: Sheet } | { error: string } {
   if (!raw || typeof raw !== "object") return { error: "body is not an object" };
   const b = raw as Record<string, unknown>;
 
-  if (typeof b.venue !== "string" || !b.venue || b.venue.length > 20) {
+  if (typeof b.venue !== "string" || VENUES.indexOf(b.venue) === -1) {
     return { error: "venue" };
+  }
+  if (b.kimarite !== null && b.kimarite !== undefined &&
+    (typeof b.kimarite !== "string" || KIMARITE.indexOf(b.kimarite) === -1)) {
+    return { error: "kimarite" };
   }
   if (!isLane(b.axis)) return { error: "axis" };
 
@@ -133,10 +169,12 @@ export function parseSheet(raw: unknown): { sheet: Sheet } | { error: string } {
   const yomi: YomiRow[] = [];
   for (const x of yomiRaw.slice(0, 8)) {
     const o = (x ?? {}) as Record<string, unknown>;
-    if (typeof o.cat !== "string" || typeof o.label !== "string") continue;
+    if (typeof o.cat !== "string" || !Object.hasOwn(YOMI_LABELS, o.cat) || o.label !== YOMI_LABELS[o.cat]) {
+      return { error: "yomi.label" };
+    }
     yomi.push({
-      cat: o.cat.slice(0, 4),
-      label: o.label.slice(0, 20),
+      cat: o.cat,
+      label: o.label,
       pt: typeof o.pt === "number" ? o.pt : 0,
       max: typeof o.max === "number" ? o.max : 0,
       // 実測値は表示用の短い文字列。ここが自由入力の抜け道にならないよう、
@@ -155,7 +193,7 @@ export function parseSheet(raw: unknown): { sheet: Sheet } | { error: string } {
     sheet: {
       venue: b.venue,
       wave: numOrNull(b.wave),
-      kimarite: typeof b.kimarite === "string" ? b.kimarite.slice(0, 12) : null,
+      kimarite: typeof b.kimarite === "string" ? b.kimarite : null,
       order: order.map((v) => (isLane(v) || v === null ? (v as number | null) : null)),
       in: inn ? inn.map((v) => (isLane(v) ? v : null)) : null,
       bets,

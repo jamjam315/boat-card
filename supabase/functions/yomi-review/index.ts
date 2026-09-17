@@ -33,11 +33,21 @@
 // 既定が同じ値なので同じように動く。それでもSecretsに明示しておくのは、
 // 何を使っているかがコードを読まずに分かるようにするため。
 // AI_API_KEY を設定するまで、この関数は常に ai_unavailable を返す。
+//
+// ## 匿名アカウント全体の1日上限(2026-09-17)
+// 無料お試し(累計5回)は匿名で開いた人全員向け。匿名は作り直せるので、匿名から呼ばれた回数の
+// 合計にも1日の上限を置く(既定100・YOMI_AI_ANON_DAILY_LIMIT で変える。変えるときは
+//   supabase secrets set YOMI_AI_ANON_DAILY_LIMIT=200 --project-ref vynbhssakpxiikmseoja)。
+// 超えたら 429 {code:'anon_limit'}。メールでログインした利用者は対象外。
+// 数え方はほかの回数と同じ: 生成の前に読み、出力フィルタを通ったあとで加算する
+// (同時に来た要求が数件ぶん上限を越えることはあるが、上限の目的=費用の天井には足りる)。
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 
 import { createAiCaller, hashUserId, readAiConfig } from './ai.ts'
 import {
+  anonDailyLimit,
+  anonLimitReached,
   buildUserPrompt,
   filterOutput,
   jstDate,
@@ -109,6 +119,7 @@ export default {
 
         const userId = ctx.userClaims?.id as string | undefined
         if (!userId) return fail('unauthorized', 'no claims', 401)
+        const isAnonymous = ctx.userClaims?.is_anonymous === true
 
         // --- 1. 入力 ---
         // 権利より先に検証する。壊れた答案でAIを呼んでも意味が無いし、
@@ -172,6 +183,26 @@ export default {
           )
         }
 
+        // 匿名アカウント全体の1日上限。読めなければ出さない(フェイルクローズ)。
+        const anonLimit = anonDailyLimit(Deno.env.get('YOMI_AI_ANON_DAILY_LIMIT'))
+        let anonUsed = 0
+        if (isAnonymous) {
+          const { data, error } = await supabaseAdmin
+            .from('yomi_ai_anon_daily')
+            .select('count')
+            .eq('jst_date', today)
+            .maybeSingle()
+          if (error) return fail('forbidden', 'anon daily read failed: ' + error.message, 403)
+          anonUsed = data?.count ?? 0
+        }
+        if (anonLimitReached(isAnonymous, anonUsed, anonLimit)) {
+          console.log(`[yomi-review] anon_limit (${anonUsed}/${anonLimit})`)
+          return new Response(
+            JSON.stringify({ ok: false, code: 'anon_limit', premium: false, remaining: 0 }),
+            { status: 429, headers: JSON_HEADERS },
+          )
+        }
+
         // --- 4. 素材をサーバー側で差し込む ---
         const stats = await loadStats()
         const renren = pickRenren(stats.renren, sheet.venue, winnerCourse(sheet), sheet.kimarite)
@@ -210,6 +241,12 @@ export default {
           : await supabaseAdmin.rpc('bump_yomi_ai_free', { p_user: userId })
         if (bumpErr) console.log(`[yomi-review] bump failed (${shortId(userId)})`)
         const nowUsed = typeof after === 'number' ? after : used + 1
+        if (isAnonymous) {
+          const { data: anonAfter, error: anonErr } = await supabaseAdmin
+            .rpc('bump_yomi_ai_anon_daily', { p_date: today })
+          if (anonErr) console.log('[yomi-review] anon bump failed')
+          else console.log(`[yomi-review] anon ${anonAfter}/${anonLimit}`)
+        }
 
         console.log(
           `[yomi-review] ok (${shortId(userId)}: ${isPremium ? 'premium' : 'free'} ` +
