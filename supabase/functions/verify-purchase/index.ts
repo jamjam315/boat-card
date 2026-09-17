@@ -80,6 +80,7 @@ import {
   secretsConfigured,
   tokenTakenByOther,
   transactionIdFromJws,
+  isAnonymousJwt,
 } from './logic.ts'
 import type { MembershipRow } from './logic.ts'
 
@@ -154,7 +155,10 @@ export default {
         },
       },
     },
-    async (req: Request, ctx: { userClaims?: Record<string, unknown> }) => {
+    async (
+      req: Request,
+      ctx: { userClaims?: Record<string, unknown>; jwtClaims?: Record<string, unknown> | null },
+    ) => {
       try {
         if (req.method !== 'POST') return denied('method not allowed', 405)
 
@@ -163,7 +167,8 @@ export default {
 
         // 匿名アカウントには課金させない。購入はメールで本人確認済みの
         // アカウントに紐づける(端末を変えたときに引き継げるようにするため)。
-        if (ctx.userClaims?.is_anonymous) return denied('anonymous user', 403)
+        // 判定は検証済みJWT(jwtClaims)で見る。userClaims は is_anonymous を持たない(logic.ts)。
+        if (isAnonymousJwt(ctx.jwtClaims)) return denied('anonymous user', 403)
 
         let body: Record<string, unknown>
         try {

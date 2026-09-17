@@ -11,6 +11,7 @@ import {
   appleSecretsConfigured,
   CACHE_TTL_MS,
   canUseCache,
+  isAnonymousJwt,
   entitlementFromAppleTransaction,
   finalAppleEntitlement,
   shouldAskSubscriptionStatus,
@@ -832,4 +833,13 @@ Deno.test('購読の状態を聞くのは、取引だけでは無効に見える
   for (const reason of APPLE_HARD_REASONS) {
     assertFalse(shouldAskSubscriptionStatus({ isActive: false, reason }), reason)
   }
+})
+
+Deno.test('匿名かどうかは検証済みJWTの is_anonymous で見る。JWTが無ければ匿名に倒す(2026-09-18)', () => {
+  assert(isAnonymousJwt({ sub: 'u1', role: 'authenticated', is_anonymous: true }))
+  assertFalse(isAnonymousJwt({ sub: 'u1', role: 'authenticated', is_anonymous: false }))
+  assert(isAnonymousJwt(null))
+  assert(isAnonymousJwt(undefined))
+  // 文字列の "true" など、真偽値でないものは匿名の印として扱わない(GoTrue は真偽値で出す)
+  assertFalse(isAnonymousJwt({ sub: 'u1', is_anonymous: 'true' }))
 })

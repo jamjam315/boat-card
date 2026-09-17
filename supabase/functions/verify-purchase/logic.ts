@@ -17,6 +17,19 @@ export const PRODUCT_IDS: ReadonlySet<string> = new Set([
   'teiyomi_premium_monthly',
 ])
 
+/**
+ * 匿名アカウントかどうか。**検証済みのJWTそのもの(jwtClaims)の is_anonymous で見る**(2026-09-18)。
+ *
+ * 以前は ctx.userClaims?.is_anonymous を見ていたが、userClaims は @supabase/server が
+ * id/role/email/メタデータだけに詰め直した形で is_anonymous を持たない。そのため判定が
+ * 常に「匿名でない」になり、匿名アカウントも購入の検証に進めていた(yomi-review と同じ穴)。
+ * JWTが無いとき(auth: 'user' なので本来起きない)は、紐づけてよいか判断できないので匿名に倒す。
+ */
+export function isAnonymousJwt(jwtClaims: Record<string, unknown> | null | undefined): boolean {
+  if (!jwtClaims) return true
+  return jwtClaims.is_anonymous === true
+}
+
 export function isKnownProduct(productId: string): boolean {
   return PRODUCT_IDS.has(productId)
 }
