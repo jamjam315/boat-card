@@ -121,8 +121,9 @@ function assertNoBanned(label, body) {
 test("レースページ側(build_race_pages.py)の3欄と波と風の表の文言に推奨語と「pt」が無い", () => {
   const py = readFileSync(join(ROOT, "build_race_pages.py"), "utf8");
   for (const fn of ["weather_block", "course1_wave_wind_block", "kimarite_block_venue", "trend_panel"]) {
+    // 作業コピーの行末が CRLF でもコメント行を外せるように、\r\n でも分ける
     const body = sliceFrom(py, `def ${fn}(`, "\ndef ")
-      .split("\n").map((l) => l.replace(/^\s*#.*$/, "")).join("\n");
+      .split(/\r?\n/).map((l) => l.replace(/^\s*#.*$/, "")).join("\n");
     assertNoBanned(`build_race_pages.py ${fn}`, body);
   }
 });
@@ -131,7 +132,7 @@ test("トップ側(index.html)の3欄の文言に推奨語と「pt」が無い",
   const html = readFileSync(join(ROOT, "index.html"), "utf8");
   for (const fn of ["weatherBlock", "kimariteBlock", "trendPanel"]) {
     const body = sliceFrom(html, `function ${fn}(`, "\nfunction ")
-      .split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
+      .split(/\r?\n/).map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
     assertNoBanned(`index.html ${fn}`, body);
   }
 });
