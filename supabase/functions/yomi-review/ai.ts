@@ -59,6 +59,18 @@ export const DEFAULT_MODEL = "gpt-5.6-luna";
 export const DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
 export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+/**
+ * 推論量の指定(OpenAI互換経路の reasoning_effort)。環境変数 AI_REASONING_EFFORT。
+ *
+ * 【2026-09-18】応答を速くする調査のために足した。**未設定なら送らない**(モデルの既定のまま・
+ * それまでと同じ要求)。決まった語だけ通し、それ以外は未設定と同じに扱う。
+ */
+export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"];
+export function resolveReasoningEffort(value?: string): string | undefined {
+  const v = value?.trim().toLowerCase();
+  return v && REASONING_EFFORTS.includes(v) ? v : undefined;
+}
+
 export interface AiConfig {
   provider: string;
   model: string;
@@ -67,6 +79,7 @@ export interface AiConfig {
   maxTokensParam: string;
   maxTokens: number;
   timeoutMs?: number;
+  reasoningEffort?: string;
 }
 
 /** 正の整数として読めない値は無視して既定に落とす(打ち間違いで黙るより既定で動く)。 */
@@ -111,6 +124,7 @@ export function readAiConfig(
     maxTokensParam: resolveMaxTokensParam(model, env("AI_MAX_TOKENS_PARAM")),
     maxTokens: resolveMaxTokens(env("AI_MAX_TOKENS")),
     timeoutMs: resolveTimeoutMs(env("AI_TIMEOUT_MS")),
+    reasoningEffort: resolveReasoningEffort(env("AI_REASONING_EFFORT")),
   };
 }
 
@@ -214,6 +228,7 @@ async function callOpenAiCompatible(
     body: JSON.stringify({
       model: config.model,
       [config.maxTokensParam]: config.maxTokens,
+      ...(config.reasoningEffort ? { reasoning_effort: config.reasoningEffort } : {}),
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -227,6 +242,13 @@ async function callOpenAiCompatible(
     return null;
   }
   const body = await res.json();
+  // 時間の内訳を読むための数だけ出す(本文は出さない)。推論に食われた量が分かる。
+  const u = body?.usage;
+  console.log(
+    `[yomi-review] usage in=${u?.prompt_tokens ?? "-"} out=${u?.completion_tokens ?? "-"} ` +
+      `reasoning=${u?.completion_tokens_details?.reasoning_tokens ?? "-"} ` +
+      `finish=${body?.choices?.[0]?.finish_reason ?? "-"} effort=${config.reasoningEffort ?? "default"}`,
+  );
   const text = body?.choices?.[0]?.message?.content;
   return typeof text === "string" && text.trim().length > 0 ? text.trim() : null;
 }

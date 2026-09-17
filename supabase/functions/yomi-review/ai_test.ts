@@ -17,6 +17,7 @@ import {
   resolveMaxTokens,
   resolveTimeoutMs,
   resolveMaxTokensParam,
+  resolveReasoningEffort,
 } from "./ai.ts";
 
 // ---------------------------------------------------------------- 既定
@@ -239,4 +240,23 @@ Deno.test("失敗の種類が onFailure に届く(監視の記録用・2026-09-1
   );
   assertEquals(await slow("規則", "答案"), null);
   assertEquals(seen, ["http_error", "exception", "timeout"]);
+});
+
+Deno.test("推論量: 未設定なら reasoning_effort を送らない。決まった語だけ送る(2026-09-18)", async () => {
+  const reply = { choices: [{ message: { content: "講評です。" } }] };
+  const base = (k: string) => (k === "AI_API_KEY" ? "sk-test" : undefined);
+
+  const cap1: { body?: any } = {};
+  await createAiCaller(readAiConfig(base)!, fakeFetch(cap1, reply))("規則", "答案");
+  assert(!("reasoning_effort" in cap1.body), "未設定のときはそれまでと同じ要求");
+
+  const cap2: { body?: any } = {};
+  const low = readAiConfig((k) => (k === "AI_REASONING_EFFORT" ? " Low " : base(k)))!;
+  await createAiCaller(low, fakeFetch(cap2, reply))("規則", "答案");
+  assertEquals(cap2.body.reasoning_effort, "low");
+
+  assertEquals(resolveReasoningEffort("minimal"), "minimal");
+  assertEquals(resolveReasoningEffort("fast"), undefined);
+  assertEquals(resolveReasoningEffort(""), undefined);
+  assertEquals(resolveReasoningEffort(undefined), undefined);
 });
