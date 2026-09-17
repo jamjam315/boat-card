@@ -863,6 +863,47 @@
     };
   }
 
+  /**
+   * 1答案を組み立てる(採点済みの記録の束 + 記録した時点のスナップショット)。
+   *
+   * 端末の保存領域は読まない。日付も使わない(点に要るのは記録の score・
+   * スナップショットの艇・score に残した波高と進入だけ)。実レースの答案(paper)も、
+   * 過去レースで読む練習(今日の一問)も、ここを通して同じ答案を作る。
+   * 記録の score は scoreOne で付けておくこと(未採点が混じれば settled にならない)。
+   */
+  function buildPaper(recs, snap, catches) {
+    var wave = null;
+    recs.forEach(function (r) {
+      if (r.score && r.score.wave != null) wave = r.score.wave;
+    });
+    var result = groupResult(recs);
+    // 【結果が出るまでは採点も講評も出さない】
+    // 読み点は記録した時点の事実だけで計算できてしまうので、放っておくと
+    // レース前に「あなたの読みは54点」と出る。それは買い目への評価=予想に
+    // なってしまい、艇読みが予想印を出さないと決めていることと矛盾する。
+    // 講評も同じで、レース前に「3号艇の全国勝率7.49に触れていない」と出せば、
+    // それは買い足しの示唆になる。判定はここ1か所に置き、画面側が
+    // うっかり出せないようにしてある。
+    var settled = result.status === "hit" || result.status === "miss" ||
+      result.status === "void";
+    var yomiOut = settled ? yomiScore(recs, snap, wave) : null;
+    var ai = null;
+    recs.forEach(function (r) { if (!ai && r.score && r.score.ai) ai = r.score.ai; });
+    // 進入コースは採点のときに払戻から拾ってある。答案の中では1つなので、
+    // 見つかった最初のものを使う。
+    var inn = null;
+    recs.forEach(function (r) { if (!inn && r.score && r.score.inn) inn = r.score.inn; });
+    return {
+      records: recs, snapshot: snap, wave: wave,
+      result: result, settled: settled,
+      yomi: yomiOut,
+      inn: inn,
+      // AI講評。生成済みなら端末に残っている(同じ答案を二度は送らない)。
+      ai: settled ? ai : null,
+      comment: settled ? comment(recs, snap, wave, catches, yomiOut, result) : []
+    };
+  }
+
   /** 今日(JST)の日付。集計の窓を切るのに使う。端末のTZに依存させない。 */
   function todayJst() {
     return new Date(Date.now() + JST_OFFSET_HOURS * 3600000).toISOString().slice(0, 10);
@@ -874,7 +915,9 @@
   // 公開APIを組み立てる前に済ませ、以後は新しい形だけを相手にする。
   migrateSnapshots();
 
-  window.TeiyomiYomi = {
+  // ブラウザでは window に、window の無い環境(Deno・テスト)では globalThis に置く
+  // (rule-match.js と同じ書き方。将来サーバー側で同じ採点を動かすため)。
+  (typeof window !== "undefined" ? window : globalThis).TeiyomiYomi = {
     KEN: KEN,
     MAX_TAG_LEN: MAX_TAG_LEN,
     MAX_AMOUNT: MAX_AMOUNT,
@@ -1074,42 +1117,22 @@
         .sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
     },
 
+    buildPaper: buildPaper,
+
     /** 1答案だけ取り出す。答案ページが ?key=&tag= から引くのに使う。 */
     paper: function (key, tag, catches) {
       var recs = readAll().filter(function (r) {
         return r.key === key && (r.tag || "") === (tag || "");
       });
       if (!recs.length) return null;
-      var wave = null;
-      recs.forEach(function (r) {
-        if (r.score && r.score.wave != null) wave = r.score.wave;
-      });
-      var snap = readSnaps()[key] || null;
-      var result = groupResult(recs);
-      // 【結果が出るまでは採点も講評も出さない】
-      // 読み点は記録した時点の事実だけで計算できてしまうので、放っておくと
-      // レース前に「あなたの読みは54点」と出る。それは買い目への評価=予想に
-      // なってしまい、艇読みが予想印を出さないと決めていることと矛盾する。
-      // 講評も同じで、レース前に「3号艇の全国勝率7.49に触れていない」と出せば、
-      // それは買い足しの示唆になる。判定はここ1か所に置き、画面側が
-      // うっかり出せないようにしてある。
-      var settled = result.status === "hit" || result.status === "miss" ||
-        result.status === "void";
-      var yomiOut = settled ? yomiScore(recs, snap, wave) : null;
-      var ai = null;
-      recs.forEach(function (r) { if (!ai && r.score && r.score.ai) ai = r.score.ai; });
-      // 進入コースは採点のときに払戻から拾ってある。答案の中では1つなので、
-      // 見つかった最初のものを使う。
-      var inn = null;
-      recs.forEach(function (r) { if (!inn && r.score && r.score.inn) inn = r.score.inn; });
+      var p = buildPaper(recs, readSnaps()[key] || null, catches);
       return {
-        key: key, tag: tag || "", records: recs, snapshot: snap, wave: wave,
-        result: result, settled: settled,
-        yomi: yomiOut,
-        inn: inn,
-        // AI講評。生成済みなら端末に残っている(同じ答案を二度は送らない)。
-        ai: settled ? ai : null,
-        comment: settled ? comment(recs, snap, wave, catches, yomiOut, result) : []
+        key: key, tag: tag || "", records: p.records, snapshot: p.snapshot, wave: p.wave,
+        result: p.result, settled: p.settled,
+        yomi: p.yomi,
+        inn: p.inn,
+        ai: p.ai,
+        comment: p.comment
       };
     },
 
