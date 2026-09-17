@@ -109,6 +109,24 @@ memberships のその行の `updated_at` と `current_period_end` が進んで�
 | `gave up (apple status 401) …` | やり直しても駄目だった（401 は鍵の誤り）。記録は `error: …`。Apple は送り直さないので、鍵を直したあとは日次の復元で取り直される |
 | `shutdown …` | 実行環境が止められた。処理の途中なら記録が `processing` のまま残る（待っていた通知があれば38秒後に代わりに確認する） |
 
+## 公開後の見張り（2026-09-17〜）
+
+```bash
+cd ~/dev/boat-card && node tools/ios-health.mjs 24
+```
+
+読むだけの道具。直近24時間（引数で変えられる）について、次を並べて出す。
+
+| 見るところ | 異常のしるし |
+|---|---|
+| Apple が送った通知と配達結果（本番・Sandbox） | `SUCCESS` 以外。`TIMED_OUT` は艇読み側が応答できていない |
+| `apple_notifications` の記録 | `error:` で終わった確認、`processing` のまま止まった確認 |
+| `memberships`（iOS） | 期限切れなのに `active` のままの行（通知も日次の復元も効いていない） |
+| `apns_tokens` | 通知をオンにしている端末の数（0 のままなら誰もオンにしていない） |
+| 受け口の応答時間 | 3秒を超えると Apple が `TIMED_OUT` にしうる |
+
+Apple の鍵は `tools/.env.local`、データベースは supabase CLI（リンク済み）を使う。
+
 ## Google Play 側の同じ穴（別 WP の候補）
 
 Android（Play Billing）も、購読の状態が memberships に反映されるのはアプリで購入・確認したときだけで、
