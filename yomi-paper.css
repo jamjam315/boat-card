@@ -1,0 +1,202 @@
+/* 読み採点の答案(1枚の紙)と、紙の外の「つづき」。yomi-paper.js が描くものの見た目。
+   yomi.html(実レースの答案)と今日の一問が同じものを読む。
+   ページ全体(ヘッダー・戻りリンク・フッター・本文の字)は読む側のページに置く。
+   ★変えたら、読んでいるページの ?v= を上げること */
+/* 「つづき」。紙の外なので、紙のトークンではなくアプリ側の色を使う。
+   答案は済んだことの記録、こちらはそこから次へ行くための場所。 */
+.next{margin-top:16px;}
+.next-ttl{font-size:11.5px; color:var(--muted); margin:0 2px 8px; letter-spacing:.04em;}
+.next-hit{margin:0 2px 8px; font-size:13px; font-weight:700; color:var(--accent);}
+.next-btn{display:block; width:100%; margin-top:8px; padding:14px 16px; border-radius:var(--radius);
+  border:1px solid var(--line2); background:var(--surface); color:var(--ink);
+  font:inherit; font-size:14px; font-weight:600; text-align:left; text-decoration:none; cursor:pointer;}
+.next-btn:first-of-type{margin-top:0;}
+.next-btn small{display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--muted);}
+.next-btn.hit{border-color:var(--accent); background:var(--accent-soft);}
+
+/* ============================ ここから紙 ============================ */
+.paper{
+  --paper:#F5F2E8;          /* 紙地 */
+  --paper-line:#D8D2C4;     /* 罫線 */
+  --ink:#1E1E1C;            /* 本文(この中だけ上書き) */
+  --ink-muted:#8A857A;      /* 補足 */
+  --akapen:#C8202E;         /* 赤ペン */
+  background:var(--paper); color:var(--ink);
+  border-radius:2px; overflow:hidden;
+  box-shadow:0 1px 3px rgba(0,0,0,.18);
+}
+.paper .nums{font-variant-numeric:tabular-nums lining-nums;}
+
+/* 1. 紙のヘッダー帯 */
+.p-head{background:var(--water); color:var(--on-water);
+  padding:11px 14px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
+.p-head b{font-size:13px; font-weight:700; letter-spacing:.04em;}
+.p-head .sub{font-size:10.5px; color:var(--on-water-sub); letter-spacing:.04em;}
+.p-head .when{margin-left:auto; font-size:11.5px; color:var(--on-water-sub);}
+
+/* 2. 総合点 */
+.p-total{display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  padding:14px; border-bottom:1px solid var(--paper-line);}
+.p-bars{flex:1 1 190px; min-width:0;}
+.p-bar{margin-top:9px;}
+.p-bar:first-child{margin-top:0;}
+.p-bar .lb{display:flex; justify-content:space-between; font-size:11px; color:var(--ink-muted);}
+.p-bar .lb b{color:var(--ink); font-weight:700; font-size:12px;}
+.p-bar .track{height:6px; margin-top:3px; background:#E7E2D4;}
+.p-bar .fill{height:6px; background:var(--akapen);}
+.p-meta{margin:10px 0 0; font-size:10.5px; color:var(--ink-muted);}
+.p-tag{display:inline-block; padding:1px 7px; margin-right:6px;
+  border:1px solid var(--paper-line); color:var(--ink-muted); font-size:10.5px;}
+/* 方眼の上に赤い大数字 */
+.p-big{flex:0 0 auto; padding:10px 14px; text-align:center;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px),
+    repeating-linear-gradient(90deg, transparent 0 11px, rgba(30,30,28,.07) 11px 12px);}
+.p-big .n{display:block; font-size:64px; line-height:1; font-weight:800; color:var(--akapen);
+  border-bottom:3px solid var(--akapen); padding-bottom:4px;}
+.p-big .of{display:block; margin-top:5px; font-size:10.5px; color:var(--ink-muted);}
+.p-big .wait{display:block; font-size:26px; line-height:1.2; font-weight:700; color:var(--ink-muted);
+  border-bottom:3px solid var(--paper-line); padding-bottom:4px;}
+
+/* 3. 軸・押さえ */
+.p-axis{padding:12px 14px; border-bottom:1px solid var(--paper-line);}
+.p-axis .line{font-size:13px;}
+.p-axis .hon{color:var(--akapen); font-weight:800;}
+.p-note{margin:6px 0 0; font-size:10.5px; color:var(--ink-muted); line-height:1.7;}
+
+/* 見出し */
+.p-sec{padding:10px 14px 0; font-size:10.5px; color:var(--ink-muted); letter-spacing:.06em;}
+
+/* 4. 読みの内訳 */
+.p-rows{list-style:none; margin:6px 0 0; padding:0;}
+.p-rows li{display:flex; gap:10px; align-items:flex-start;
+  padding:9px 14px; border-top:1px solid var(--paper-line);}
+.p-rows li:first-child{border-top:none;}
+.p-pt{flex:0 0 38px; height:38px; border-radius:50%; background:var(--akapen); color:#fff;
+  font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center;}
+.p-pt.zero{background:transparent; color:var(--ink-muted); border:1px solid var(--paper-line);
+  border-radius:2px; font-weight:400;}
+.p-rowbody{flex:1; min-width:0;}
+.p-rowname{font-size:10.5px; color:var(--ink-muted);}
+.p-rowfact{font-size:13px; font-weight:700; margin-top:1px;}
+.p-rowwhy{font-size:10.5px; color:var(--ink-muted); margin-top:2px;}
+
+/* 4b. 点に入れていない数字。トップの「用語解説」と同じ <details> の作法にして、
+   色だけ紙のトークンに載せ替える(JSは要らない)。
+   summaryに「もっと見る ▾」は付けない——タイトルの「タップで理由」と二重になる。 */
+.p-out{margin:10px 14px 0; border:1px solid var(--paper-line);}
+.p-out summary{cursor:pointer; padding:9px 26px 9px 11px; font-size:11.5px;
+  color:var(--ink-muted); list-style:none; position:relative;}
+.p-out summary::-webkit-details-marker{display:none;}
+.p-out summary::after{content:"▾"; position:absolute; right:11px; top:9px;}
+.p-out[open] summary::after{content:"▴";}
+.p-out-body{list-style:none; margin:0; padding:0 11px;}
+.p-out-body li{font-size:11.5px; color:var(--ink-muted); line-height:1.8; margin-top:9px;}
+.p-out-body li b{color:var(--ink); font-weight:700;}
+.p-out-note{margin:11px 0 0; padding:0 11px 11px; font-size:10.5px;
+  color:var(--ink-muted); line-height:1.7;}
+
+/* 5. 買い目の表 */
+.p-tbl{width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;}
+.p-tbl th, .p-tbl td{padding:7px 6px; border-top:1px solid var(--paper-line); text-align:left;}
+.p-tbl th{font-size:10px; color:var(--ink-muted); font-weight:400; border-top:none;}
+.p-tbl th:first-child, .p-tbl td:first-child{padding-left:14px;}
+.p-tbl th:last-child, .p-tbl td:last-child{padding-right:14px; text-align:right;}
+.p-tbl .amt{text-align:right; color:var(--ink-muted);}
+.p-bet{font-weight:700; white-space:nowrap;}
+.p-bet.lose{text-decoration:line-through; color:var(--ink-muted); font-weight:400;}
+.p-badge{display:inline-block; padding:1px 7px; font-size:10.5px; font-weight:700;
+  background:var(--akapen); color:#fff; white-space:nowrap;}
+.p-badge.off{background:#E7E2D4; color:var(--ink-muted); font-weight:400;}
+.p-pay{color:var(--akapen); font-weight:700;}
+/* 投入・払戻・収支・回収率 */
+.p-sum{display:flex; gap:8px; flex-wrap:wrap; padding:10px 14px 14px;}
+.p-cell{flex:1 1 74px; border:1px solid var(--paper-line); padding:6px 8px; text-align:center;}
+.p-cell span{display:block; font-size:9.5px; color:var(--ink-muted);}
+.p-cell b{display:block; font-size:13px; margin-top:1px;}
+.p-cell.roi{border-color:var(--akapen);}
+.p-cell.roi b{color:var(--akapen);}
+
+/* 6. 当日のようす */
+.p-day{padding:10px 14px; border-top:1px solid var(--paper-line); font-size:12.5px;}
+.p-day .k{color:var(--ink-muted); font-size:10.5px;}
+
+/* 7. 講評(赤枠+ノート風の薄赤横罫)
+   【罫と行を必ず一致させる】
+   行送りと罫の間隔を --kohyo-line ひとつから作る。以前は行に margin-top:6px を
+   足し、免責だけ line-height を変えていたため、行が進むほど罫からズレていった。
+   ズレの起点になりやすいものは罫の外へ出す:
+     ・総評(赤太字・文字が大きい)  → 上の無地帯
+     ・免責(小さい灰文字)          → 下の無地帯
+   罫が乗るのは本文だけにして、そこは行送りを変えない。
+   罫の原点を1行目の行boxの上端に合わせるため、本文の padding は左右だけにする
+   (背景の原点は padding box の上端なので、padding-top を入れるとその分ズレる)。 */
+.p-rev{--kohyo-line:28px;
+  margin:12px 14px 14px; border:1px solid var(--akapen); position:relative;}
+.p-rev .by{position:absolute; top:-8px; right:8px; background:var(--paper);
+  padding:0 5px; font-size:9.5px; color:var(--akapen);}
+.p-rev-head{margin:0; padding:12px 12px 0; font-size:12.5px; line-height:1.7;
+  color:var(--akapen); font-weight:700;}
+.p-rev-body{list-style:none; margin:12px 0 0; padding:0 12px;
+  background:repeating-linear-gradient(180deg,
+    transparent 0 calc(var(--kohyo-line) - 1px),
+    rgba(200,32,46,.13) calc(var(--kohyo-line) - 1px) var(--kohyo-line));}
+.p-rev-body li{font-size:12.5px; line-height:var(--kohyo-line); margin:0;}
+.p-rev-note{margin:0; padding:10px 12px 12px; font-size:10.5px; line-height:1.8;
+  color:var(--ink-muted);}
+.p-rev .none{margin:0; padding:12px; font-size:12.5px; color:var(--ink-muted);}
+
+/* 7b. AI講評。赤ペン(講評)とは別物だと一目で分かるようにする。
+   枠線を赤ではなく紙の罫の色にして、ラベルを「AI講評」にする。
+   紙の様式は崩さない(角丸なし・同じ余白・同じ文字サイズ)。 */
+.p-ai{margin:0 14px 14px; border:1px solid var(--paper-line); position:relative;
+  background:rgba(30,30,28,.02);}
+.p-ai .by{position:absolute; top:-8px; right:8px; background:var(--paper);
+  padding:0 5px; font-size:9.5px; color:var(--ink-muted);}
+.p-ai-body{margin:0; padding:12px; font-size:12.5px; line-height:1.9; white-space:pre-wrap;}
+.p-ai-meta{margin:0; padding:0 12px 10px; font-size:9.5px; color:var(--ink-muted);}
+.p-ai-act{margin:0; padding:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.p-ai-btn{font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer;
+  background:var(--paper); color:var(--ink); border:1px solid var(--ink-muted); border-radius:2px;}
+.p-ai-btn:disabled{opacity:.5; cursor:default;}
+.p-ai-left{font-size:10.5px; color:var(--ink-muted);}
+.p-ai-msg{margin:0; padding:0 12px 12px; font-size:11.5px; color:var(--ink-muted); line-height:1.7;}
+/* フッターの「報告」。目立たせない——押してほしいものではなく、
+   必要になった人が見つけられればよいもの。 */
+.p-ai-rp{background:none; border:none; padding:0; font:inherit; font-size:9.5px;
+  color:var(--ink-muted); text-decoration:underline; cursor:pointer;}
+.p-ai-rp:hover{color:var(--akapen);}
+.p-ai-done{color:var(--akapen);}
+
+/* 報告フォーム。AI講評ボックスの中に開く(画面を離れない=アプリ内で完結)。 */
+.ai-report{border-top:1px solid var(--paper-line); margin-top:4px; padding:11px 12px 12px;}
+.ai-report .ai-rp-ttl{margin:0; font-size:12px; font-weight:700;}
+.ai-report .ai-rp-cats{margin:8px 0 0; display:flex; gap:14px; flex-wrap:wrap; font-size:12px;}
+.ai-report .ai-rp-cats label{display:flex; align-items:center; gap:4px; cursor:pointer;}
+.ai-report .ai-rp-memo{width:100%; margin-top:8px; padding:7px 8px; font:inherit; font-size:12px;
+  color:var(--ink); background:var(--paper); border:1px solid var(--paper-line); border-radius:2px;
+  resize:vertical;}
+.ai-report .ai-rp-note{margin:8px 0 0; font-size:10.5px; color:var(--ink-muted); line-height:1.7;}
+.ai-report .ai-rp-act{margin:10px 0 0; display:flex; gap:8px; flex-wrap:wrap;}
+.ai-report button{font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer; border-radius:2px;
+  border:1px solid var(--ink-muted); background:var(--paper); color:var(--ink);}
+.ai-report .ai-rp-send{background:var(--akapen); border-color:var(--akapen); color:#fff; font-weight:700;}
+.ai-report .ai-rp-send:disabled{background:#E7E2D4; border-color:var(--paper-line);
+  color:var(--ink-muted); font-weight:400; cursor:default;}
+
+/* 同意画面。紙の上に出すが、読み飛ばされないよう本文の文字サイズで書く。 */
+.ai-consent{padding:12px;}
+.ai-consent p{margin:8px 0 0; font-size:12px; line-height:1.8;}
+.ai-consent .ai-ttl{margin:0; font-size:13px; font-weight:700;}
+.ai-consent .ai-list{border-left:2px solid var(--paper-line); padding-left:9px;}
+.ai-consent .ai-act{display:flex; gap:8px; flex-wrap:wrap;}
+.ai-consent button{font:inherit; font-size:12.5px; padding:7px 14px; cursor:pointer;
+  border-radius:2px; border:1px solid var(--ink-muted); background:var(--paper); color:var(--ink);}
+.ai-consent .ai-ok{background:var(--akapen); border-color:var(--akapen); color:#fff; font-weight:700;}
+
+/* 8. 紙のフッター */
+.p-foot{padding:9px 14px 11px; border-top:1px solid var(--paper-line);
+  font-size:9.5px; color:var(--ink-muted); line-height:1.7;
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+
+.p-empty{padding:14px; font-size:13px;}
