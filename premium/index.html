@@ -170,6 +170,7 @@ body{background:var(--bg); color:var(--ink);
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="../privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="../about.html">運営者情報</a></p>
 </div>
 
+<script src="../app-links.js"></script>
 <script src="../ios.js"></script>
 <script src="../twa.js"></script>
 <script src="../favorites.js"></script>
@@ -277,12 +278,26 @@ body{background:var(--bg); color:var(--ink);
     // iOSアプリの中では、この先の文言(Google Play・Androidアプリ)を出さない。
     if(window.TeiyomiIOS && TeiyomiIOS.isIOSApp()){ renderIOSComingSoon(); return; }
     var inApp = !!(window.TeiyomiTWA && TeiyomiTWA.isTWA());
-    var lead = inApp
-      ? '<p class="state-msg">プレミアムのご利用は、アプリ内でのお手続きとして<b>準備中</b>です。</p>'
-      : '<p class="state-msg">プレミアムへの登録は、<b>Androidアプリ内</b>で承っています。</p>';
-    box.innerHTML = lead +
-      '<p class="btn-note">' + (inApp ? '' : 'ウェブサイトからのお申し込みは受け付けていません。') +
-      'Google Play から艇読みのアプリを入れると、アプリ内でご登録いただけます。</p>' +
+    // Androidアプリの中では、他のストアの話をしない(Playのポリシー)。アプリの中なので
+    // 入れ直しの案内も要らない。ここへ来るのは購入の窓口が開けなかったときだけ。
+    if(inApp){
+      box.innerHTML =
+        '<p class="state-msg">購入画面を読み込めませんでした。</p>' +
+        '<p class="btn-note">通信状態をご確認のうえ、アプリを開き直してお試しください。</p>' +
+        FREE_NOTE + FREE_LINK;
+      return;
+    }
+    // ブラウザから見たとき。**iPhone・Android の両方のアプリが出たので、並べて案内する**
+    // (2026-09-17・App Store 公開)。リンクの住所は app-links.js が1か所で持つ。
+    var links = window.TeiyomiAppLinks;
+    box.innerHTML =
+      '<p class="state-msg">プレミアムへの登録は、<b>アプリ内</b>で承っています。</p>' +
+      '<p class="btn-note">ウェブサイトからのお申し込みは受け付けていません。' +
+      'お使いの端末のアプリを入れると、アプリ内でご登録いただけます。</p>' +
+      (links
+        ? '<p class="btn-note"><a href="' + links.APP_STORE + '" target="_blank" rel="noopener">App Store（iPhone）</a>' +
+          ' ／ <a href="' + links.GOOGLE_PLAY + '" target="_blank" rel="noopener">Google Play（Android）</a></p>'
+        : '') +
       FREE_NOTE + FREE_LINK;
   }
 
