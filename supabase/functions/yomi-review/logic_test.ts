@@ -12,6 +12,7 @@ import {
   buildUserPrompt,
   filterOutput,
   jstDate,
+  outcomeOf,
   parseSheet,
   pickMaezuke,
   pickRenren,
@@ -271,4 +272,13 @@ Deno.test("匿名全体の1日の上限: 環境変数の読み方と、匿名だ
   assertEquals(anonLimitReached(true, 100, 100), true);
   assertEquals(anonLimitReached(true, 99, 100), false);
   assertEquals(anonLimitReached(false, 100000, 100), false, "メールでログインした利用者は対象外");
+});
+
+Deno.test("outcomeOf: 呼び出しの失敗を先に見て、フィルタの種類はコロンの前だけ(2026-09-18)", () => {
+  assertEquals(outcomeOf("timeout", { ok: false, reason: "empty" }), "timeout");
+  assertEquals(outcomeOf("http_error", { ok: false, reason: "empty" }), "http_error");
+  assertEquals(outcomeOf(null, { ok: true }), "ok");
+  assertEquals(outcomeOf(null, { ok: false, reason: "empty" }), "empty");
+  assertEquals(outcomeOf(null, { ok: false, reason: "banned:本命" }), "banned");
+  assertEquals(outcomeOf(null, { ok: false, reason: "invented:1-2-3" }), "invented");
 });

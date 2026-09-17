@@ -8,6 +8,9 @@ on:
       days:
         description: 'さかのぼる日数（初回の一括取り込みは 30 などに、毎晩は 1）'
         default: '1'
+      ai_health_date:
+        description: 'AI講評の成否を見る日(YYYY-MM-DD)。空ならJSTの前日'
+        default: ''
 
 permissions:
   contents: write
@@ -150,3 +153,24 @@ jobs:
             git pull --rebase origin data || exit 1
           done
           exit 1
+
+  # ---- AI講評の監視(2026-09-18) ----
+  # 前日(JST)の講評の成否を Edge Function ai-health で読み、AIを1回以上呼んだ日に
+  # 「成功0件」か「失敗が半分超」なら GitHub Issue を立てる(件数を読めなかったときも立てる)。
+  # 結果の収集とは別ジョブ: どちらが失敗しても、もう片方は止めない。Issue を立てるので
+  # このジョブだけ issues: write を持つ。赤くなるのは Issue すら立てられなかったとき。
+  ai-health:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: AI講評の前日の成否を見る(おかしければ Issue)
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # 入力は式に直接埋めず環境変数で渡す。形はスクリプトが YYYY-MM-DD で確かめる
+          AI_HEALTH_DATE: ${{ github.event.inputs.ai_health_date }}
+        run: python3 scripts/check_ai_health.py

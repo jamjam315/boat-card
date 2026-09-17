@@ -215,3 +215,28 @@ Deno.test("待ち時間: 既定45秒・AI_TIMEOUT_MS で変えられる・範囲
   assertEquals(readAiConfig((k) => env[k])!.timeoutMs, 20_000);
   assertEquals(readAiConfig((k) => (k === "AI_API_KEY" ? "sk-test" : undefined))!.timeoutMs, 45_000);
 });
+
+Deno.test("失敗の種類が onFailure に届く(監視の記録用・2026-09-18)", async () => {
+  const config = readAiConfig((k) => (k === "AI_API_KEY" ? "sk-test" : undefined))!;
+  const seen: string[] = [];
+  const httpErr = createAiCaller(
+    config,
+    (() => Promise.resolve(new Response("boom", { status: 500 }))) as unknown as typeof fetch,
+    (k) => seen.push(k),
+  );
+  assertEquals(await httpErr("規則", "答案"), null);
+  const thrown = createAiCaller(
+    config,
+    (() => Promise.reject(new Error("network"))) as unknown as typeof fetch,
+    (k) => seen.push(k),
+  );
+  assertEquals(await thrown("規則", "答案"), null);
+  const slow = createAiCaller(
+    { ...config, timeoutMs: 1_000 },
+    ((_u: string, init: RequestInit) =>
+      new Promise((_r, reject) => init.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))) as unknown as typeof fetch,
+    (k) => seen.push(k),
+  );
+  assertEquals(await slow("規則", "答案"), null);
+  assertEquals(seen, ["http_error", "exception", "timeout"]);
+});

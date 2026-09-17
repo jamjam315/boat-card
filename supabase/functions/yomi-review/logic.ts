@@ -396,6 +396,19 @@ export type FilterResult = { ok: true; text: string } | { ok: false; reason: str
  * なので、厳しすぎて損をするのは利用者ではなくこちら側になる。その非対称を
  * わざとこの向きにしてある。
  */
+/**
+ * AIを呼んだ1回の結果を、日別の記録(yomi_ai_outcomes_daily)の種類にする(2026-09-18 監視)。
+ * 呼び出しそのものの失敗(timeout など)を先に見る。ai() は失敗すると null を返し、
+ * 出力フィルタでは "empty" になるので、そこで種類が潰れないようにするため。
+ */
+export function outcomeOf(
+  failure: string | null,
+  checked: { ok: true } | { ok: false; reason: string },
+): string {
+  if (failure) return failure;
+  return checked.ok ? "ok" : checked.reason.split(":")[0];
+}
+
 export function filterOutput(text: string | null, sheet: Sheet): FilterResult {
   if (text == null || !text.trim()) return { ok: false, reason: "empty" };
   const body = text.trim();

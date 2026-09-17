@@ -429,6 +429,14 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/kick-github/index.ts"
 
+[functions.ai-health]
+enabled = true
+# AI講評の日別の成否を返す(監視)。毎晩の results.yml(GitHub Actions)から叩かれ、
+# Supabase の JWT を持たないためプラットフォーム側のJWT検証を無効化し、代わりに関数内で
+# x-cron-secret ヘッダーを CRON_SECRET と突き合わせる(kick-github と同じ)。
+verify_jwt = false
+entrypoint = "./functions/ai-health/index.ts"
+
 [functions.send-delay-notice]
 enabled = true
 # send-morning-push と同じく Supabase Cron から叩かれる。CronはSupabaseのJWTを

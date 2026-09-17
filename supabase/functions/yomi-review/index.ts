@@ -41,10 +41,16 @@
 // 超えたら 429 {code:'anon_limit'}。メールでログインした利用者は対象外。
 // 数え方はほかの回数と同じ: 生成の前に読み、出力フィルタを通ったあとで加算する
 // (同時に来た要求が数件ぶん上限を越えることはあるが、上限の目的=費用の天井には足りる)。
+//
+// ## 成否の日別記録(2026-09-18)
+// AIを呼んだ回は、結果の種類(ok / timeout / http_error / exception / empty / banned /
+// invented / no_config / error)を yomi_ai_outcomes_daily に1件足す。毎晩 results.yml が
+// ai-health 経由で前日の数を読み、成功0件か失敗が半分超なら GitHub Issue を立てる。
+// 記録に失敗しても講評の応答は変えない(ログにだけ残す)。
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 
-import { createAiCaller, hashUserId, readAiConfig } from './ai.ts'
+import { type AiFailureKind, createAiCaller, hashUserId, readAiConfig } from './ai.ts'
 import {
   anonDailyLimit,
   anonLimitReached,
@@ -54,6 +60,7 @@ import {
   type Maezuke,
   MAX_DAILY_PREMIUM,
   MAX_FREE_TOTAL,
+  outcomeOf,
   parseSheet,
   pickMaezuke,
   pickRenren,
@@ -95,6 +102,17 @@ async function loadStats() {
     console.log('[yomi-review] stats fetch failed')
   }
   return cache
+}
+
+/** 成否を日別に1件数える。失敗しても投げない(応答を変えない)。 */
+async function recordOutcome(outcome: string) {
+  try {
+    const { error } = await supabaseAdmin
+      .rpc('bump_yomi_ai_outcome', { p_date: jstDate(), p_outcome: outcome })
+    if (error) console.log(`[yomi-review] outcome record failed (${outcome})`)
+  } catch {
+    console.log(`[yomi-review] outcome record failed (${outcome})`)
+  }
 }
 
 function fail(code: string, logReason: string, status = 400): Response {
@@ -142,7 +160,10 @@ export default {
 
         // --- 2. Secrets ---
         const config = readAiConfig()
-        if (!config) return fail('ai_unavailable', 'AI_API_KEY not configured', 503)
+        if (!config) {
+          await recordOutcome('no_config')
+          return fail('ai_unavailable', 'AI_API_KEY not configured', 503)
+        }
 
         // --- 3. 権利と回数 ---
         // 数えるだけで、まだ加算しない。加算は出力フィルタを通ったあと。
@@ -215,7 +236,10 @@ export default {
         const maezuke = pickMaezuke(stats.maezuke, sheet)
 
         // --- 5. 生成 ---
-        const ai = createAiCaller(config)
+        let failure: AiFailureKind | null = null
+        const ai = createAiCaller(config, fetch, (kind) => {
+          failure = kind
+        })
         const text = await ai(
           SYSTEM_PROMPT,
           buildUserPrompt(sheet, renren, maezuke),
@@ -226,6 +250,7 @@ export default {
         // ここで止まった回は回数を消費しない。ブロックの理由はログにだけ
         // 残し、クライアントには返さない(どう書けば通るかの手がかりになる)。
         const checked = filterOutput(text, sheet)
+        await recordOutcome(outcomeOf(failure, checked))
         if (!checked.ok) {
           console.log(`[yomi-review] blocked (${shortId(userId)}: ${checked.reason})`)
           // 種別(banned / invented / empty)までは返す。どの語・どの組番で
@@ -274,6 +299,7 @@ export default {
         // 想定外は必ず失敗に倒す。例外の中身は出さない(答案が混ざりうる)。
         console.log('[yomi-review] unexpected error: ' +
           (e instanceof Error ? e.name : 'unknown'))
+        await recordOutcome('error')
         return fail('ai_unavailable', 'unexpected', 500)
       }
     },

@@ -125,19 +125,30 @@ export type AiCaller = (
   userHash?: string,
 ) => Promise<string | null>;
 
+/** 失敗の種類。日別の成否の記録(監視)に使う。 */
+export type AiFailureKind = "timeout" | "exception" | "http_error";
+
+/**
+ * onFailure は失敗の種類を受け取る(2026-09-18 監視のため)。本文は渡さない。
+ */
 export function createAiCaller(
   config: AiConfig,
   fetchImpl: typeof fetch = fetch,
+  onFailure?: (kind: AiFailureKind) => void,
 ): AiCaller {
+  const report = (kind: AiFailureKind, detail: string) => {
+    logFailure(kind, detail);
+    onFailure?.(kind);
+  };
   return async (system: string, user: string, userHash?: string) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), config.timeoutMs ?? AI_TIMEOUT_MS);
     try {
       return config.provider === "anthropic"
-        ? await callAnthropic(config, system, user, fetchImpl, controller.signal, userHash)
-        : await callOpenAiCompatible(config, system, user, fetchImpl, controller.signal, userHash);
+        ? await callAnthropic(config, system, user, fetchImpl, controller.signal, report, userHash)
+        : await callOpenAiCompatible(config, system, user, fetchImpl, controller.signal, report, userHash);
     } catch (e) {
-      logFailure(
+      report(
         controller.signal.aborted ? "timeout" : "exception",
         e instanceof Error ? `${e.name}: ${e.message}` : String(e),
       );
@@ -154,6 +165,7 @@ async function callAnthropic(
   user: string,
   fetchImpl: typeof fetch,
   signal: AbortSignal,
+  report: (kind: AiFailureKind, detail: string) => void,
   userHash?: string,
 ): Promise<string | null> {
   const res = await fetchImpl(`${config.baseUrl}/v1/messages`, {
@@ -176,7 +188,7 @@ async function callAnthropic(
     signal,
   });
   if (!res.ok) {
-    logFailure("http_error", `${res.status} ${(await res.text()).slice(0, 200)}`);
+    report("http_error", `${res.status} ${(await res.text()).slice(0, 200)}`);
     return null;
   }
   const body = await res.json();
@@ -190,6 +202,7 @@ async function callOpenAiCompatible(
   user: string,
   fetchImpl: typeof fetch,
   signal: AbortSignal,
+  report: (kind: AiFailureKind, detail: string) => void,
   userHash?: string,
 ): Promise<string | null> {
   const res = await fetchImpl(`${config.baseUrl}/chat/completions`, {
@@ -210,7 +223,7 @@ async function callOpenAiCompatible(
     signal,
   });
   if (!res.ok) {
-    logFailure("http_error", `${res.status} ${(await res.text()).slice(0, 200)}`);
+    report("http_error", `${res.status} ${(await res.text()).slice(0, 200)}`);
     return null;
   }
   const body = await res.json();
