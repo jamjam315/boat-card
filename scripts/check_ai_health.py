@@ -123,7 +123,10 @@ def body_unread(date, why):
 
 
 def gh(args):
-    return subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=60)
+    # encoding を決めておく。決めないと Windows では cp932 で読もうとして落ち、
+    # 一覧が空に見えて同じ Issue を何枚も立てた(2026-09-18 手元の確認で起きた)。
+    return subprocess.run(["gh"] + args, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", timeout=60)
 
 
 def notify(title, body, date, dry):
@@ -131,12 +134,17 @@ def notify(title, body, date, dry):
     if dry:
         print("[ai-health] (dry) 題: %s\n%s" % (title, body))
         return True
-    r = gh(["issue", "list", "--state", "open", "--search", "in:title " + title,
-            "--json", "number,title", "--limit", "20"])
-    if r.returncode != 0:
-        print("[ai-health] Issue の一覧を読めませんでした: %s" % r.stderr[:200])
+    # --search は使わない(検索の索引は数分遅れるので、立てた直後の二度目の実行で見つからない)。
+    # 開いている Issue を並べて題で照らす。読めなければ立てない(重複より、赤くして気づかせる)。
+    r = gh(["issue", "list", "--state", "open", "--json", "number,title", "--limit", "200"])
+    try:
+        if r.returncode != 0:
+            raise ValueError(r.stderr[:200])
+        listed = json.loads(r.stdout)
+    except ValueError as e:
+        print("[ai-health] Issue の一覧を読めませんでした: %s" % e)
         return False
-    same = [i for i in json.loads(r.stdout or "[]") if i.get("title") == title]
+    same = [i for i in listed if i.get("title") == title]
     if same:
         n = str(same[0]["number"])
         v = gh(["issue", "view", n, "--json", "body,comments"])
