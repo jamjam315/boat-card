@@ -113,13 +113,19 @@ export default {
         },
       },
     },
-    async (req: Request, ctx: { userClaims?: Record<string, unknown> }) => {
+    async (
+      req: Request,
+      ctx: { userClaims?: Record<string, unknown>; jwtClaims?: Record<string, unknown> | null },
+    ) => {
       try {
         if (req.method !== 'POST') return fail('bad_request', 'method', 405)
 
         const userId = ctx.userClaims?.id as string | undefined
         if (!userId) return fail('unauthorized', 'no claims', 401)
-        const isAnonymous = ctx.userClaims?.is_anonymous === true
+        // 匿名かどうかは、検証済みのJWTそのもの(jwtClaims)の is_anonymous で見る。
+        // userClaims は @supabase/server が id/role/email/メタデータだけに詰め直した形で、
+        // is_anonymous を持たない(userClaims で見ると常に「匿名でない」になり、上限が効かなかった)。
+        const isAnonymous = ctx.jwtClaims?.is_anonymous === true
 
         // --- 1. 入力 ---
         // 権利より先に検証する。壊れた答案でAIを呼んでも意味が無いし、
