@@ -1,0 +1,66 @@
+# iOSアプリの中で見たときに、出してはいけない文字とリンクが無いかを push のたびに確かめる。
+#
+# 【なぜ要るか】
+# アプリの中身は teiyomi.com をそのまま出している。出してはいけないものは HTML から
+# 消えているのではなく、**JS が UA を見て出し分けている**（ios.js / twa.js /
+# app-links.js / billing-ios.js）。だから HTML を grep しても分からず、実際に描かせて
+# 確かめるしかない。Web 側を直したついでに出し分けを壊すと、次の審査で気づくことになる。
+#
+# 【何を見るか】(中身は tools/ios-ua-scan.mjs の冒頭)
+#   ・他のストアの名前とリンク（3.1.1）/「準備中」「開発中」（2.1）
+#   ・boatrace.jp と、殻の許可リストに無い外部リンク（5.2.2・押しても開けない）
+#   ・出し分けが効いているか（ブラウザの UA では同じ語が出ること）
+#
+# 外への通信はすべて遮って動かすので、**CI が本番の Supabase に触れることはない**
+# （匿名ユーザーを増やさない）。
+name: iOS UA scan
+
+on:
+  push:
+    branches: [main]
+    # 生成物(race/ players/)は毎日変わるが、作りは build_race_pages.py と
+    # 各テンプレートで決まる。毎日のデータ更新でこれを回さないよう、
+    # 「見た目を決めるもの」だけを対象にする。取りこぼしは下の定期実行で拾う。
+    paths:
+      - '*.html'
+      - '*.js'
+      - 'premium/**'
+      - 'players/index.html'
+      - 'build_race_pages.py'
+      - 'build_all_player_pages.py'
+      - 'site_pages.json'
+      - 'tools/ios-ua-scan.mjs'
+      - '.github/workflows/ios-ua-scan.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '*.html'
+      - '*.js'
+      - 'premium/**'
+      - 'players/index.html'
+      - 'build_race_pages.py'
+      - 'build_all_player_pages.py'
+      - 'site_pages.json'
+      - 'tools/ios-ua-scan.mjs'
+      - '.github/workflows/ios-ua-scan.yml'
+  # 毎日のデータ更新で作り直されたページも、1日1回は見る（JSTの朝8時すぎ）。
+  schedule:
+    - cron: '17 23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: iOSのUAで禁止語をさがす
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      # playwright は package.json の devDependencies に入れてある。
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node tools/ios-ua-scan.mjs

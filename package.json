@@ -1,0 +1,8 @@
+{
+  "name": "boat-card-tools",
+  "private": true,
+  "description": "サイト本体は静的ファイル。ここの依存は CI の道具だけ（tools/ios-ua-scan.mjs が使う Playwright）。",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
