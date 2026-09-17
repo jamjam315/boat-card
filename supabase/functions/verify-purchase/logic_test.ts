@@ -12,6 +12,8 @@ import {
   CACHE_TTL_MS,
   canUseCache,
   entitlementFromAppleTransaction,
+  finalAppleEntitlement,
+  APPLE_HARD_REASONS,
   type AppleTransaction,
   appleRowKey,
   appleSourceAllowed,
@@ -768,4 +770,56 @@ Deno.test('外した・期限切れの manual 行と、ストアの行は守ら�
       { platform, status: 'active', current_period_end: '2099-12-31T00:00:00Z' }, now), String(platform))
   }
   assertFalse(keepsManualGrant(null, now))
+})
+
+// ---- 取引の判定と購読の状態を突き合わせる(2026-09-17・公開後バックログ1) ----
+
+const EXPIRED = { isActive: false, expiry: '2026-09-10T00:00:00.000Z', reason: 'expired' }
+const ACTIVE = { isActive: true, expiry: '2026-10-10T00:00:00.000Z', reason: 'active' }
+
+Deno.test('猶予期間: 取引は期限切れでも、購読が有効なら有効(猶予の期限まで)', () => {
+  const grace = { status: 'active' as const, currentPeriodEnd: '2026-09-26T00:00:00.000Z', reason: 'grace period' }
+  assertEquals(finalAppleEntitlement(EXPIRED, grace), {
+    isActive: true,
+    expiry: '2026-09-26T00:00:00.000Z',
+    reason: 'grace period',
+    source: 'subscription',
+  })
+})
+
+Deno.test('更新直後: 手元の取引が古くても、購読の新しい期限を使う', () => {
+  const renewed = { status: 'active' as const, currentPeriodEnd: '2026-11-10T00:00:00.000Z', reason: 'active' }
+  assertEquals(finalAppleEntitlement(ACTIVE, renewed).expiry, '2026-11-10T00:00:00.000Z')
+})
+
+Deno.test('購読が切れていれば、取引が有効に見えても無効', () => {
+  const ended = { status: 'inactive' as const, currentPeriodEnd: null, reason: 'expired' }
+  const r = finalAppleEntitlement(ACTIVE, ended)
+  assertFalse(r.isActive)
+  assertEquals(r.source, 'subscription')
+})
+
+Deno.test('購読の状態を聞けなかったら、取引の判定のまま', () => {
+  assertEquals(finalAppleEntitlement(EXPIRED, null), { ...EXPIRED, source: 'transaction' })
+  assertEquals(finalAppleEntitlement(ACTIVE, null), { ...ACTIVE, source: 'transaction' })
+})
+
+Deno.test('取引そのものが信用できないときは、購読の状態で緩めない', () => {
+  const active = { status: 'active' as const, currentPeriodEnd: '2026-10-10T00:00:00.000Z', reason: 'active' }
+  for (const reason of APPLE_HARD_REASONS) {
+    const bad = { isActive: false, expiry: null, reason }
+    const r = finalAppleEntitlement(bad, active)
+    assertFalse(r.isActive, reason)
+    assertEquals(r.source, 'transaction', reason)
+  }
+  // 他のアプリ・他の商品・返金済みの3つを見ている
+  assertEquals(APPLE_HARD_REASONS, ['bundle mismatch', 'product mismatch', 'revoked'])
+})
+
+Deno.test('entitlementFromAppleTransaction が返す拒否の理由は、突き合わせない側の名前と一致する', () => {
+  const base = { bundleId: 'com.mtpworks.teiyomi', productId: 'teiyomi_premium_monthly', expiresDate: Date.now() + 1000 }
+  const opts = { expectedProductId: 'teiyomi_premium_monthly', expectedBundleId: 'com.mtpworks.teiyomi', now: Date.now() }
+  assertEquals(entitlementFromAppleTransaction({ ...base, bundleId: 'com.other' } as AppleTransaction, opts).reason, 'bundle mismatch')
+  assertEquals(entitlementFromAppleTransaction({ ...base, productId: 'other' } as AppleTransaction, opts).reason, 'product mismatch')
+  assertEquals(entitlementFromAppleTransaction({ ...base, revocationDate: 1 } as AppleTransaction, opts).reason, 'revoked')
 })

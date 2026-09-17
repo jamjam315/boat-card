@@ -230,6 +230,20 @@ test("restore ok → verify → verified、empty → no_purchase、error → fai
   }
 });
 
+test("TestFlight(Sandbox)の購入で許可リストに無いとき、理由を画面に返し、取引は完了させない", async () => {
+  // サーバーは retryable と一緒に符丁を返す(verify-purchase の denied)。
+  const fetchSandbox = () => Promise.resolve({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ is_active: false, retryable: true, code: "sandbox_not_allowed" }),
+  });
+  const { win, sent } = boot({ fetch: fetchSandbox });
+  const r = win.TeiyomiBilling.buy();
+  win.TeiyomiIOSBilling.onEvent({ type: "purchase", requestId: "req-9", status: "ok", jws: "JWS" });
+  assert.deepEqual(await r, { ok: false, reason: "sandbox_not_allowed" });
+  // **iap.verified は送らない**(送ると取引が待ち行列から消え、許可リストに足しても拾えない)
+  assert.equal(sent.filter((m) => m.type === "iap.verified").length, 0);
+});
+
 // ---- 起動時の復元(条件付き) ----
 
 function fire(listeners, state) { listeners.forEach((fn) => fn(state)); }

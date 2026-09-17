@@ -267,6 +267,7 @@ body{background:var(--bg); color:var(--ink);
         msg.textContent =
           r.reason === "no_purchase"  ? "復元できる購入がありません。" :
           r.reason === "other_account" ? "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。" :
+          r.reason === "sandbox_not_allowed" ? "テスト版（TestFlight）での購入は、テスターとして登録されたアカウントでのみ有効にできます。お手数ですが運営までご連絡ください。" :
           r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいてもう一度お試しください。" :
                                         "復元できませんでした。時間をおいてもう一度お試しください。";
       });
@@ -354,6 +355,7 @@ body{background:var(--bg); color:var(--ink);
             r.reason === "cancelled"    ? "" :
             r.reason === "pending"      ? "お支払いの承認待ちです。承認されると自動で反映されます。" :
             r.reason === "other_account" ? "この購入は別のアカウントに紐づいています。ご購入時にお使いのメールアドレスでログインしてください。" :
+            r.reason === "sandbox_not_allowed" ? "テスト版（TestFlight）での購入は、テスターとして登録されたアカウントでのみ有効にできます。お手数ですが運営までご連絡ください。" :
             r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいて「以前の購入を復元する」をお試しください。" :
             r.reason === "unavailable"  ? "この画面ではご登録いただけません。" :
                                           "購入できませんでした。時間をおいてもう一度お試しください。";
@@ -408,6 +410,7 @@ body{background:var(--bg); color:var(--ink);
           btn.textContent = yen ? yen + " / 月で登録する" : "プレミアムに登録する";
           msg.textContent =
             r.reason === "cancelled"    ? "" :
+            r.reason === "sandbox_not_allowed" ? "テスト版（TestFlight）での購入は、テスターとして登録されたアカウントでのみ有効にできます。お手数ですが運営までご連絡ください。" :
             r.reason === "not_verified" ? "ご購入を確認できませんでした。時間をおいてもう一度お試しください。" :
             r.reason === "unavailable"  ? "この画面ではご登録いただけません。アプリからお試しください。" :
                                           "手続きに失敗しました。時間をおいてもう一度お試しください。";

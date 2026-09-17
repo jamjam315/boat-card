@@ -251,6 +251,10 @@
           // 200 でも「確かめられなかった」ことがある(Secrets未設定・Apple照会
           // 失敗・応答が読めない)。サーバーはそれに retryable を付ける。
           // 判定を返すのは verify-purchase の ok() だけで、そちらには付かない。
+          // TestFlight(Sandbox)の購入で、テスターとして登録されていない場合。
+          // 時間をおいても直らないので、画面の文言を分けるために符丁を持ち帰る
+          // (取引は待ち行列に残す＝許可リストに足せば次の起動で通る)。
+          if (j && j.code === "sandbox_not_allowed") return { answered: false, code: "sandbox_not_allowed" };
           if (j && j.retryable === true) return { answered: false };
           return { answered: true, active: !!(j && j.is_active), status: r.status };
         }, function () { return { answered: false }; });
@@ -273,7 +277,7 @@
   /**
    * 返り値(Promise): {active:true} | {active:false, reason} | null(答えを聞けていない
    *   ／他のタブに任せた)
-   *   reason: "other_account"(409) | "not_verified"
+   *   reason: "other_account"(409) | "sandbox_not_allowed"(TestFlightの購入) | "not_verified"
    *
    * 未ログインなら**検証せずに保持**し、ログイン完了(teiyomi-auth-changed)後に
    * 検証する。殻は返事が来るまで完了させないので、ここで捨てても取引は
@@ -295,7 +299,10 @@
     inFlight[requestId] = true;
     return verify(jws).then(function (res) {
       delete inFlight[requestId];
-      if (!res.answered) return null;   // **返さない**(次の起動で再配送される)
+      if (!res.answered) {
+        // 符丁があるときだけ、押した本人に理由を返す(取引は完了させない)。
+        return res.code ? { active: false, reason: res.code } : null;
+      }
       send({ type: "iap.verified", requestId: requestId, ok: !!res.active });
       delete held[requestId];
       if (res.active) {

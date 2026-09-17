@@ -211,8 +211,8 @@ WP-6 と step5（TestFlight での通知・購入・ログイン直後の表示�
 
 | 順 | 項目 | 直す場所 | なぜこの順か |
 |---|---|---|---|
-| 1 | 猶予期間中に inactive へ戻る | サーバ（verify-purchase） | 支払いが失敗した人の猶予期間を、アプリを開いた拍子に打ち切ってしまう。**お金を払っている人が使えなくなる**ただ一つの不具合。実ユーザーの購入が始まる前に直したい。verify-purchase でも Get All Subscription Statuses を使い、`stateFromSubscriptionStatuses` を apple-notifications と共有する |
-| 2 | Sandbox 購入の扱い | サーバ（verify-purchase の文言・許可リスト） | 公開後は TestFlight のテスターの購入がすべて Sandbox。許可リストに無い人は「ご購入を確認できませんでした」で止まる（2026-09-17 10:18 の Sandbox 購入がこの形。行ができていない）。テスターを許可リストに足すか、Sandbox と分かる文言に変えるかを決める |
+| 1 ✅ | 猶予期間中に inactive へ戻る（2026-09-17 対応済み） | サーバ（verify-purchase） | 支払いが失敗した人の猶予期間を、アプリを開いた拍子に打ち切ってしまう。**お金を払っている人が使えなくなる**ただ一つの不具合。実ユーザーの購入が始まる前に直したい。verify-purchase でも Get All Subscription Statuses を使い、`stateFromSubscriptionStatuses` を apple-notifications と共有する |
+| 2 ✅ | Sandbox 購入の扱い（2026-09-17 対応済み。テスターの足しかたは `appstore-verify-deploy.md`） | サーバ（verify-purchase の文言・許可リスト） | 公開後は TestFlight のテスターの購入がすべて Sandbox。許可リストに無い人は「ご購入を確認できませんでした」で止まる（2026-09-17 10:18 の Sandbox 購入がこの形。行ができていない）。テスターを許可リストに足すか、Sandbox と分かる文言に変えるかを決める |
 | 3 | 匿名ユーザーの重複 | アプリ（殻）＋Web | 入れ直した直後、4つのタブが同時に匿名ログインして匿名ユーザーが複数できる（2026-09-13 22:59 に同じ秒で4人）。実害は使われない行が増えるだけ。殻で最初のタブの読み込みを待つか、favorites.js で匿名ログインを1本にする。**1.0.1 に同梱** |
 | 4 | スクリーンショットの改善 | ストアの掲載物 | 見せ方の改善（変換率）。スクリーンショットはバージョンの提出とセットでしか差し替えられないので、**1.0.1 と同時に出す**。作り直しは `teiyomi-ios/tool/make_app_store_screens.py` |
 | 5 | Google Play 側の RTDN | サーバ（新しい受け口） | Android も更新・解約・返金がアプリを開くまで反映されない。iOS と同じ形で塞げる（`apple-server-notifications.md` の末尾）。iOS 側が落ち着いてから |

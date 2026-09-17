@@ -533,6 +533,43 @@ export function appleSourceAllowed(
  * ひとつでも欠ければ無効。expiresDate が無い(＝消耗型・買い切り)ものも
  * 購読ではないので無効に倒す。parseSubscription(Play側)と同じ構え。
  */
+/**
+ * 取引ひとつの判定では足りないので、購読全体の状態と突き合わせて最終の答えを決める。
+ *
+ * ## なぜ要るか(2026-09-17・公開後バックログ1)
+ *
+ * Get Transaction Info が答えるのは**その取引の期限**だけ。カードの失敗で更新が
+ * 止まっている「猶予期間」(Billing Grace Period・ASCで有効)では、最後の取引の
+ * 期限はもう過ぎているので `expired` になる。それをそのまま書き戻すと、
+ * apple-notifications が猶予の期限まで active にした行を、アプリを開いた拍子に
+ * inactive で上書きしてしまう——**お金を払っている人がその場で使えなくなる**。
+ *
+ * そこで、取引の真正性(bundle・商品・返金)を確かめたうえで、**購読としての今の状態**
+ * (Get All Subscription Statuses → apple-notifications の stateFromSubscriptionStatuses)
+ * を優先する。更新直後で手元の取引が古いときも、こちらのほうが新しい期限を答える。
+ *
+ * ## 突き合わせない場合
+ *
+ * 取引そのものが信用できないとき(他のアプリ・他の商品・返金済み)は、購読の状態で
+ * 上書きしない。**緩める側に倒さない**ため。問い合わせに失敗したときも取引の判定のまま。
+ */
+export const APPLE_HARD_REASONS = ['bundle mismatch', 'product mismatch', 'revoked']
+
+export function finalAppleEntitlement(
+  verdict: { isActive: boolean; expiry: string | null; reason: string },
+  subscription: { status: 'active' | 'inactive'; currentPeriodEnd: string | null; reason: string } | null,
+): { isActive: boolean; expiry: string | null; reason: string; source: 'transaction' | 'subscription' } {
+  if (!subscription || APPLE_HARD_REASONS.includes(verdict.reason)) {
+    return { ...verdict, source: 'transaction' }
+  }
+  return {
+    isActive: subscription.status === 'active',
+    expiry: subscription.currentPeriodEnd,
+    reason: subscription.reason,
+    source: 'subscription',
+  }
+}
+
 export function entitlementFromAppleTransaction(
   tx: AppleTransaction,
   opts: { expectedProductId: string; expectedBundleId: string; now: number },

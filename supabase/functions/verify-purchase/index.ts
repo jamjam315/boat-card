@@ -50,13 +50,23 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 import { createAppleApiToken } from '../_shared/apple_api.ts'
+// 購読としての今の状態は、apple-notifications と**同じ判定**を使う(公開後バックログ1)。
+// 片方だけ直すと、通知が active にした行をアプリの検証が inactive に戻す、という
+// 食い違いがまた起きる。
+import {
+  APPLE_FETCH_TIMEOUT_MS,
+  stateFromSubscriptionStatuses,
+  subscriptionsBase,
+} from '../apple-notifications/logic.ts'
 import {
   appleRowKey,
   appleSecretsConfigured,
   appleSourceAllowed,
   appleTransactionMatches,
   canUseCache,
+  APPLE_HARD_REASONS,
   entitlementFromAppleTransaction,
+  finalAppleEntitlement,
   fetchAppleTransaction,
   isAcceptableToken,
   isKnownProduct,
@@ -97,9 +107,10 @@ const supabaseAdmin = createClient(
  *
  * 使い回しの検出(409)だけは**確定的な拒否**で、HTTPステータスで見分けられる。
  */
-function denied(reason: string, status = 200): Response {
+function denied(reason: string, status = 200, code?: string): Response {
   console.log('[verify-purchase] denied: ' + reason)
-  return new Response(JSON.stringify({ is_active: false, retryable: true }), {
+  // code は画面の文言を分けるためだけの短い符丁(内部の事情は出さない)。
+  return new Response(JSON.stringify({ is_active: false, retryable: true, ...(code ? { code } : {}) }), {
     status,
     headers: JSON_HEADERS,
   })
@@ -494,7 +505,16 @@ async function verifyWithApple(args: {
   // **両方のステータスを必ず1行残す。** 片方しか出ないと「本番で止まったのか、
   // Sandboxまで行って駄目だったのか」が分からない。
   console.log('[verify-purchase] apple api ' + trace)
-  if (!res.ok) return denied('apple api ' + trace)
+  if (!res.ok) {
+    // 本番に無い取引で、この人は Sandbox を見に行けない = TestFlight での購入
+    // (公開後バックログ2)。「時間をおいて」と案内しても直らないので、画面で
+    // 分けられるように符丁を返す。許可リストへの足しかたは手順書に書いた。
+    const sandboxOnly = !allowSandbox && res.status === 404
+    if (sandboxOnly) {
+      console.log('[verify-purchase] likely sandbox purchase (not allowlisted) user=' + userId.slice(0, 8))
+    }
+    return denied('apple api ' + trace, 200, sandboxOnly ? 'sandbox_not_allowed' : undefined)
+  }
 
   // 応答の signedTransactionInfo もJWS。**ここは署名を見なくてよい**——
   // TLSでApple自身から受け取っており、経路が権威を担保している。
@@ -539,6 +559,41 @@ async function verifyWithApple(args: {
     console.log('[verify-purchase] apple verdict=' + verdict.reason)
   }
 
+  // --- 購読としての今の状態を聞く(猶予期間・更新直後のため。公開後バックログ1) ---
+  //
+  // 取引そのものが信用できないとき(他のアプリ・他の商品・返金済み)は聞かない。
+  // 聞けなかったときは取引の判定のまま進む(購入の流れを止めない)。
+  const otxForStatus = appleRowKey(tx)   // = Apple が答えた originalTransactionId
+  let subscription: { status: 'active' | 'inactive'; currentPeriodEnd: string | null; reason: string } | null = null
+  if (otxForStatus !== null && !APPLE_HARD_REASONS.includes(verdict.reason)) {
+    const base = subscriptionsBase(sandboxStatus !== null ? 'Sandbox' : 'Production')
+    try {
+      const statusRes = await fetch(base + '/' + encodeURIComponent(otxForStatus), {
+        headers: { authorization: 'Bearer ' + apiToken },
+        signal: AbortSignal.timeout(APPLE_FETCH_TIMEOUT_MS),
+      })
+      if (statusRes.ok) {
+        const state = stateFromSubscriptionStatuses(await statusRes.json(), {
+          originalTransactionId: otxForStatus,
+          expectedBundleId: bundleId,
+          now: Date.now(),
+        })
+        if (state.kind === 'update') subscription = state.update
+        else console.log('[verify-purchase] subscription status not used: ' + state.kind)
+      } else {
+        console.log('[verify-purchase] subscription status ' + statusRes.status)
+      }
+    } catch (e) {
+      console.log('[verify-purchase] subscription status failed: ' + String(e))
+    }
+  }
+
+  const entitlement = finalAppleEntitlement(verdict, subscription)
+  if (entitlement.source === 'subscription' && entitlement.isActive !== verdict.isActive) {
+    // 猶予期間・更新直後など、取引だけを見ていたら取り違えていた場面。
+    console.log('[verify-purchase] subscription state wins: ' + verdict.reason + ' -> ' + entitlement.reason)
+  }
+
   // --- 行の鍵を、Appleの答えから作り直す(WP-3f・Vuln 1) ---
   //
   // 呼び出し元が持ってきた rowKey はクライアントの復号値で、偽造できる。
@@ -564,7 +619,7 @@ async function verifyWithApple(args: {
   if (!manualApple.ok) return denied('manual grant lookup failed: ' + manualApple.error, 500)
   if (manualApple.row) {
     console.log('[verify-purchase] manual grant kept(ios) user=' + userId.slice(0, 8) +
-      ' store_active=' + verdict.isActive)
+      ' store_active=' + entitlement.isActive)
     return ok(true, productId, manualApple.row.current_period_end ?? null)
   }
 
@@ -573,9 +628,9 @@ async function verifyWithApple(args: {
     .from('memberships')
     .upsert({
       user_id: userId,
-      status: verdict.isActive ? 'active' : 'inactive',
+      status: entitlement.isActive ? 'active' : 'inactive',
       price_id: productId,
-      current_period_end: verdict.expiry,
+      current_period_end: entitlement.expiry,
       // **JWS本文も transactionId も入れない。** 前者は長いうえに再取得のたびに
       // 変わり、後者は更新のたびに変わるので、どちらも鍵にすると次回引けない。
       // 入れるのは**Appleが答えた** originalTransactionId(appleKey)。
@@ -595,7 +650,8 @@ async function verifyWithApple(args: {
   }
   console.log(
     '[verify-purchase] verified(ios) user=' + userId.slice(0, 8) +
-      ' product=' + productId + ' active=' + verdict.isActive,
+      ' product=' + productId + ' active=' + entitlement.isActive +
+      ' by=' + entitlement.source,
   )
-  return ok(verdict.isActive, productId, verdict.expiry)
+  return ok(entitlement.isActive, productId, entitlement.expiry)
 }

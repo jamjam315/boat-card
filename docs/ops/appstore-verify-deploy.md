@@ -53,6 +53,13 @@ App Store Connect → **ユーザーとアクセス** → **統合** → **App S
 | `APPLE_ALLOW_SANDBOX` | `true`（**公開後もずっと**。下の運用を参照） |
 | `APPLE_SANDBOX_USER_IDS` | Sandboxの購入を受け付ける user_id（審査用アカウント・JAMのテスト用）。カンマ区切り |
 
+**契約の状態は「購読」で見る（2026-09-17）。** verify-purchase は、クライアントが持ってきた取引を
+Apple に確かめたあと、**その購読の今の状態**（Get All Subscription Statuses）も聞いて、そちらを採用する。
+取引ひとつ（Get Transaction Info）だけを見ていると、カードの失敗中の**猶予期間**が「期限切れ」に見えて、
+apple-notifications が猶予の期限まで有効にした行を、アプリを開いた拍子に無効へ上書きしてしまうため。
+判定は apple-notifications と同じ関数（`stateFromSubscriptionStatuses`）を共有している。
+他のアプリ・他の商品・返金済みの取引は、購読の状態では**緩めない**（`APPLE_HARD_REASONS`）。
+
 > ⚠️ **Sandboxの購入を受け付けるのは、`APPLE_SANDBOX_USER_IDS` に載っている人だけです。**
 > Sandboxの購入は**無料**です。誰でも受け付けると、TestFlightのテスターなどが
 > 支払わずに本番のプレミアムを取れます（2026-09-11のセキュリティ点検 Vuln 2）。
@@ -60,6 +67,32 @@ App Store Connect → **ユーザーとアクセス** → **統合** → **App S
 > - `APPLE_ALLOW_SANDBOX` は文字列 `"true"` のときだけ許可。未設定・空・`TRUE`・`1` は不許可
 > - `APPLE_SANDBOX_USER_IDS` が未設定・空なら、**誰も**許可しない（全員許可には倒れない）
 > - リストに無い人の購入は、Sandboxに問い合わせもしない（本番だけを見る）
+
+### TestFlightのテスターを足すとき（2026-09-17）
+
+公開後、TestFlight での購入はすべて Sandbox になる。許可リストに無い人が買うと、
+本番に無い取引として弾かれ、画面には
+**「テスト版（TestFlight）での購入は、テスターとして登録されたアカウントでのみ有効にできます」**
+と出る（`verify-purchase` が符丁 `sandbox_not_allowed` を返し、`billing-ios.js` が文言を分ける）。
+取引は待ち行列に残るので、**許可リストに足せば次の起動で自動的に通る**。
+
+1. そのテスターの user_id を調べる（メールアドレスから）
+
+```bash
+cd ~/dev/boat-card && supabase db query --linked --project-ref vynbhssakpxiikmseoja "select id, email from auth.users where email = 'tester@example.com';"
+```
+
+2. 今のリストに足して入れ直す（**上書きなので、今の値を全部並べる**）
+
+```bash
+cd ~/dev/boat-card && supabase secrets set "APPLE_SANDBOX_USER_IDS=<今の値>,<足すUID>" --project-ref vynbhssakpxiikmseoja
+```
+
+3. `verify-purchase` と `apple-notifications` を入れ直す（Secrets は起動時に読む）
+
+```bash
+cd ~/dev/boat-card && supabase functions deploy verify-purchase --project-ref vynbhssakpxiikmseoja && supabase functions deploy apple-notifications --no-verify-jwt --project-ref vynbhssakpxiikmseoja
+```
 
 ### Sandboxの運用（WP-5で変更）
 
