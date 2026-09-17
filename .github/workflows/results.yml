@@ -120,7 +120,15 @@ jobs:
           if [ "$QUIZ_OK" = "1" ]; then git add -A quiz/; else echo "今日の一問の出題は配らない(QUIZ_OK=$QUIZ_OK)"; fi
           git add stats.js players.js backtest.js frames.js kyusoku.json
           git diff --staged --quiet || git commit -m "results update ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
-          git push
+          # 走っている間に別の push(毎朝の更新・手元からの push)があると弾かれ、この晩の集計が
+          # まるごと公開されない(2026-09-17 に実際に起きた)。触るディレクトリは他と重ならないので、
+          # dataブランチと同じく rebase して数回やり直す。
+          for i in 1 2 3; do
+            git push && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin main || exit 1
+          done
+          exit 1
 
       # dataブランチへは別コミットで積む。毎朝の番組表収集(daily.yml)と同時に
       # 走ってpushが弾かれた場合に備え、rebaseして数回やり直す(触るディレクトリが
