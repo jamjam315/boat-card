@@ -288,3 +288,12 @@ Deno.test('やり直しは2回まで。クールダウン・先の確認の結�
   const longest = TAKEOVER_DEADLINE_MS + oneCheck + DB_TIMEOUT_MS
   assert(longest < 150_000, String(longest))
 })
+
+Deno.test('期待する商品を渡したら、それ以外の商品の購読は見ない(将来の年額との取り違え防止)', () => {
+  const r = stateFromSubscriptionStatuses(statuses(APPLE_STATUS.ACTIVE), { ...opts, expectedProductId: 'teiyomi_premium_yearly' })
+  assertEquals(r.kind, 'ignore')
+  // 同じ商品なら今までどおり
+  assertEquals(stateFromSubscriptionStatuses(statuses(APPLE_STATUS.ACTIVE), { ...opts, expectedProductId: PRODUCT }).kind, 'update')
+  // 省略時は知っている商品すべて
+  assertEquals(stateFromSubscriptionStatuses(statuses(APPLE_STATUS.ACTIVE), opts).kind, 'update')
+})

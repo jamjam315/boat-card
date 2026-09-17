@@ -13,6 +13,7 @@ import {
   canUseCache,
   entitlementFromAppleTransaction,
   finalAppleEntitlement,
+  shouldAskSubscriptionStatus,
   APPLE_HARD_REASONS,
   type AppleTransaction,
   appleRowKey,
@@ -822,4 +823,13 @@ Deno.test('entitlementFromAppleTransaction が返す拒否の理由は、突き�
   assertEquals(entitlementFromAppleTransaction({ ...base, bundleId: 'com.other' } as AppleTransaction, opts).reason, 'bundle mismatch')
   assertEquals(entitlementFromAppleTransaction({ ...base, productId: 'other' } as AppleTransaction, opts).reason, 'product mismatch')
   assertEquals(entitlementFromAppleTransaction({ ...base, revocationDate: 1 } as AppleTransaction, opts).reason, 'revoked')
+})
+
+Deno.test('購読の状態を聞くのは、取引だけでは無効に見えるときだけ(Appleへの往復を増やさない)', () => {
+  assertFalse(shouldAskSubscriptionStatus(ACTIVE), '有効なら聞かない')
+  assert(shouldAskSubscriptionStatus(EXPIRED), '期限切れなら聞く(猶予期間かもしれない)')
+  assert(shouldAskSubscriptionStatus({ isActive: false, reason: 'no expiry' }))
+  for (const reason of APPLE_HARD_REASONS) {
+    assertFalse(shouldAskSubscriptionStatus({ isActive: false, reason }), reason)
+  }
 })

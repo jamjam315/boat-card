@@ -258,7 +258,13 @@ export type StateResult =
  */
 export function stateFromSubscriptionStatuses(
   body: unknown,
-  opts: { originalTransactionId: string; expectedBundleId: string; now: number },
+  opts: {
+    originalTransactionId: string
+    expectedBundleId: string
+    now: number
+    /** 決まった商品だけを見たいとき(verify-purchase はこれを渡す)。省略時は知っている商品すべて。 */
+    expectedProductId?: string
+  },
 ): StateResult {
   if (typeof body !== 'object' || body === null) return { kind: 'ignore', reason: 'unreadable' }
   const b = body as { bundleId?: unknown; data?: unknown }
@@ -277,6 +283,9 @@ export function stateFromSubscriptionStatuses(
       const tx = decodeJwsPayload(it.signedTransactionInfo) as AppleTransaction | null
       if (!tx) return { kind: 'ignore', reason: 'no transaction info' }
       if (tx.bundleId !== opts.expectedBundleId) return { kind: 'ignore', reason: 'bundle mismatch' }
+      if (opts.expectedProductId !== undefined && tx.productId !== opts.expectedProductId) {
+        return { kind: 'ignore', reason: 'product mismatch' }
+      }
       if (typeof tx.productId !== 'string' || !isKnownProduct(tx.productId)) {
         return { kind: 'ignore', reason: 'unknown product' }
       }

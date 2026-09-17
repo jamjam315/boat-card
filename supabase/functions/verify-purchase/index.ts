@@ -64,9 +64,9 @@ import {
   appleSourceAllowed,
   appleTransactionMatches,
   canUseCache,
-  APPLE_HARD_REASONS,
   entitlementFromAppleTransaction,
   finalAppleEntitlement,
+  shouldAskSubscriptionStatus,
   fetchAppleTransaction,
   isAcceptableToken,
   isKnownProduct,
@@ -509,7 +509,9 @@ async function verifyWithApple(args: {
     // 本番に無い取引で、この人は Sandbox を見に行けない = TestFlight での購入
     // (公開後バックログ2)。「時間をおいて」と案内しても直らないので、画面で
     // 分けられるように符丁を返す。許可リストへの足しかたは手順書に書いた。
-    const sandboxOnly = !allowSandbox && res.status === 404
+    // 設定として Sandbox を許していて、この人だけが載っていない場合に限る。
+    // (設定ごと切っているときは、テスターに足せばよい話ではないので符丁を出さない)
+    const sandboxOnly = sandboxAllowed(allowRaw) && !allowSandbox && res.status === 404
     if (sandboxOnly) {
       console.log('[verify-purchase] likely sandbox purchase (not allowlisted) user=' + userId.slice(0, 8))
     }
@@ -561,31 +563,49 @@ async function verifyWithApple(args: {
 
   // --- 購読としての今の状態を聞く(猶予期間・更新直後のため。公開後バックログ1) ---
   //
+  // **聞くのは、取引だけでは無効に見えるときだけ**(security-review 2026-09-17 M2)。
+  // この問い合わせは無効を救うためのもので、有効な取引に足すことは無い。毎回聞くと
+  // Apple への往復が1回の検証で2回になり、偽の取引を送り続けられると割り当てを削られる。
+  //
   // 取引そのものが信用できないとき(他のアプリ・他の商品・返金済み)は聞かない。
-  // 聞けなかったときは取引の判定のまま進む(購入の流れを止めない)。
   const otxForStatus = appleRowKey(tx)   // = Apple が答えた originalTransactionId
+  const askSubscription = otxForStatus !== null && shouldAskSubscriptionStatus(verdict)
   let subscription: { status: 'active' | 'inactive'; currentPeriodEnd: string | null; reason: string } | null = null
-  if (otxForStatus !== null && !APPLE_HARD_REASONS.includes(verdict.reason)) {
+  let subscriptionAskFailed = false
+  if (askSubscription) {
     const base = subscriptionsBase(sandboxStatus !== null ? 'Sandbox' : 'Production')
     try {
-      const statusRes = await fetch(base + '/' + encodeURIComponent(otxForStatus), {
+      const statusRes = await fetch(base + '/' + encodeURIComponent(otxForStatus as string), {
         headers: { authorization: 'Bearer ' + apiToken },
         signal: AbortSignal.timeout(APPLE_FETCH_TIMEOUT_MS),
       })
       if (statusRes.ok) {
         const state = stateFromSubscriptionStatuses(await statusRes.json(), {
-          originalTransactionId: otxForStatus,
+          originalTransactionId: otxForStatus as string,
           expectedBundleId: bundleId,
+          expectedProductId: productId,
           now: Date.now(),
         })
+        // 答えは読めたが、その購読の話が無い(not_found)・他のアプリや商品(ignore)。
+        // Apple が「無い」と言っているので、取引の判定(無効)のままでよい。
         if (state.kind === 'update') subscription = state.update
         else console.log('[verify-purchase] subscription status not used: ' + state.kind)
       } else {
+        subscriptionAskFailed = true
         console.log('[verify-purchase] subscription status ' + statusRes.status)
       }
     } catch (e) {
+      subscriptionAskFailed = true
       console.log('[verify-purchase] subscription status failed: ' + String(e))
     }
+  }
+
+  // **聞きに行って答えが得られなかったときは、書かない**(security-review 2026-09-17 M1)。
+  // ここへ来るのは取引が期限切れに見えているときで、猶予期間かもしれない。
+  // 分からないまま inactive を書くと、通知が猶予の期限まで有効にした行を潰してしまう。
+  // retryable を返せば、殻は取引を完了させず、次の起動でもう一度検証される。
+  if (subscriptionAskFailed && subscription === null) {
+    return denied('subscription status unavailable (kept row as is)')
   }
 
   const entitlement = finalAppleEntitlement(verdict, subscription)

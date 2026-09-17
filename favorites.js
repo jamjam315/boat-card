@@ -83,6 +83,71 @@
     });
   }
 
+  // ---- 匿名ログインは、同時に開いている画面で1回だけ ----------------------------
+  //
+  // 【何が起きていたか】
+  // iOSアプリは下タブ4本ぶんのWebViewを同時に読み込む。4つとも「セッションが無い」と
+  // 読んでから、それぞれ signInAnonymously() を呼ぶので、**同じ秒に匿名ユーザーが4人**
+  // できていた(2026-09-13 22:59)。ブラウザで4つのタブを同時に開いても同じ。
+  // 実害は使われない行が増えるだけだが、増え続けるのは気持ちが悪い。
+  //
+  // 【直し方】
+  // localStorage に「いま誰かが匿名ログイン中」の印を置く。印を取れた1つだけが
+  // signInAnonymously() を呼び、取れなかった側は**そのセッションが保存されるのを待つ**
+  // (localStorage は同じ画面どうしで共有される)。待ちきれなければ自分で入る
+  // ——匿名ユーザーが1人増えるほうが、セッション無しで動けないよりましなので。
+  var ANON_LOCK_KEY = "teiyomi_anon_login";
+  var ANON_LOCK_TTL_MS = 15000;   // 取ったまま画面を閉じられても、これを過ぎれば次が入れる
+  var ANON_WAIT_MS = 8000;        // 待つ側の上限(これを過ぎたら自分で入る)
+  var ANON_POLL_MS = 300;
+
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* 使えなければ従来どおり */ } }
+  function lsDel(key) { try { localStorage.removeItem(key); } catch (e) { /* 同上 */ } }
+
+  /** 匿名ログインの印を取れたか。取れた＝自分が入りに行く。 */
+  function takeAnonLock() {
+    var raw = lsGet(ANON_LOCK_KEY);
+    if (raw) {
+      var at = Number(raw);
+      if (isFinite(at) && Date.now() - at < ANON_LOCK_TTL_MS) return false;   // 誰かが入りに行っている
+    }
+    lsSet(ANON_LOCK_KEY, String(Date.now()));
+    return true;
+  }
+
+  /** 他の画面が入れたセッションが保存されるのを待つ。 */
+  function waitForSession(deadline) {
+    return supaClient.auth.getSession().then(function (r) {
+      var session = r && r.data && r.data.session;
+      if (session) return session;
+      if (Date.now() >= deadline) return null;
+      return new Promise(function (resolve) { setTimeout(resolve, ANON_POLL_MS); })
+        .then(function () { return waitForSession(deadline); });
+    });
+  }
+
+  function anonSignInOnce() {
+    if (!takeAnonLock()) {
+      return waitForSession(Date.now() + ANON_WAIT_MS).then(function (session) {
+        if (session) return session;
+        return anonSignIn();   // 待ちきれなかった。自分で入る
+      });
+    }
+    return anonSignIn();
+  }
+
+  function anonSignIn() {
+    return supaClient.auth.signInAnonymously().then(function (r) {
+      lsDel(ANON_LOCK_KEY);
+      if (r.error) throw r.error;
+      return r.data.session;
+    }, function (e) {
+      lsDel(ANON_LOCK_KEY);
+      throw e;
+    });
+  }
+
   function initCloudSync() {
     fetch(SUPA_CONFIG_URL, { cache: "no-store" })
       .then(function (r) {
@@ -103,10 +168,7 @@
       .then(function (res) {
         var session = res && res.data && res.data.session;
         if (session) return session;
-        return supaClient.auth.signInAnonymously().then(function (r) {
-          if (r.error) throw r.error;
-          return r.data.session;
-        });
+        return anonSignInOnce();
       })
       .then(function (session) {
         supaUserId = session.user.id;

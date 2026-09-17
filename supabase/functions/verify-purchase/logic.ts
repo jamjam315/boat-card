@@ -555,6 +555,20 @@ export function appleSourceAllowed(
  */
 export const APPLE_HARD_REASONS = ['bundle mismatch', 'product mismatch', 'revoked']
 
+/**
+ * 購読としての今の状態を、Apple に聞きに行くべきか。
+ *
+ * 聞くのは**取引だけでは無効に見えるときだけ**。この問い合わせは無効を救うため
+ * (猶予期間・更新直後)のもので、有効な取引に足すことは無い。毎回聞くと1回の検証で
+ * Apple への往復が2回になる(security-review 2026-09-17 M2)。
+ * 取引そのものが信用できないとき(APPLE_HARD_REASONS)は、そもそも聞かない。
+ */
+export function shouldAskSubscriptionStatus(
+  verdict: { isActive: boolean; reason: string },
+): boolean {
+  return !verdict.isActive && !APPLE_HARD_REASONS.includes(verdict.reason)
+}
+
 export function finalAppleEntitlement(
   verdict: { isActive: boolean; expiry: string | null; reason: string },
   subscription: { status: 'active' | 'inactive'; currentPeriodEnd: string | null; reason: string } | null,
