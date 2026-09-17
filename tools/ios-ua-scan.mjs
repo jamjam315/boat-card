@@ -52,7 +52,7 @@ const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleW
   '(KHTML, like Gecko) Mobile/15E148'
 
 /** アプリの中に出てはいけない語。 */
-const BANNED_WORDS = [
+export const BANNED_WORDS = [
   'Google Play', 'GooglePlay', 'Playストア', 'Play ストア', 'Google play',
   'Android', 'android',
   '準備中', '開発中',
@@ -60,8 +60,16 @@ const BANNED_WORDS = [
   'ウェブサイトからのお申し込み',   // Web側の購入案内(ストア外への導線)
 ]
 
-/** 殻が開ける外部リンク（lib/shell/external_allowlist.dart と同じ）。 */
-const ALLOWED_EXTERNAL = [
+/**
+ * 殻が開ける外部リンク。
+ *
+ * **正は teiyomi-ios の `lib/shell/external_allowlist.dart`**（実際に通す／通さないを
+ * 決めているのはあちら）。ここはその写しなので、食い違うとこのスキャンが嘘をつく
+ * （殻では開けないリンクを「問題なし」と言ってしまう）。
+ * 食い違いは teiyomi-ios の `test/external_allowlist_sync_test.dart` が落として教える。
+ * このファイルを直したら、あちらも直すこと（逆も同じ）。
+ */
+export const ALLOWED_EXTERNAL = [
   ['www.caa.go.jp', '/policies/policy/consumer_policy/caution/caution_012/'],
   ['x.com', '/intent/post'],
   ['openai.com', '/policies/row-privacy-policy/'],
@@ -209,4 +217,7 @@ async function main() {
   process.exit(1)
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+// このファイルを直接動かしたときだけ走らせる（テストからは表だけを取り込む）。
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { console.error(e); process.exit(1) })
+}
