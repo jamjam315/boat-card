@@ -264,8 +264,18 @@
     function run(box, p){
       box.innerHTML = '<span class="by">AI講評</span>' +
         '<p class="p-ai-act"><button type="button" class="p-ai-btn" disabled>生成中…</button>' +
-        '<span class="p-ai-left">15秒ほどかかります。</span></p>';
+        '<span class="p-ai-left">30秒ほどかかります。</span></p>';
       window.TeiyomiYomiAi.generate(p).then(function(res){
+        if(!res.ok && res.retry){
+          // AIの側で返せなかった。回数は消費していないので、その場でもう一度送れるようにする
+          box.innerHTML = '<span class="by">AI講評</span>' +
+            '<p class="p-ai-msg">' + esc(res.message) + '</p>' +
+            '<p class="p-ai-act"><button type="button" class="p-ai-btn" id="aiAgain">もう一度</button>' +
+            '<span class="p-ai-left">' + esc(window.TeiyomiYomiAi.MSG.retry_note) + '</span></p>';
+          var again = document.getElementById("aiAgain");
+          if(again) again.addEventListener("click", function(){ run(box, p); });
+          return;
+        }
         if(!res.ok){
           box.innerHTML = '<span class="by">AI講評</span>' +
             '<p class="p-ai-msg">' + esc(res.message) + '</p>' +

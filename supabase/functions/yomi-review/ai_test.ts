@@ -12,8 +12,10 @@ import {
   DEFAULT_MODEL,
   DEFAULT_PROVIDER,
   hashUserId,
+  AI_TIMEOUT_MS,
   readAiConfig,
   resolveMaxTokens,
+  resolveTimeoutMs,
   resolveMaxTokensParam,
 } from "./ai.ts";
 
@@ -200,4 +202,16 @@ Deno.test("AI事業者へ渡すのはハッシュで、生のuser_idではない
   // 同じ人は同じ値になる(悪用検知に使うため)
   assertEquals(h, await hashUserId(uid));
   assert(h !== await hashUserId("99999999-2222-3333-4444-555555555555"));
+});
+
+Deno.test("待ち時間: 既定45秒・AI_TIMEOUT_MS で変えられる・範囲外は既定(2026-09-17)", () => {
+  assertEquals(AI_TIMEOUT_MS, 45_000);
+  assertEquals(resolveTimeoutMs(undefined), 45_000);
+  assertEquals(resolveTimeoutMs("30000"), 30_000);
+  assertEquals(resolveTimeoutMs("500"), 45_000);
+  assertEquals(resolveTimeoutMs("600000"), 45_000);
+  assertEquals(resolveTimeoutMs("abc"), 45_000);
+  const env: Record<string, string> = { AI_API_KEY: "sk-test", AI_TIMEOUT_MS: "20000" };
+  assertEquals(readAiConfig((k) => env[k])!.timeoutMs, 20_000);
+  assertEquals(readAiConfig((k) => (k === "AI_API_KEY" ? "sk-test" : undefined))!.timeoutMs, 45_000);
 });

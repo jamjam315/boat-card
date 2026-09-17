@@ -13,8 +13,21 @@
 //    max_completion_tokens しか受け付けない)。環境変数で上書きできる
 //  ・失敗の種類だけをログに残す。**プロンプト本文と生成文は絶対に出さない**
 
-/** 応答の待ち時間の上限。クライアント側は20秒待つので、こちらが先に諦める。 */
-export const AI_TIMEOUT_MS = 15_000;
+/**
+ * 応答の待ち時間の上限(既定45秒・環境変数 AI_TIMEOUT_MS で変える)。
+ *
+ * 【2026-09-17】15秒では足りなかった。gpt-5.6-luna の実応答は実レースの答案で14〜16秒、
+ * 今日の一問の答案では15秒を超え、講評が全部タイムアウト(本文空)になった。
+ * 延長は応急で、応答そのものを短くするのが本命(推論量・プロンプト・max_tokens)。
+ * ブラウザ(yomi-ai.js)は60秒待つので、こちらが先に諦めて「混み合っています」を返せる。
+ */
+export const AI_TIMEOUT_MS = 45_000;
+
+/** 待ち時間の設定を読む。1〜120秒の整数ミリ秒でなければ既定に落とす。 */
+export function resolveTimeoutMs(value?: string): number {
+  const n = Number(value?.trim());
+  return Number.isInteger(n) && n >= 1_000 && n <= 120_000 ? n : AI_TIMEOUT_MS;
+}
 
 /**
  * 1回の応答に許す最大トークン数。**暴走を止める天井**であって、文量の
@@ -53,6 +66,7 @@ export interface AiConfig {
   apiKey: string;
   maxTokensParam: string;
   maxTokens: number;
+  timeoutMs?: number;
 }
 
 /** 正の整数として読めない値は無視して既定に落とす(打ち間違いで黙るより既定で動く)。 */
@@ -96,6 +110,7 @@ export function readAiConfig(
     apiKey,
     maxTokensParam: resolveMaxTokensParam(model, env("AI_MAX_TOKENS_PARAM")),
     maxTokens: resolveMaxTokens(env("AI_MAX_TOKENS")),
+    timeoutMs: resolveTimeoutMs(env("AI_TIMEOUT_MS")),
   };
 }
 
@@ -116,7 +131,7 @@ export function createAiCaller(
 ): AiCaller {
   return async (system: string, user: string, userHash?: string) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs ?? AI_TIMEOUT_MS);
     try {
       return config.provider === "anthropic"
         ? await callAnthropic(config, system, user, fetchImpl, controller.signal, userHash)

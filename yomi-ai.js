@@ -27,7 +27,9 @@
 
   var CONSENT_KEY = "teiyomi_yomi_ai_consent_v1_" + AI_PROVIDER_ID;
   var FUNCTION_URL = "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/yomi-review";
-  var TIMEOUT_MS = 20000;   // サーバーは15秒で諦めるので、こちらは少し長く待つ
+  // サーバーはAIを45秒まで待つ(2026-09-17 に15秒から延長)。こちらはそれより長く待ち、
+  // サーバーが諦めたときの「混み合っています」を受け取れるようにする
+  var TIMEOUT_MS = 60000;
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -135,6 +137,10 @@
     limit_premium: "本日ぶんの3回を使い切りました。明朝また使えます。",
     // 匿名アカウント全体の1日上限(サーバーの code: anon_limit)
     anon_limit: "本日のお試し枠が上限に達しました。",
+    // AIが返せなかった・待ちきれなかった(サーバーの blocked / ai_unavailable / 5xx、こちらの待ち切れ)。
+    // もう一度押せば通ることが多く、回数は消費していない
+    busy: "AIの応答が混み合っています。少し待ってからもう一度お試しください。",
+    retry_note: "回数は消費されません。",
     blocked: "講評を生成できませんでした。回数は消費していません。",
     ai_unavailable: "いまAI講評を使えません。時間をおいて試してください。",
     bad_request: "この答案の形では送れませんでした。",
@@ -199,10 +205,17 @@
           if (res.status === 401 || res.status === 403) {
             return { ok: false, message: MSG.unauthorized };
           }
+          // AIの側で返せなかった(応答なし・出力フィルタ・設定なし・想定外)。回数は消費していないので、
+          // もう一度押せるようにする
+          if (res.status >= 500 || b.code === "blocked" || b.code === "ai_unavailable") {
+            return { ok: false, retry: true, message: MSG.busy };
+          }
           return { ok: false, message: MSG[b.code] || MSG.ai_unavailable };
         });
-      }).catch(function () {
-        return { ok: false, message: MSG.network };
+      }).catch(function (e) {
+        // 60秒待っても返らなかった(こちらで打ち切った)ときも「混み合っています」
+        if (e && e.name === "AbortError") return { ok: false, retry: true, message: MSG.busy };
+        return { ok: false, retry: true, message: MSG.network };
       });
     },
 

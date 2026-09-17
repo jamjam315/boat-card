@@ -85,3 +85,28 @@ test("ひとりぶんの上限は、これまでどおり無料/プレミアム�
   assert.strictEqual((await loadWith(429, { ok: false, code: "limit", premium: true }).generate(P)).message,
     "本日ぶんの3回を使い切りました。明朝また使えます。");
 });
+
+test("AIの側で返せなかったときは「混み合っています」+もう一度(回数は消費されない)", async () => {
+  const busy = "AIの応答が混み合っています。少し待ってからもう一度お試しください。";
+  for (const [status, body] of [[502, { ok: false, code: "blocked", kind: "empty" }], [503, { ok: false, code: "ai_unavailable" }], [500, {}]]) {
+    const r = await loadWith(status, body).generate(P);
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(r.retry, true, `${status} はもう一度押せる`);
+    assert.strictEqual(r.message, busy);
+  }
+  assert.strictEqual(load().MSG.retry_note, "回数は消費されません。");
+  // 形が崩れている(400)・ログインが要る(401)・回数の上限(429)は、もう一度押しても同じなので出さない
+  for (const [status, body] of [[400, { ok: false, code: "bad_request" }], [401, {}], [429, { ok: false, code: "limit" }]]) {
+    assert.ok(!(await loadWith(status, body).generate(P)).retry, `${status} はもう一度を出さない`);
+  }
+});
+
+test("60秒待っても返らなかったときも「混み合っています」+もう一度", async () => {
+  const win = { localStorage: { getItem: () => null, setItem() {} }, TeiyomiAuth: { getAccessToken: () => Promise.resolve("token") } };
+  const fetch = () => Promise.reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+  vm.runInNewContext(SRC, { window: win, localStorage: win.localStorage, fetch, setTimeout, clearTimeout, AbortController });
+  const r = await win.TeiyomiYomiAi.generate(P);
+  assert.strictEqual(r.retry, true);
+  assert.strictEqual(r.message, "AIの応答が混み合っています。少し待ってからもう一度お試しください。");
+  assert.ok(/var TIMEOUT_MS = 60000;/.test(SRC), "ブラウザは60秒待つ");
+});
