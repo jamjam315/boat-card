@@ -1,6 +1,7 @@
-// 読み採点の答案ページ(yomi.html)が、変更の前後で1ピクセルも変わらないかを確かめる手元用の道具。
-// AI-14 v1②(答案の描画の部品化)で作り、212枚の一致を確かめた。今日の一問(v1④)などで
-// 答案の部品(yomi-paper.js / yomi-paper.css)や yomi.html を触るときに使う。CIでは回さない。
+// 読み採点の答案ページ(yomi.html)と、レースページの記録欄(yomi-race.js)が、変更の前後で
+// 1ピクセルも変わらないかを確かめる手元用の道具。CIでは回さない。
+// AI-14 v1②(答案の描画の部品化)で作り、v1④(記録欄の部品化)でレースページの記録欄を足した。
+// 答案の部品(yomi-paper.js / yomi-paper.css)・yomi.html・記録欄(yomi-race.js)を触るときに使う。
 //
 //   node tools/pixel-diff-yomi.mjs            作業ツリー と HEAD を比べる
 //   node tools/pixel-diff-yomi.mjs <ref>      作業ツリー と <ref>(コミット・ブランチ)を比べる
@@ -15,6 +16,8 @@
 // - 答案の元データは tests/fixtures/yomi-engine-races.json(実レース7本)を yomi.js で採点して作る。
 //   実レース42答案に、採点待ち・タグ・スナップショット無し・AI講評あり/報告済み/報告フォーム/
 //   同意画面・結果なし混在・記録なし・点外の数字を開く・つづきにフォーカス、を足した53通り
+// - レースページの記録欄は、race/ にあるいちばん新しい日の最初のページで、閉じた欄・開いた欄・
+//   券種と艇と金額を選んだ欄・記録した直後・出所タグ2種の内訳・締切後・上限エラーの7通り
 //
 // 【使うときの作法】
 // 1. まず `same` で全部一致することを確かめる(比べ方そのものが安定しているか)
@@ -36,7 +39,7 @@ const ARG = process.argv[2] || "HEAD";
 const SAME = ARG === "same";
 const REF = SAME ? "HEAD" : ARG;
 // git の <ref> から配るファイル。答案ページの見た目を決めるものを足していく
-const COMPARE_FILES = new Set(["yomi.html", "yomi-paper.js", "yomi-paper.css"]);
+const COMPARE_FILES = new Set(["yomi.html", "yomi-paper.js", "yomi-paper.css", "yomi-race.js"]);
 const CHROME = process.env.CHROME || [
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -122,6 +125,35 @@ scenarios.push({ id: "empty", key: "2026-01-01:桐生:1", tag: "", records: [], 
 scenarios.push({ id: "details-open", key: R0.key, tag: "", records: scored(R0, [["3連単", [1, 3, 2], 100]]), snaps: snap0, action: "document.querySelector('details.p-out') && (document.querySelector('details.p-out').open = true)" });
 scenarios.push({ id: "next-focus", key: R0.key, tag: "", records: scored(R0, [["3連単", [1, 3, 2], 100]]), snaps: snap0, action: "document.querySelector('#nextBt') && document.querySelector('#nextBt').focus()" });
 
+// ---- レースページの記録欄 ----
+{
+  const raceRoot = path.join(REPO, "race");
+  const day = fs.existsSync(raceRoot) ? fs.readdirSync(raceRoot).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().pop() : null;
+  const venue = day ? fs.readdirSync(path.join(raceRoot, day)).sort()[0] : null;
+  if (day && venue) {
+    const url = `/race/${day}/${venue}/1R.html`;
+    const html = fs.readFileSync(path.join(raceRoot, day, venue, "1R.html"), "utf8");
+    const snap = JSON.parse(/id="raceSnapshot">([\s\S]*?)<\/script>/.exec(html)[1].split("<\\/").join("</"));
+    const before = `${day}T00:05:00.000+09:00`;              // その日の締切より前
+    const after = new Date(Date.parse(before) + 2 * 86400000).toISOString();  // 締切後
+    const rec = (i, tag, ken = "3連単", lanes = [1, 2, 3]) => ({ key: snap.key, ken, lanes, amount: 100 * (i + 1), tag, id: "r" + i, at: before });
+    const ACT = (body) => `(async () => { const w = (ms) => new Promise((r) => setTimeout(r, ms)); const $ = (s) => document.querySelector(s); ${body} })()`;
+    const openForm = "$('#yOpen').click(); await w(80);";
+    scenarios.push({ id: "race:closed-button", url, now: before, records: [], snaps: {} });
+    scenarios.push({ id: "race:open-form", url, now: before, records: [], snaps: {}, action: ACT(openForm) });
+    scenarios.push({ id: "race:picked", url, now: before, records: [], snaps: {}, action: ACT(openForm +
+      "$('.ychip[data-ken=\"2連単\"]').click(); await w(50); $('.ylane[data-lane=\"2\"]').click(); $('.ylane[data-lane=\"1\"]').click(); await w(50);" +
+      "$('#yTag').value = '展示重視'; $('.yq[data-amt=\"500\"]').click(); await w(50);") });
+    scenarios.push({ id: "race:saved", url, now: before, records: [], snaps: {}, action: ACT(openForm +
+      "[3,1,2].forEach((n) => $(`.ylane[data-lane=\"${n}\"]`).click()); await w(50); $('#ySave').click(); await w(80); $('#yOpen').click(); await w(80);") });
+    scenarios.push({ id: "race:tags", url, now: before, records: [rec(0, ""), rec(1, "1号艇軸", "2連複", [1, 2]), rec(2, "1号艇軸", "単勝", [4])], snaps: { [snap.key]: snap } });
+    scenarios.push({ id: "race:after-deadline", url, now: after, records: [rec(0, ""), rec(1, "展示重視", "3連複", [1, 3, 5])], snaps: { [snap.key]: snap } });
+    scenarios.push({ id: "race:too-many", url, now: before, snaps: { [snap.key]: snap },
+      records: Array.from({ length: 30 }, (_, i) => ({ ...rec(i, ""), amount: 100 })),
+      action: ACT(openForm + "[1,2,3].forEach((n) => $(`.ylane[data-lane=\"${n}\"]`).click()); await w(50); $('#ySave').click(); await w(80);") });
+  }
+}
+
 // ---- Chrome(CDP) ----
 const PORT = 9333;
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "teiyomi-pxdiff-profile-"));
@@ -156,7 +188,7 @@ async function shoot(base, sc, view, scheme) {
   await send("Emulation.setDeviceMetricsOverride", { width: view.w, height: 900, deviceScaleFactor: 1, mobile: view.mobile });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
   const seed = `(() => {
-    const F = Date.parse(${JSON.stringify(NOW)}); const D = Date;
+    const F = Date.parse(${JSON.stringify(sc.now || NOW)}); const D = Date;
     class FD extends D { constructor(...a) { super(...(a.length ? a : [F])); } static now() { return F; } }
     window.Date = FD;
     try { localStorage.clear();
@@ -165,12 +197,13 @@ async function shoot(base, sc, view, scheme) {
   })();`;
   const { identifier } = await send("Page.addScriptToEvaluateOnNewDocument", { source: seed });
   const loaded = once("Page.loadEventFired");
-  await send("Page.navigate", { url: `${base}/yomi.html?key=${encodeURIComponent(sc.key)}&tag=${encodeURIComponent(sc.tag)}` });
+  const page = sc.url || `/yomi.html?key=${encodeURIComponent(sc.key)}&tag=${encodeURIComponent(sc.tag)}`;
+  await send("Page.navigate", { url: base + page });
   await loaded;
   await send("Page.removeScriptToEvaluateOnNewDocument", { identifier });
   await send("Runtime.evaluate", { expression: "document.fonts.ready.then(() => 1)", awaitPromise: true });
   await sleep(250);
-  if (sc.action) { await send("Runtime.evaluate", { expression: sc.action }); await sleep(250); }
+  if (sc.action) { await send("Runtime.evaluate", { expression: sc.action, awaitPromise: true }); await sleep(250); }
   const { cssContentSize } = await send("Page.getLayoutMetrics");
   const h = Math.ceil(cssContentSize.height);
   await send("Emulation.setDeviceMetricsOverride", { width: view.w, height: h, deviceScaleFactor: 1, mobile: view.mobile });

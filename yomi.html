@@ -80,10 +80,10 @@ body{background:var(--bg); color:var(--ink);
      max-age=600 を返すので、HTMLだけ新しくJSが古い、という食い違いが
      10分間起こりうる(実機で講評が出なかったのがこれ)。HTMLとJSの版を
      URLで結びつけて、必ず対になったものが読まれるようにする。
-     ★yomi.js / yomi-race.js / yomi-ai.js を変えたら、この数字を3か所すべて
-       上げること (yomi.html / mypage.html / build_race_pages.py)
+     ★yomi.js / yomi-race.js / yomi-ai.js を変えたら、この数字を4か所すべて
+       上げること (yomi.html / mypage.html / build_race_pages.py / quiz.html)
      ★答案の描画 yomi-paper.js / yomi-paper.css を変えたら、それを読んでいるページ
-       (いまは yomi.html だけ)の数字を上げること
+       (yomi.html と quiz.html)の数字を上げること
      ★一度使った番号は、たとえ公開前に取り消しても二度と使わない。
        v=6 は作業中に一度当てて戻したため、その中身をキャッシュした
        ブラウザが存在する。同じ番号で別の中身を配ると、そのブラウザには

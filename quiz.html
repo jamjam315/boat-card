@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 【CSP】レースページ・答案ページと同じ許可。AI講評(ログイン確認とEdge Function)で Supabase に出る。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>今日の一問｜艇読み</title>
+<meta name="description" content="過去に実際にあったボートレースを1日1問。番組表の数字を読んで買い目を記録し、結果と読み採点の答案で振り返る練習です。予想印は出していません。">
+<link rel="canonical" href="https://teiyomi.com/quiz.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://teiyomi.com/quiz.html">
+<meta property="og:title" content="今日の一問｜艇読み">
+<meta property="og:description" content="過去に実際にあったボートレースを1日1問。番組表の数字を読んで買い目を記録し、結果と答案で振り返る練習です。">
+<meta property="og:image" content="https://teiyomi.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://teiyomi.com/og-image.png">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f2a33">
+<link rel="stylesheet" href="/theme.css">
+<script src="/theme.js"></script>
+<!-- iOSアプリの中でだけ働く(出典リンクを文字にする等)。ブラウザでは何もしない。 -->
+<script src="/ios.js"></script>
+<!-- 出走表・記録欄の見た目はレースページと同じ(race.css)、答案とつづきは部品の見た目(yomi-paper.css)。 -->
+<link rel="stylesheet" href="/race.css">
+<link rel="stylesheet" href="/yomi-paper.css?v=1">
+<style>
+.q-intro{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:12px 16px; margin-bottom:14px; font-size:13px; color:var(--ink2); line-height:1.8;}
+.q-intro b{color:var(--ink);}
+.q-wx{padding:10px 18px; border-bottom:1px solid var(--line); font-size:13px;}
+.q-k{font-size:11.5px; color:var(--muted);}
+.q-note{margin:4px 0 0; font-size:11.5px; color:var(--muted);}
+.q-exm{white-space:nowrap;}
+.q-start{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px;}
+.q-go{display:block; width:100%; padding:14px; font-size:16px; font-weight:700; letter-spacing:.08em;
+  color:var(--on-accent); background:var(--accent); border:none; border-radius:10px; cursor:pointer;}
+.q-go:disabled{opacity:.45; cursor:default;}
+.q-start-note{margin:8px 0 0; font-size:12px; color:var(--muted); line-height:1.7;}
+.q-replay{margin-top:12px;}
+.q-result{margin-top:14px;}
+.q-order{list-style:none; margin:0; padding:10px 18px 4px;}
+.q-order li{display:flex; align-items:center; gap:10px; padding:5px 0; font-size:14px;}
+.q-rank{width:2.4em; font-size:12.5px; color:var(--muted);}
+.q-lane{display:inline-flex; width:24px; height:24px; border-radius:6px; align-items:center; justify-content:center;
+  font-size:13px; font-weight:700; box-shadow:inset 0 0 0 1px var(--line);}
+.q-nm{font-weight:600;}
+.q-meta{margin:0; padding:4px 18px 14px; font-size:12.5px; color:var(--ink2); line-height:1.8;}
+.q-paper{margin-top:14px;}
+.q-empty p{margin:0; padding:16px 18px; font-size:13.5px; color:var(--ink2);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <div class="lanes" aria-hidden="true">
+        <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
+        <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
+      </div>
+      <div><h1>今日の一問</h1><p>艇読み — 過去のレースで読む練習</p></div>
+    </div>
+    <div class="datepill nums" id="quizDate"></div>
+  </header>
+  <p class="back"><a href="/index.html">← トップ（今日の出走表）に戻る</a></p>
+
+  <div class="q-intro">過去に実際にあったレースです。<b>番組表の数字を読んで買い目を記録し、「スタート」で結果と答案を見ます。</b>
+    レースの日付は、結果のところで出ます。予想印は出していません。</div>
+
+  <div id="quizApp">
+    <div id="quizQuestion"></div>
+    <div id="quizStage" hidden>
+      <section class="ybox" id="quizRecord"></section>
+      <section class="q-start" id="quizStart">
+        <button type="button" class="q-go" id="quizGo" disabled>スタート</button>
+        <p class="q-start-note">記録した買い目で、このレースの結果と答案を見ます。スタートを押すと、この問題の記録は締め切られます。</p>
+      </section>
+      <!-- ⑤ ドット再生の置き場所 -->
+      <div class="q-replay" id="quizReplay" hidden></div>
+      <div id="quizResult"></div>
+      <div class="q-paper"><div id="paper"></div><div id="next"></div></div>
+    </div>
+  </div>
+
+  <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
+</div>
+
+<!-- 読み込み順: 答案の部品・AI講評・つづきが使うもの → 採点エンジン → 記録欄 → AI講評 → 答案の部品 → このページ。
+     ★yomi.js / yomi-race.js / yomi-ai.js / yomi-paper.* / quiz.js を変えたら、ここの ?v= も上げること -->
+<script src="/twa.js"></script>
+<script src="/favorites.js"></script>
+<script src="/membership.js"></script>
+<script src="/alerts.js"></script>
+<script src="/yomi.js?v=14"></script>
+<script src="/yomi-race.js?v=12"></script>
+<script src="/yomi-ai.js?v=13"></script>
+<script src="/yomi-paper.js?v=1"></script>
+<script src="/quiz.js?v=1"></script>
+</body>
+</html>
