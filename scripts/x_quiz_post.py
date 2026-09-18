@@ -4,14 +4,16 @@
 
   python scripts/x_quiz_post.py [--dry-run] [--preview] [--today YYYY-MM-DD]
 
-【本文に入れるもの・入れないもの】(2026-09-16 JAM)
-  入れる … 会場・レース番号・種別と距離・気象(レース時点の値)・6艇の艇番と選手名と級別・ページへのリンク
+【本文に入れるもの・入れないもの】(2026-09-16 JAM・文面は 2026-09-19 の確定稿)
+  入れる … 会場・レース番号・種別と距離・気象(レース時点の値)・6艇の艇番と選手名と級別
+  リンクは本文に入れず、返信1件で付ける(「今日の一問 → URL」・殿堂ウォッチと同じ形)
   入れない … レースの日付(ページでも結果のところまで伏せている)・着順・払戻・決まり手など答えの側のもの
   予想印も入れない(サイトと同じ)。購入を促す言い方もしない。
 出題ファイルの question だけを読み、answer には触れない(答えを本文に混ぜる経路を作らない)。
 
 【事故を構造で防ぐ】(x_kyusoku_watch.py と同じ作法)
-  - 投稿は x_post.post() 経由。1実行1投稿・リトライ無し・失敗は非0終了
+  - 投稿は x_post.post_thread() 経由。本文1件+返信1件・リトライ無し・本文の失敗は非0終了
+    (返信だけ失敗したときは本文を二重に出さないよう0で終わる。x_post の説明のとおり)
   - 同じ日に2回は投稿しない(x_state/quiz_state.json の last_posted_date)
   - 今日の出題ファイルが無い・崩れている日は投稿しない(非0で終わって気づけるようにする。
     リンク先が「準備しています」のまま投稿すると、押した人が何も遊べない)
@@ -39,6 +41,8 @@ QUIZ_DIR = os.path.join(REPO, "quiz")
 STATE_PATH = os.path.join(REPO, "x_state", "quiz_state.json")
 URL = "https://teiyomi.com/quiz.html"
 TAGS = "#ボートレース #競艇"
+LEAD = "過去に実際にあったレースです。番組表を読んで買い目を記録すると、スタートで結果と答案が出ます。"
+REPLY = "今日の一問 → " + URL
 
 
 def load_question(path):
@@ -103,8 +107,7 @@ def build(Q, with_wx=True, with_class=True):
     if w:
         lines.append(w)
     lines += boat_lines(Q, with_class)
-    lines.append("過去に実際にあったレースです。番組表を読んで買い目を記録→スタートで結果と答案。")
-    lines.append(URL)
+    lines.append(LEAD)
     lines.append(TAGS)
     return "\n".join(lines)
 
@@ -155,6 +158,8 @@ def main():
     if a.preview:
         print(f"[quiz-x] {today} の本文(文字数 {x_post.weighted_len(text)}/{x_post.MAX_WEIGHTED}・全角=2)")
         print(text)
+        print(f"[quiz-x] 返信(文字数 {x_post.weighted_len(REPLY)}/{x_post.MAX_WEIGHTED})")
+        print(REPLY)
         return
 
     state = load_state(a.state)
@@ -162,7 +167,7 @@ def main():
         print(f"[quiz-x] 今日({today})はすでに投稿済みのため投稿しません。")
         return
 
-    x_post.post(text, dry_run=a.dry_run)
+    x_post.post_thread(text, REPLY, dry_run=a.dry_run)
     if not a.dry_run:
         state["last_posted_date"] = today
         save_state(state, a.state)
