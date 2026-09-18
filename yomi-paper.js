@@ -12,6 +12,12 @@
   "use strict";
   function esc(s){ return String(s == null ? "" : s)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+  // 金額・払戻・波高・着順は、数だと確かめてから HTML に入れる(2026-09-18 点検 低3)。
+  // 記録は端末の保存領域、払戻は公開JSONから来る。書き換えられて文字が入っていても、
+  // タグとして読ませない。数でなければ「—」。数のときの見た目はそれまでと同じ。
+  function isNum(v){ return typeof v === "number" && isFinite(v); }
+  function plain(v){ return isNum(v) ? String(v) : "—"; }
+  function loc(v){ return isNum(v) ? v.toLocaleString() : "—"; }
 
   /**
    * 答案を描く。
@@ -35,7 +41,7 @@
       : part[0] + '　' + part[1] + ' ' + part[2] + 'R' + (p.tag ? '　/　' + p.tag : '');
     var res = p.result;
     var yomi = p.yomi;
-    var yen = function(n){ return (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString(); };
+    var yen = function(n){ return isNum(n) ? (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString() : "—"; };
     var MAXY = TeiyomiYomi.MAX_YOMI_PT, MAXR = TeiyomiYomi.MAX_RESULT_PT;
 
     // ---- 1. 紙のヘッダー帯 ----
@@ -59,7 +65,7 @@
         '<p class="p-meta" style="margin:0">' +
           (p.tag ? '<span class="p-tag">' + esc(p.tag) + '</span>' : '') +
           '記録 ' + p.records.length + '点 ／ 投入 ' +
-          p.records.reduce(function(s,r){ return s + r.amount; }, 0).toLocaleString() + '円</p>' +
+          loc(p.records.reduce(function(s,r){ return s + (isNum(r.amount) ? r.amount : 0); }, 0)) + '円</p>' +
         '<p class="p-note">レースの結果が確定してから採点します（翌朝までに埋まります）。' +
         '結果が出る前に点や講評を出すと、買い目への評価＝予想になってしまうため、' +
         'ここでは何も出していません。</p></div>' +
@@ -70,7 +76,7 @@
         p.records.map(function(r){
           return '<tr><td>' + esc(r.ken) + '</td>' +
             '<td class="p-bet nums">' + esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</td>' +
-            '<td class="amt nums">' + r.amount + '円</td></tr>';
+            '<td class="amt nums">' + plain(r.amount) + '円</td></tr>';
         }).join("") + '</table>';
       html += paperFoot();
       box.innerHTML = html + '</article>';
@@ -84,7 +90,7 @@
       bar("読み", yp, MAXY) + bar("結果", rp, MAXR) +
       '<p class="p-meta">' + (p.tag ? '<span class="p-tag">' + esc(p.tag) + '</span>' : '') +
         '自動採点（' + esc(TeiyomiYomi.YOMI_VERSION) + '）</p></div>' +
-      '<div class="p-big"><span class="n nums">' + total + '</span>' +
+      '<div class="p-big"><span class="n nums">' + plain(total) + '</span>' +
       '<span class="of">100点満点</span></div></div>';
 
     if(res.status === "void"){
@@ -172,24 +178,24 @@
         return '<tr><td>' + esc(r.ken) + '</td>' +
           '<td><span class="p-bet nums' + (s && !hit && s.st === "miss" ? ' lose' : '') + '">' +
             esc(TeiyomiYomi.betText(r.ken, r.lanes)) + '</span> ' + badge + '</td>' +
-          '<td class="amt nums">' + r.amount + '円</td>' +
+          '<td class="amt nums">' + plain(r.amount) + '円</td>' +
           '<td class="nums' + (hit ? ' p-pay' : ' amt') + '">' +
-            (hit ? s.yen.toLocaleString() + '円' : '—') + '</td></tr>';
+            (hit ? loc(s.yen) + '円' : '—') + '</td></tr>';
       }).join("") + '</table>';
     if(res.status === "hit" || res.status === "miss"){
       html += '<div class="p-sum">' +
-        '<div class="p-cell"><span>投入</span><b class="nums">' + res.bet.toLocaleString() + '</b></div>' +
-        '<div class="p-cell"><span>払戻</span><b class="nums">' + res.yen.toLocaleString() + '</b></div>' +
+        '<div class="p-cell"><span>投入</span><b class="nums">' + loc(res.bet) + '</b></div>' +
+        '<div class="p-cell"><span>払戻</span><b class="nums">' + loc(res.yen) + '</b></div>' +
         '<div class="p-cell"><span>収支</span><b class="nums">' + yen(res.profit) + '</b></div>' +
-        '<div class="p-cell roi"><span>回収率</span><b class="nums">' + res.roi + '%</b></div></div>';
+        '<div class="p-cell roi"><span>回収率</span><b class="nums">' + plain(res.roi) + '%</b></div></div>';
     }
 
     // ---- 6. 当日のようす ----
     var s0 = p.records[0].score;
     html += '<div class="p-day">';
     if(s0 && s0.wave != null){
-      html += '<span class="k">当日のようす</span>　<span class="nums">波高 ' + s0.wave + 'cm' +
-        (s0.top3 ? '　／　着順 ' + s0.top3.join("-") : '') + '</span>' +
+      html += '<span class="k">当日のようす</span>　<span class="nums">波高 ' + plain(s0.wave) + 'cm' +
+        (s0.top3 ? '　／　着順 ' + (Array.isArray(s0.top3) ? s0.top3.map(plain).join("-") : "—") : '') + '</span>' +
         (s0.kimarite ? '　／　' + esc(s0.kimarite) : '') +
         '<p class="p-note">記録した時に見えていた直前情報とのズレは、次の段階（講評）で扱います。</p>';
     } else {

@@ -38,6 +38,14 @@ test("問題と答えが分かれ、問題にレースの日付・締切・レ�
     assert.ok(!JSON.stringify(Q).includes(q.answer.date), `${file} の問題にレースの日付の文字列`);
     assert.ok(typeof Q.venue === "string" && Q.no >= 1 && Q.no <= 12, file);
     assert.deepStrictEqual(Object.keys(Q.wx).sort(), ["天候", "波高", "風向", "風速"].sort(), file);
+    // 波高・風速は数(無ければ null)、天候・風向は文字(無ければ null)。数の欄に文字が入っていないこと
+    // (画面は数だと確かめてから出すが、出題の段階でも崩れを止める・2026-09-18 点検 低3)
+    for (const k of ["波高", "風速"]) {
+      assert.ok(Q.wx[k] === null || (typeof Q.wx[k] === "number" && Number.isFinite(Q.wx[k])), `${file} wx.${k}`);
+    }
+    for (const k of ["天候", "風向"]) {
+      assert.ok(Q.wx[k] === null || typeof Q.wx[k] === "string", `${file} wx.${k}`);
+    }
     assert.deepStrictEqual(Q.boats.map((b) => b.n), [1, 2, 3, 4, 5, 6], file);
     for (const b of Q.boats) {
       assert.ok(typeof b.ex === "number" && b.ex > 5 && b.ex < 9, `${file} ${b.n}号艇の展示タイム`);

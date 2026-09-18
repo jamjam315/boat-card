@@ -939,7 +939,10 @@
 
     /** これまでに使った出所タグを、よく使う順に返す(入力候補にする)。 */
     tags: function () {
-      var c = {};
+      // 出所タグは利用者が入れた文字なので、数える入れ物は素の辞書(Object.create(null))にする。
+      // {} だと "__proto__" や "constructor" というタグで、入れ物の元(Object.prototype)を
+      // 触ったり、関数を数に足したりしてしまう(2026-09-18 点検 低2)。
+      var c = Object.create(null);
       readAll().forEach(function (r) {
         if (r.tag) c[r.tag] = (c[r.tag] || 0) + 1;
       });
@@ -1063,7 +1066,7 @@
 
     /** そのレースの記録数を、出所タグごとに数える。 */
     countByTag: function (key) {
-      var c = {};
+      var c = Object.create(null);   // タグで数える入れ物は素の辞書(tags() と同じ理由)
       readAll().forEach(function (r) {
         if (r.key !== key) return;
         var t = r.tag || "";
@@ -1222,7 +1225,8 @@
         a.avgPt = a.ptn > 0 ? Math.round(a.pt / a.ptn * 10) / 10 : null;
         return a;
       }
-      var out = { all: blank(), byTag: {}, byKen: {}, since: since, days: days };
+      // byTag / byKen は素の辞書。"__proto__" というタグで Object.prototype に数を足さないように(tags() と同じ理由)
+      var out = { all: blank(), byTag: Object.create(null), byKen: Object.create(null), since: since, days: days };
       readAll().forEach(function (r) {
         if (r.key.split(":")[0] < since) return;      // 窓の外は集計しない
         var s = r.score;

@@ -279,7 +279,7 @@ body{background:var(--bg); color:var(--ink);
      URLで結びつけて、必ず対になったものが読まれるようにする。
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
-<script src="yomi.js?v=14"></script>
+<script src="yomi.js?v=15"></script>
 <script>
 (function(){
 "use strict";
@@ -1136,21 +1136,29 @@ function fetchYomiScores(){
   });
 }
 
+// 読み採点の件数・金額・点は、数だと確かめてから HTML に入れる(2026-09-18 点検 低3・yomi-paper.js と同じ)。
+// 記録は端末の保存領域、払戻は公開JSONから来る。文字が紛れ込んでもタグとして読ませない。
+// 数でなければ「—」。数のときの見た目はそれまでと同じ。
+const ymNum = v => typeof v === "number" && isFinite(v);
+const ymPlain = v => ymNum(v) ? String(v) : "—";
+const ymLoc = v => ymNum(v) ? v.toLocaleString() : "—";
+const ymYen = n => ymNum(n) ? (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString() : "—";
+
 function yomiSummaryHtml(s){
   if(!s.all.n) return "";
-  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
-  const pct = v => v == null ? "—" : v + "%";
+  const yen = ymYen;
+  const pct = v => ymNum(v) ? v + "%" : "—";
   const rows = (obj, head) => {
     const ks = Object.keys(obj);
     if(ks.length < 2) return "";   // 1種類しか無いときは全体と同じなので出さない
     return `<p class="ym-sub">${head}</p><table class="ym-brk">
       <tr><th>&nbsp;</th><th>件</th><th>的中率</th><th>回収率</th><th>収支</th></tr>` +
-      ks.map(k=>`<tr><td>${esc(k)}</td><td>${obj[k].n}</td><td>${pct(obj[k].hitRate)}</td>
+      ks.map(k=>`<tr><td>${esc(k)}</td><td>${ymPlain(obj[k].n)}</td><td>${pct(obj[k].hitRate)}</td>
         <td>${pct(obj[k].roi)}</td><td>${yen(obj[k].profit)}円</td></tr>`).join("") + `</table>`;
   };
   return `<div class="authbox">
     <div class="ym-sum">
-      <div class="ym-cell"><b>${s.all.n}</b><span>記録</span></div>
+      <div class="ym-cell"><b>${ymPlain(s.all.n)}</b><span>記録</span></div>
       <div class="ym-cell"><b>${pct(s.all.hitRate)}</b><span>的中率</span></div>
       <div class="ym-cell"><b>${pct(s.all.roi)}</b><span>回収率</span></div>
       <div class="ym-cell"><b>${yen(s.all.profit)}</b><span>収支(円)</span></div>
@@ -1171,14 +1179,14 @@ function yomiScoreHtml(r){
   // 取得を諦めたものは言い分ける。
   if(s.st === "nodata") return `<span class="ym-wait">結果を取得できませんでした</span>`;
   if(s.st === "void") return `<span class="ym-void">${s.refund ? "返還（欠場など）" : "不成立（返還）"}</span>`;
-  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
+  const yen = ymYen;
   const top = (s.top3 || []).join("-");
   return `<span>${esc(top)}${s.kimarite ? "／" + esc(s.kimarite) : ""}</span>` +
     (s.st === "hit"
-      ? `<span class="ym-hit">的中</span><span>払戻 ${s.yen.toLocaleString()}円</span>
+      ? `<span class="ym-hit">的中</span><span>払戻 ${ymLoc(s.yen)}円</span>
          <span class="ym-plus">${yen(s.profit)}円</span>`
       : `<span class="ym-miss">不的中</span><span class="ym-minus">${yen(s.profit)}円</span>`) +
-    `<span class="ym-pt">結果 ${s.pt}/${TeiyomiYomi.MAX_RESULT_PT}　読み —（Phase2）</span>`;
+    `<span class="ym-pt">結果 ${ymPlain(s.pt)}/${TeiyomiYomi.MAX_RESULT_PT}　読み —（Phase2）</span>`;
 }
 
 function renderYomiBox(){
@@ -1214,7 +1222,7 @@ function renderYomiBox(){
     const yomi = paper.yomi;
     const url = `yomi.html?key=${encodeURIComponent(pp.key)}&tag=${encodeURIComponent(pp.tag)}`;
     const pts = paper.settled
-      ? `<span class="ym-pt nums">読み ${yomi ? yomi.pt : "—"}／結果 ${res.pt == null ? "—" : res.pt}</span>`
+      ? `<span class="ym-pt nums">読み ${yomi ? ymPlain(yomi.pt) : "—"}／結果 ${ymPlain(res.pt)}</span>`
       : "";
     return `<div class="ym-row" data-key="${esc(pp.key)}" data-tag="${esc(pp.tag)}">
       <p class="ym-head">${esc(p[0])}　${esc(p[1])} ${esc(p[2])}R
@@ -1244,9 +1252,9 @@ function renderYomiBox(){
 function yomiPaperHtml(res){
   if(res.status === "pending") return `<span class="ym-wait">採点待ち（翌朝に結果が出ます）</span>`;
   if(res.status === "void") return `<span class="ym-void">${res.refund ? "返還（欠場など）" : "不成立（返還）"}</span>`;
-  const yen = n => (n >= 0 ? "+" : "−") + Math.abs(n).toLocaleString();
+  const yen = ymYen;
   return res.status === "hit"
-    ? `<span class="ym-hit">的中</span><span>払戻 ${res.yen.toLocaleString()}円</span>
+    ? `<span class="ym-hit">的中</span><span>払戻 ${ymLoc(res.yen)}円</span>
        <span class="ym-plus">${yen(res.profit)}円</span>`
     : `<span class="ym-miss">不的中</span><span class="ym-minus">${yen(res.profit)}円</span>`;
 }

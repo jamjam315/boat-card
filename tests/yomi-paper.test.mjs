@@ -105,3 +105,19 @@ test("今日の一問のように、ヘッダーの表示とつづきの会場�
   assert.ok(!out.paper.includes("2026-09-11"), "日付を伏せられる");
   assert.ok(out.next.includes(encodeURIComponent('"venue":"大村"')));
 });
+
+test("金額・払戻・波高・着順に文字が入っていても、タグとして出さず「—」にする(2026-09-18 点検 低3)", () => {
+  const { key, snapshot, race } = RACES[0];
+  const EVIL = "<img src=x onerror=alert(1)>";
+  // 採点済み(的中)の答案と、採点待ちの答案の両方で、数の欄を文字に書き換える
+  const done = paperOf(key, snapshot, race, [["3連単", race.pay["3連単"][0].c.split("-").map(Number), 100]]);
+  done.records.forEach((r) => { r.amount = EVIL; r.score.yen = EVIL; r.score.wave = EVIL; r.score.top3 = [EVIL, 2, 3]; });
+  Object.assign(done.result, { bet: EVIL, yen: EVIL, profit: EVIL, roi: EVIL });
+  const wait = paperOf(key, snapshot, { ...race, pay: {} }, [["単勝", [1], 100]]);
+  const pending = { ...wait, settled: false, records: wait.records.map((r) => ({ ...r, amount: EVIL, score: null })) };
+  for (const p of [done, pending]) {
+    const html = paperHtml(p).paper;
+    assert.ok(!html.includes("<img"), "文字がタグとして入らない");
+    assert.ok(html.includes("—"), "数でない欄は「—」");
+  }
+});

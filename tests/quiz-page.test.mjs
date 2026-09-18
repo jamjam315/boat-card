@@ -165,3 +165,27 @@ test("開く出題日: ?d= は今日以前だけ", () => {
   assert.ok(Q.isQuiz(QUIZ));
   assert.ok(!Q.isQuiz({ ...QUIZ, question: { ...QUIZ.question, boats: QUIZ.question.boats.slice(0, 5) } }));
 });
+
+test("出所タグが __proto__ や constructor でも、数える入れ物を壊さない(2026-09-18 点検 低2)", () => {
+  const S = load();
+  const d = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);   // JSTの今日(集計の窓に入れる)
+  const key = `${d}:${venue}:${no}`;
+  const TAGS = ["__proto__", "constructor", "toString"];
+  S.localStorage.setItem("teiyomi_yomi_records", JSON.stringify(TAGS.map((tag, i) => ({
+    key, ken: "単勝", lanes: [1], amount: 100, tag, at: `${d}T00:00:0${i}Z`, id: `t${i}`,
+  }))));
+  const Y2 = S.TeiyomiYomi;
+  const c = Y2.countByTag(key);
+  assert.deepStrictEqual(Object.keys(c).sort(), [...TAGS].sort());
+  assert.ok(TAGS.every((t) => c[t] === 1), "どのタグも1件");
+  assert.deepStrictEqual([...Y2.tags()].sort(), [...TAGS].sort());
+  const s = Y2.summary(30);
+  assert.ok(TAGS.every((t) => Object.keys(s.byTag).includes(t) && s.byTag[t].n === 1), "集計もタグごとに1件");
+  assert.strictEqual(vm.runInContext("({}).n", S), undefined, "Object.prototype に数が足されていない");
+
+  const ls = memStorage({ teiyomi_yomi_records: "[]" });
+  const q = S.TeiyomiQuiz.dayStore(ls, "2026-09-17", Y2);
+  assert.ok(q.add({ ken: "単勝", lanes: [1], amount: 100, tag: "__proto__" }).ok);
+  assert.strictEqual(q.countByTag()["__proto__"], 1);
+  assert.ok(q.tags().includes("__proto__"));
+});

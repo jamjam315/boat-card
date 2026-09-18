@@ -39,7 +39,8 @@ const ARG = process.argv[2] || "HEAD";
 const SAME = ARG === "same";
 const REF = SAME ? "HEAD" : ARG;
 // git の <ref> から配るファイル。答案ページの見た目を決めるものを足していく
-const COMPARE_FILES = new Set(["yomi.html", "yomi-paper.js", "yomi-paper.css", "yomi-race.js"]);
+// yomi.js は答案の中身と記録欄の内訳を作るので、ここに入れる(2026-09-18 便Bで足した)
+const COMPARE_FILES = new Set(["yomi.html", "yomi-paper.js", "yomi-paper.css", "yomi-race.js", "yomi.js"]);
 const CHROME = process.env.CHROME || [
   "C:/Program Files/Google/Chrome/Application/chrome.exe",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",

@@ -95,13 +95,13 @@
     return {
       list: records,
       countByTag: function () {
-        var c = {};
+        var c = Object.create(null);   // 出所タグで数える入れ物は素の辞書(yomi.js の tags() と同じ理由)
         records().forEach(function (r) { var t = r.tag || ""; c[t] = (c[t] || 0) + 1; });
         return c;
       },
       /** 出所タグの候補。今日の一問で使ったものと、読み採点で使ったものを合わせる。 */
       tags: function () {
-        var c = {};
+        var c = Object.create(null);
         var all = readAllDays(ls).days;
         Object.keys(all).forEach(function (k) {
           ((all[k] && all[k].records) || []).forEach(function (r) {
