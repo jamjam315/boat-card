@@ -58,7 +58,15 @@ jobs:
         with:
           python-version: '3.12'
       - name: 結果を集めて貯める
-        run: python collect_results.py --days ${{ github.event.inputs.days || '1' }}
+        # 手動実行の入力は式を run に直接埋めない(シェルの文として読まれる)。環境変数で渡し、
+        # 数字だけを通す(2026-09-18 点検 低5)。毎晩の起動では入力が無いので 1。
+        env:
+          DAYS: ${{ github.event.inputs.days || '1' }}
+        run: |
+          case "$DAYS" in
+            ''|*[!0-9]*) echo "days は数字だけを受け付けます"; exit 1 ;;
+          esac
+          python collect_results.py --days "$DAYS"
       - name: コース傾向を計算
         run: python build_stats.py
       - name: 選手のST癖を計算
