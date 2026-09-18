@@ -114,7 +114,8 @@
       var c = (lanes && lanes[b.n]) || ["#888", "#fff"];
       return '<span class="q-rp-dot" data-n="' + b.n + '" style="left:' + X_GOAL + '%;top:' + rowTop(b.rank) +
         'px;background:' + esc(c[0]) + ';color:' + esc(c[1]) + '">' + b.n + '</span>' +
-        '<span class="q-rp-st nums" data-n="' + b.n + '" style="left:' + (X_LINE + 2) + '%;top:' + rowTop(b.course) + 'px">' +
+        // STはラインの手前(左)に出す。出るのはその艇が越えたあとなので、点と重ならない
+        '<span class="q-rp-st nums" data-n="' + b.n + '" style="left:' + (X_LINE - 1.5) + '%;top:' + rowTop(b.course) + 'px">' +
         esc(stText(b.st)) + '</span>';
     }).join("");
     var ranks = "";
