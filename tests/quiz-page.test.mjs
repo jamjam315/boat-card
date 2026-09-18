@@ -189,3 +189,62 @@ test("出所タグが __proto__ や constructor でも、数える入れ物を�
   assert.strictEqual(q.countByTag()["__proto__"], 1);
   assert.ok(q.tags().includes("__proto__"));
 });
+
+// ---------------------------------------------------------------- 持ち点(2026-09-18 便D)
+
+test("持ち点: 1,000円・100円単位・10点まで。超える記録は受け付けず残りを返す", () => {
+  const ls = memStorage({ teiyomi_yomi_records: "[]" });
+  const s = Q.dayStore(ls, "2026-09-17", Y);
+  assert.strictEqual(Q.BUDGET, 1000);
+  assert.strictEqual(Q.MAX_PER_QUIZ, 10);
+  assert.deepStrictEqual(plain(s.budget()), { total: 1000, unit: 100, max: 10, spent: 0, left: 1000, points: 0 });
+  assert.ok(s.add({ ken: "3連単", lanes: [1, 2, 3], amount: 300 }).ok);
+  assert.deepStrictEqual(plain(s.add({ ken: "単勝", lanes: [1], amount: 800 })), { ok: false, reason: "over_budget", left: 700 });
+  assert.strictEqual(plain(s.add({ ken: "単勝", lanes: [1], amount: 150 })).reason, "bad_unit");
+  assert.ok(s.add({ ken: "単勝", lanes: [1], amount: 700 }).ok, "ちょうど1,000円までは受け付ける");
+  assert.deepStrictEqual(plain(s.add({ ken: "単勝", lanes: [2], amount: 100 })), { ok: false, reason: "over_budget", left: 0 });
+  assert.deepStrictEqual(plain(s.budget()), { total: 1000, unit: 100, max: 10, spent: 1000, left: 0, points: 2 });
+  // 消せば戻る
+  assert.ok(s.remove(s.list()[1].id));
+  assert.strictEqual(s.budget().left, 700);
+});
+
+// 記録欄の部品を、DOM の代わりの小さな入れ物で描く(持ち点の行と、持ち点の無いレースページの欄)
+function mountHtml(store, opts) {
+  const S = load();
+  const box = { innerHTML: "", querySelectorAll: () => [] };
+  S.document = { getElementById: () => ({}) };
+  S.TeiyomiYomiRecord.mount(box, store, opts);
+  return box.innerHTML;
+}
+
+test("記録欄: budget のときだけ持ち点の行を出し、金額の3つ目を「残り全部」にする。使い切ったら入口を閉じる", () => {
+  const ls = memStorage({ teiyomi_yomi_records: "[]" });
+  const s = Q.dayStore(ls, "2026-09-17", Y);
+  s.add({ ken: "3連単", lanes: [1, 2, 3], amount: 300 });
+  const on = mountHtml(s, { budget: true });
+  assert.ok(on.includes('<p class="ybudget nums">持ち点 1,000円　使用 300円　<b>残り 700円</b>'));
+  const off = mountHtml(s, {});
+  assert.ok(!off.includes("ybudget"), "budget を渡さなければ持ち点は出ない(レースページと同じ)");
+  s.add({ ken: "単勝", lanes: [1], amount: 700 });
+  const full = mountHtml(s, { budget: true });
+  assert.ok(full.includes("持ち点を使い切りました"));
+  assert.ok(!full.includes('id="yOpen"'), "使い切ったら記録の入口を出さない");
+});
+
+test("答案: budget を渡すと、収支・回収率を持ち点1,000円基準で出す(使わなかったぶんは手元に残る)", () => {
+  const top3 = [1, 2, 3].map((c) => QUIZ.answer.order.indexOf(c) + 1);
+  const p = Q.paperOf(QUIZ, [{ id: "a", at: "x", ken: "3連単", lanes: top3, tag: "", amount: 300 }], null, Y);
+  const paperEl = { innerHTML: "", querySelector: () => null };
+  G.TeiyomiYomiPaper.render({ paperEl, p, when: "今日の一問", budget: 1000 });
+  const html = paperEl.innerHTML;
+  const fin = 1000 - p.result.bet + p.result.yen;
+  assert.strictEqual(p.result.bet, 300);
+  assert.ok(html.includes("<span>使った額</span><b class=\"nums\">300</b>"));
+  assert.ok(html.includes(`回収率</span><b class="nums">${Math.round(fin / 1000 * 1000) / 10}%`), "回収率 = 最後の持ち点 ÷ 1,000");
+  assert.ok(html.includes(`最後の持ち点は ${fin.toLocaleString()}円`));
+  // 渡さなければ、これまでどおり(投入・払戻÷投入)
+  const plainEl = { innerHTML: "", querySelector: () => null };
+  G.TeiyomiYomiPaper.render({ paperEl: plainEl, p, when: "今日の一問" });
+  assert.ok(plainEl.innerHTML.includes("<span>投入</span>") && !plainEl.innerHTML.includes("持ち点"));
+});

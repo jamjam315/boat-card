@@ -12,13 +12,19 @@
 // 実レースの読み採点の記録(teiyomi_yomi_records)とは混ぜない(マイページの成績に入れないため)。
 // AI講評も出題日ごとに残し、開き直しても送り直さない(回数は減らない)。
 //
+// 【持ち点】1問あたり持ち点1,000円・100円単位・10点まで(2026-09-18 便D)。超える記録は受け付けず、
+// 残りを出す。スタートは1点以上で押せる(使い切らなくてよい)。答案の収支・回収率は1,000円基準で、
+// 使わなかったぶんは手元に残る扱い(最後の持ち点 = 1,000 − 使った額 + 払戻、回収率 = 最後の持ち点 ÷ 1,000)。
+//
 // 【スタート】⑤でドット再生を入れる場所。いまは押すとすぐ結果と答案が出る。
 (function () {
   "use strict";
 
   var STORE_KEY = "teiyomi_quiz_v1";
   var KEEP_DAYS = 60;          // 端末に残す出題日の数(古いものから消す)
-  var MAX_PER_QUIZ = 30;       // 1問あたりの買い目の上限(読み採点の1レース×1出所と同じ)
+  var BUDGET = 1000;           // 1問あたりの持ち点(円)
+  var UNIT = 100;              // 記録は100円単位
+  var MAX_PER_QUIZ = 10;       // 1問あたりの買い目の上限(持ち点1,000円 ÷ 100円)
   var JST_MS = 9 * 3600000;
   var LANES = {
     1: ["#ffffff", "#1a1a1a"], 2: ["#2b2b2b", "#ffffff"], 3: ["#d83a36", "#ffffff"],
@@ -91,6 +97,7 @@
         isNum(r.amount) && r.amount > 0 && r.amount <= Y.MAX_AMOUNT;
     }
     function records() { return load().d.records.filter(valid); }
+    function spentOf(list) { return list.reduce(function (s, r) { return s + r.amount; }, 0); }
 
     return {
       list: records,
@@ -113,13 +120,24 @@
         return mine.concat(other);
       },
       isClosed: function () { return !!load().d.revealed; },
+      /** 持ち点。記録欄(opts.budget)と答案(1,000円基準)が使う。 */
+      budget: function () {
+        var list = records(), spent = spentOf(list);
+        return { total: BUDGET, unit: UNIT, max: MAX_PER_QUIZ, spent: spent,
+          left: Math.max(0, BUDGET - spent), points: list.length };
+      },
       add: function (x) {
         var cur = load();
         if (cur.d.revealed) return { ok: false, reason: "closed" };
         if (!Y.isBet(x.ken, x.lanes)) return { ok: false, reason: "bad_bet" };
         var amount = Number(x.amount);
         if (!isFinite(amount) || amount <= 0 || amount > Y.MAX_AMOUNT) return { ok: false, reason: "bad_amount" };
-        if (cur.d.records.length >= MAX_PER_QUIZ) return { ok: false, reason: "too_many_here" };
+        if (amount % UNIT !== 0) return { ok: false, reason: "bad_unit" };
+        var have = cur.d.records.filter(valid);
+        if (have.length >= MAX_PER_QUIZ) return { ok: false, reason: "too_many_here" };
+        // 持ち点を超える記録は受け付けない。残りを返して画面に出させる
+        var left = BUDGET - spentOf(have);
+        if (amount > left) return { ok: false, reason: "over_budget", left: Math.max(0, left) };
         cur.d.records.push({
           id: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 8),
           at: new Date().toISOString(),
@@ -397,6 +415,7 @@
         openLabel: "＋ 買い目を記録",
         closedText: "結果を見たので、この問題の記録は締め切りました。",
         lockWhenClosed: true,
+        budget: true,
         onChange: updateStart
       });
 
@@ -413,7 +432,10 @@
         updateStart();
         document.getElementById("quizResult").innerHTML = resultHtml(q);
         var p = paperOf(q, store.list(), store.ai(), Y);
+        // 収支・回収率は1,000円基準。持ち点が入る前(〜2026-09-18)に1,000円を超えて記録した日は、基準にできないので付けない
+        var b = store.budget();
         PAPER.render({
+          budget: b.spent <= b.total ? b.total : null,
           paperEl: document.getElementById("paper"),
           nextEl: document.getElementById("next"),
           p: p,
@@ -429,7 +451,8 @@
   }
 
   window.TeiyomiQuiz = {
-    STORE_KEY: STORE_KEY, KEEP_DAYS: KEEP_DAYS, MAX_PER_QUIZ: MAX_PER_QUIZ, MEASURED_NOTE: MEASURED_NOTE,
+    STORE_KEY: STORE_KEY, KEEP_DAYS: KEEP_DAYS, MAX_PER_QUIZ: MAX_PER_QUIZ, BUDGET: BUDGET, UNIT: UNIT,
+    MEASURED_NOTE: MEASURED_NOTE,
     esc: esc, todayJst: todayJst, pickDate: pickDate, isQuiz: isQuiz, dayStore: dayStore,
     questionHtml: questionHtml, resultHtml: resultHtml, paperOf: paperOf, headerWhen: headerWhen
   };

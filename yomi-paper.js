@@ -28,6 +28,9 @@
    *   opts.venue    つづきのバックテストに渡す会場名。省略時は p.key から
    *   opts.saveAi(ai)        生成したAI講評 {text, model} を残す。省略時は端末の記録(TeiyomiYomi.setAi)
    *   opts.markAiReported()  AI講評を報告済みにする。省略時は端末の記録(TeiyomiYomi.setAiReported)
+   *   opts.budget   持ち点(円)。渡すと収支・回収率をその額を基準に出す(今日の一問・2026-09-18 便D)。
+   *                 最後の持ち点 = 持ち点 − 使った額 + 払戻(使わなかったぶんは手元に残る)、
+   *                 回収率 = 最後の持ち点 ÷ 持ち点。結果点は変えない(採点は読み採点と同じ)
    */
   function render(opts){
     var box = opts.paperEl;
@@ -182,7 +185,17 @@
           '<td class="nums' + (hit ? ' p-pay' : ' amt') + '">' +
             (hit ? loc(s.yen) + '円' : '—') + '</td></tr>';
       }).join("") + '</table>';
-    if(res.status === "hit" || res.status === "miss"){
+    var B = isNum(opts.budget) && opts.budget > 0 ? opts.budget : null;
+    if(B && (res.status === "hit" || res.status === "miss")){
+      var fin = B - (isNum(res.bet) ? res.bet : 0) + (isNum(res.yen) ? res.yen : 0);
+      html += '<div class="p-sum">' +
+        '<div class="p-cell"><span>使った額</span><b class="nums">' + loc(res.bet) + '</b></div>' +
+        '<div class="p-cell"><span>払戻</span><b class="nums">' + loc(res.yen) + '</b></div>' +
+        '<div class="p-cell"><span>収支</span><b class="nums">' + yen(res.profit) + '</b></div>' +
+        '<div class="p-cell roi"><span>回収率</span><b class="nums">' + plain(Math.round(fin / B * 1000) / 10) + '%</b></div></div>' +
+        '<p class="p-note" style="padding:0 14px">持ち点 ' + loc(B) + '円のうち ' + loc(res.bet) + '円を使い、最後の持ち点は ' +
+          loc(fin) + '円。使わなかったぶんは手元に残る扱いで、回収率は最後の持ち点 ÷ ' + loc(B) + '円です。</p>';
+    } else if(res.status === "hit" || res.status === "miss"){
       html += '<div class="p-sum">' +
         '<div class="p-cell"><span>投入</span><b class="nums">' + loc(res.bet) + '</b></div>' +
         '<div class="p-cell"><span>払戻</span><b class="nums">' + loc(res.yen) + '</b></div>' +

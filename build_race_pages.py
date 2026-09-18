@@ -564,7 +564,7 @@ def render_race_page(date_iso, date_jp, venue_name, venue_romaji, race, motors, 
 </div>
 {snapshot_html}
 <script src="/yomi.js?v=15"></script>
-<script src="/yomi-race.js?v=12"></script>
+<script src="/yomi-race.js?v=13"></script>
 </body>
 </html>"""
 

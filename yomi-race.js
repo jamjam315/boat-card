@@ -5,7 +5,9 @@
 //   store … 記録の置き場。list() / countByTag() / tags() / add({ken, lanes, tag, amount}) /
 //           remove(id) / isClosed() を持つ。add は {ok:true} か {ok:false, reason} を返す
 //   opts  … 見出し・件数の呼び名・締切後の文言(省略時はレースページと同じ)、
-//           lockWhenClosed(締切後は一覧の削除ボタンも出さない)、onChange(描き直すたびに呼ぶ)
+//           lockWhenClosed(締切後は一覧の削除ボタンも出さない)、onChange(描き直すたびに呼ぶ)、
+//           budget(持ち点を出す。store が budget() → {total, unit, max, spent, left} を持つこと。
+//           今日の一問だけが使う。省略時=レースページは何も変わらない)
 // レースページ(下)は端末の読み採点の記録(yomi.js)を、今日の一問(quiz.js)は出題日ごとの
 // 記録を store として渡す。欄の見た目と操作は同じものを使う。
 //
@@ -37,6 +39,8 @@
     // レースページは締切後も記録を消せる(自分の記録の整理)。今日の一問は結果を見たあとに
     // 買い目を消すと答案が変わってしまうので、締切後は消せなくする
     var LOCK_WHEN_CLOSED = !!opts.lockWhenClosed;
+    // 持ち点(今日の一問・2026-09-18 便D)。上限を守るのは store の add(ここは見せ方と断りの文言だけ)
+    var BUDGET = !!(opts.budget && store.budget);
 
     var closed = store.isClosed();
     var picked = [];          // 選んだ艇番(押した順)
@@ -60,6 +64,17 @@
           (closed && LOCK_WHEN_CLOSED ? '' : '<button class="ydel" data-id="' + esc(r.id) + '" aria-label="この記録を削除">×</button>') +
           '</li>';
       }).join("") + '</ul>';
+    }
+
+    function yen(n) { return Number(n).toLocaleString() + "円"; }
+
+    /** 持ち点の行。使った額と残りを出す(持ち点のときだけ)。 */
+    function budgetHtml() {
+      if (!BUDGET) return "";
+      var b = store.budget();
+      return '<p class="ybudget nums">持ち点 ' + yen(b.total) + '　使用 ' + yen(b.spent) +
+        '　<b>残り ' + yen(b.left) + '</b>' +
+        '<span class="ybudget-sub">（' + b.unit + '円単位・' + b.max + '点まで）</span></p>';
     }
 
     function formHtml() {
@@ -99,17 +114,25 @@
             'value="100" min="100" step="100" aria-label="金額">' +
           '<span class="yyen">円</span>' +
         '</div>' +
-        '<div class="yrow yamts">' +
-          '<button class="ychip yq" data-amt="100">100</button>' +
-          '<button class="ychip yq" data-amt="500">500</button>' +
-          '<button class="ychip yq" data-amt="1000">1000</button>' +
-        '</div>' +
+        '<div class="yrow yamts">' + amountChips() + '</div>' +
         '<div class="yrow yact">' +
           '<button id="ySave" class="ysave"' + (need > 0 ? " disabled" : "") + '>記録する</button>' +
           '<button id="yCancel" class="ycancel">閉じる</button>' +
         '</div>' +
         '<p id="yMsg" class="ymsg" role="status"></p>' +
       '</div>';
+    }
+
+    /** 金額の早押し。持ち点のときは3つ目を「残り全部」にする。 */
+    function amountChips() {
+      var list = [[100, "100"], [500, "500"], [1000, "1000"]];
+      if (BUDGET) {
+        var left = store.budget().left;
+        list = [[100, "100"], [500, "500"], [left, "残り全部"]];
+      }
+      return list.map(function (a) {
+        return '<button class="ychip yq" data-amt="' + esc(a[0]) + '">' + esc(a[1]) + '</button>';
+      }).join("");
     }
 
     function render() {
@@ -127,16 +150,20 @@
 
       if (closed) {
         // 締切後は記録できないが、既に記録したものは読めるようにしておく。
-        box.innerHTML = head + '<p class="yclosed">' + esc(CLOSED_TEXT) + '</p>' + listHtml();
+        box.innerHTML = head + budgetHtml() + '<p class="yclosed">' + esc(CLOSED_TEXT) + '</p>' + listHtml();
         bindList();
         if (opts.onChange) opts.onChange();
         return;
       }
-      box.innerHTML = head +
-        (open ? formHtml() : '<button id="yOpen" class="yopen">' + esc(OPEN_LABEL) + '</button>') +
+      // 持ち点を使い切ったら、記録の入口の代わりにそう書く(消せば戻る)
+      var spent = BUDGET && store.budget().left < store.budget().unit;
+      if (spent) open = false;
+      box.innerHTML = head + budgetHtml() +
+        (spent ? '<p class="yclosed">持ち点を使い切りました（記録を消すと戻ります）。</p>'
+          : open ? formHtml() : '<button id="yOpen" class="yopen">' + esc(OPEN_LABEL) + '</button>') +
         listHtml();
       bindList();
-      if (open) bindForm(); else byId("yOpen").onclick = function () { open = true; render(); };
+      if (open) bindForm(); else if (!spent) byId("yOpen").onclick = function () { open = true; render(); };
       if (opts.onChange) opts.onChange();
     }
 
@@ -197,6 +224,10 @@
       too_many_here: SCOPE + "・この出所は" + Y.MAX_PER_RACE_TAG + "点まで記録できます。",
       storage: "この端末に保存できませんでした（プライベートモード等）。"
     };
+    if (BUDGET) {
+      REASON.too_many_here = SCOPE + "は" + store.budget().max + "点まで記録できます。";
+      REASON.bad_unit = store.budget().unit + "円単位で記録してください。";
+    }
 
     function save() {
       var msg = byId("yMsg");
@@ -207,7 +238,10 @@
         amount: Number(byId("yAmt").value)
       });
       if (!res.ok) {
-        msg.textContent = REASON[res.reason] || "記録できませんでした。";
+        // 持ち点を超える記録は受け付けず、残りを出す
+        msg.textContent = res.reason === "over_budget"
+          ? "持ち点を超えます。残りは " + yen(res.left) + " です。"
+          : REASON[res.reason] || "記録できませんでした。";
         msg.className = "ymsg ng";
         // 締切をまたいだ場合は、以後の入力自体を閉じる。
         if (res.reason === "closed") { closed = true; setTimeout(render, 1200); }
