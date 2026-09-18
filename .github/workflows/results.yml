@@ -134,10 +134,15 @@ jobs:
           # 走っている間に別の push(毎朝の更新・手元からの push)があると弾かれ、この晩の集計が
           # まるごと公開されない(2026-09-17 に実際に起きた)。触るディレクトリは他と重ならないので、
           # dataブランチと同じく rebase して数回やり直す。
+          # 重なるのは、もう1本の結果収集が先に push した生成物だけ(待たされた後発の run は、起動した
+          # 時点の古いコミットから作るので、同じファイルを作り直している)。players/career/ などは生成時刻を
+          # 持っていて中身が毎回違い、rebase が衝突していた(2026-09-18 01:05 の便が実際に失敗)。
+          # 生成物はこの run が作った新しいほうを採る(-X theirs: rebase では「いま載せ直している自分の
+          # コミット」側)。dataブランチ側は追記型のデータなので、この指定はしない。
           for i in 1 2 3; do
             git push && exit 0
             echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
-            git pull --rebase origin main || exit 1
+            git pull --rebase -X theirs origin main || exit 1
           done
           exit 1
 
@@ -182,3 +187,27 @@ jobs:
           # 入力は式に直接埋めず環境変数で渡す。形はスクリプトが YYYY-MM-DD で確かめる
           AI_HEALTH_DATE: ${{ github.event.inputs.ai_health_date }}
         run: python3 scripts/check_ai_health.py
+
+  # ---- 失敗の通知(2026-09-18) ----
+  # 本体(collect)が失敗したら GitHub Issue を立てる。2026-09-18 01:05 の便が失敗していたのに、
+  # 誰も見ていなかったため。立て方は AI講評の監視と同じ(scripts/gh_issue.py: 同じ題が開いていれば
+  # コメントで足す・同じ run では1回だけ)。
+  notify-failure:
+    needs: [collect]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 失敗を Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "結果データ収集(results.yml)が失敗しました"
+          --hint "結果そのものは毎朝の daily.yml が前日ぶんを拾い直す(集計 stats.js などは次の 01:00 で作り直し)。
+          push の衝突なら、先に走った run が公開済みのことが多い。"

@@ -281,3 +281,26 @@ jobs:
       # 減った日が実在するため、件数のしきい値では誤報になる)。
       - name: 直近の結果データが欠けていないか確認
         run: python check_recent_results.py
+
+  # ---- 失敗の通知(2026-09-18) ----
+  # 判定(check)か本体(update)が失敗したら GitHub Issue を立てる(results.yml と同じ作法・
+  # scripts/gh_issue.py)。空振り(取得済みでスキップ)は失敗ではないので立たない。
+  notify-failure:
+    needs: [check, update]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 失敗を Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "毎朝データ更新(daily.yml)が失敗しました"
+          --hint "朝は3便(07:37 / 09:23 / 12:07)あり、後の便で追いつくことがある。まず data.js の日付を見る。
+          10:15 までに今日の日付にならなければ、利用者には遅延の告知(send-delay-notice)が出る。"
