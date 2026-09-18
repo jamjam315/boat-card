@@ -64,6 +64,12 @@ export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
  *
  * 【2026-09-18】応答を速くする調査のために足した。**未設定なら送らない**(モデルの既定のまま・
  * それまでと同じ要求)。決まった語だけ通し、それ以外は未設定と同じに扱う。
+ * gpt-5.6-luna は minimal を受け付けない(HTTP 400)。none と low は通る。
+ *
+ * 【本番は 2026-09-18 21:00 JST から low】同じ6答案を連続で生成して照合し、low は買い目の読み違え・
+ * 着順の誤りともゼロ(既定は1件)、応答は 5〜10秒(既定 7〜15秒)だった。none は比較の誤りが出たので使わない。
+ * 成否の日別記録(yomi_ai_outcomes_daily.effort)にも推論量が入る。戻すときは
+ *   supabase secrets unset AI_REASONING_EFFORT --project-ref vynbhssakpxiikmseoja
  */
 export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"];
 export function resolveReasoningEffort(value?: string): string | undefined {

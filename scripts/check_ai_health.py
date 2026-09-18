@@ -95,6 +95,8 @@ def body_bad(s, reason):
         % (s["date"], s.get("ok_count") or 0, s.get("fail_count") or 0, reason),
         "",
         "内訳: " + (", ".join(parts) or "なし"),
+        "推論量: " + (", ".join("%s %d" % (k, v) for k, v in sorted((s.get("efforts") or {}).items())) or "記録なし")
+        + "(2026-09-18 21:00 JST に既定→low。戻すなら Secret AI_REASONING_EFFORT を消す)",
         "",
         "- timeout … AIの応答が AI_TIMEOUT_MS(既定45秒)に間に合っていない"
         "(2026-09-17 はこれ。応答時間と締切がほぼ同じ長さだった)",
@@ -190,9 +192,10 @@ def main():
         print("[ai-health] %s の件数を読めませんでした: %s" % (date, why))
         return 0 if notify(TITLE_UNREAD, body_unread(date, why), date, a.dry) else 1
 
-    print("[ai-health] %s ok=%s fail=%s by=%s"
+    print("[ai-health] %s ok=%s fail=%s by=%s efforts=%s"
           % (s["date"], s.get("ok_count"), s.get("fail_count"),
-             json.dumps(s.get("by") or {}, ensure_ascii=False)))
+             json.dumps(s.get("by") or {}, ensure_ascii=False),
+             json.dumps(s.get("efforts") or {}, ensure_ascii=False)))
     reason = judge(s)
     if not reason:
         print("[ai-health] 知らせる条件に当たりません")

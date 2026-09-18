@@ -18,21 +18,29 @@ export type Summary = {
   fail: number;
   total: number;
   by: Record<string, number>;
+  /** 推論量ごとの件数(2026-09-18 から)。切り替えの前後を見分ける */
+  efforts: Record<string, number>;
 };
 
-/** 種類ごとの行を、成功・失敗・合計にまとめる。ok 以外はすべて失敗。 */
+/**
+ * 種類(×推論量)ごとの行を、成功・失敗・合計にまとめる。ok 以外はすべて失敗。
+ * 同じ種類が推論量ごとに複数行あるので、種類ごとに足し合わせる。
+ */
 export function summarize(
   date: string,
-  rows: { outcome: string; count: number }[],
+  rows: { outcome: string; count: number; effort?: string | null }[],
 ): Summary {
-  const by: Record<string, number> = {};
+  const by: Record<string, number> = Object.create(null);
+  const efforts: Record<string, number> = Object.create(null);
   let ok = 0;
   let fail = 0;
   for (const r of rows) {
     const n = Number.isInteger(r.count) && r.count > 0 ? r.count : 0;
-    by[r.outcome] = n;
+    by[r.outcome] = (by[r.outcome] ?? 0) + n;
+    const e = r.effort || "default";
+    efforts[e] = (efforts[e] ?? 0) + n;
     if (r.outcome === "ok") ok += n;
     else fail += n;
   }
-  return { date, ok, fail, total: ok + fail, by };
+  return { date, ok, fail, total: ok + fail, by: { ...by }, efforts: { ...efforts } };
 }

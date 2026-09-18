@@ -50,7 +50,13 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 import { createClient } from 'npm:@supabase/supabase-js@^2'
 
-import { type AiFailureKind, createAiCaller, hashUserId, readAiConfig } from './ai.ts'
+import {
+  type AiFailureKind,
+  createAiCaller,
+  hashUserId,
+  readAiConfig,
+  resolveReasoningEffort,
+} from './ai.ts'
 import {
   anonDailyLimit,
   anonLimitReached,
@@ -104,11 +110,15 @@ async function loadStats() {
   return cache
 }
 
-/** 成否を日別に1件数える。失敗しても投げない(応答を変えない)。 */
+/**
+ * 成否を日別に1件数える。失敗しても投げない(応答を変えない)。
+ * 推論量(AI_REASONING_EFFORT・未設定は 'default')も一緒に数え、切り替えの前後を記録で見分けられるようにする。
+ */
 async function recordOutcome(outcome: string) {
   try {
+    const effort = resolveReasoningEffort(Deno.env.get('AI_REASONING_EFFORT')) ?? 'default'
     const { error } = await supabaseAdmin
-      .rpc('bump_yomi_ai_outcome', { p_date: jstDate(), p_outcome: outcome })
+      .rpc('bump_yomi_ai_outcome', { p_date: jstDate(), p_outcome: outcome, p_effort: effort })
     if (error) console.log(`[yomi-review] outcome record failed (${outcome})`)
   } catch {
     console.log(`[yomi-review] outcome record failed (${outcome})`)

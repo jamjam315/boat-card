@@ -270,7 +270,7 @@
     function run(box, p){
       box.innerHTML = '<span class="by">AI講評</span>' +
         '<p class="p-ai-act"><button type="button" class="p-ai-btn" disabled>生成中…</button>' +
-        '<span class="p-ai-left">30秒ほどかかります。</span></p>';
+        '<span class="p-ai-left">10秒ほどかかります。</span></p>';
       window.TeiyomiYomiAi.generate(p).then(function(res){
         if(!res.ok && res.retry){
           // AIの側で返せなかった。回数は消費していないので、その場でもう一度送れるようにする

@@ -26,7 +26,14 @@ Deno.test("summarize: ok 以外はすべて失敗", () => {
       { outcome: "timeout", count: 5 },
       { outcome: "banned", count: 1 },
     ]),
-    { date: "2026-09-17", ok: 3, fail: 6, total: 9, by: { ok: 3, timeout: 5, banned: 1 } },
+    {
+      date: "2026-09-17",
+      ok: 3,
+      fail: 6,
+      total: 9,
+      by: { ok: 3, timeout: 5, banned: 1 },
+      efforts: { default: 9 },
+    },
   );
   assertEquals(summarize("2026-09-17", []), {
     date: "2026-09-17",
@@ -34,5 +41,24 @@ Deno.test("summarize: ok 以外はすべて失敗", () => {
     fail: 0,
     total: 0,
     by: {},
+    efforts: {},
   });
+});
+
+Deno.test("summarize: 推論量ごとの行は種類ごとに足し、推論量ごとの件数も返す(2026-09-18)", () => {
+  assertEquals(
+    summarize("2026-09-19", [
+      { outcome: "ok", count: 4, effort: "low" },
+      { outcome: "ok", count: 1, effort: "default" },
+      { outcome: "timeout", count: 2, effort: "low" },
+    ]),
+    {
+      date: "2026-09-19",
+      ok: 5,
+      fail: 2,
+      total: 7,
+      by: { ok: 5, timeout: 2 },
+      efforts: { low: 6, default: 1 },
+    },
+  );
 });

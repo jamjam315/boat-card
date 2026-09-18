@@ -9,7 +9,7 @@
 //   GET https://<project>.supabase.co/functions/v1/ai-health            … JSTの前日
 //   GET https://<project>.supabase.co/functions/v1/ai-health?date=2026-09-18
 //   ヘッダー: x-cron-secret: <CRON_SECRET>
-// 返す: {ok:true, date, ok_count, fail_count, total, by:{ok:3, timeout:1, ...}}
+// 返す: {ok:true, date, ok_count, fail_count, total, by:{ok:3, timeout:1, ...}, efforts:{low:4, ...}}
 // kick-github と同じ流儀。GitHub Actions は Supabase の JWT を持たないので config.toml で
 // verify_jwt = false にし、代わりにここで x-cron-secret を突き合わせる(鍵は既存のものを共用)。
 // 返すのは日付・種類・件数だけ(利用者も答案も講評も持っていない)。
@@ -42,13 +42,13 @@ export default {
     )
     const { data, error } = await admin
       .from('yomi_ai_outcomes_daily')
-      .select('outcome, count')
+      .select('outcome, count, effort')
       .eq('jst_date', date)
     if (error) {
       console.error(`[ai-health] 読めませんでした: ${error.message}`)
       return reply(500, { ok: false, reason: 'read failed' })
     }
-    const s = summarize(date, (data ?? []) as { outcome: string; count: number }[])
+    const s = summarize(date, (data ?? []) as { outcome: string; count: number; effort: string }[])
     console.log(`[ai-health] ${date} ok=${s.ok} fail=${s.fail}`)
     return reply(200, {
       ok: true,
@@ -57,6 +57,7 @@ export default {
       fail_count: s.fail,
       total: s.total,
       by: s.by,
+      efforts: s.efforts,
     })
   },
 }
