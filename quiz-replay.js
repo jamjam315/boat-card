@@ -6,6 +6,10 @@
 //   2. スタート … STの早い順にスタートラインを越える(越えたところにSTを出す)
 //   3. ゴール … 着順どおりにゴールへ。着と着の間はレースタイムの差から(無い艇は前後の間を等間隔で埋める)
 // ラインとラインの間は直線でつないでいる(実際の航跡ではない)。画面にもそう書く。
+// 列(コース → 着順)の入れ替えは、スタートラインを越えた直後に短く(SWAP)済ませ、あとはまっすぐゴールへ。
+// 進入の入れ替え(枠番 → コース)も、はじめの短い間(ENTRY_MOVE)で済ませて、残りは止めて見せる。
+// ゴールまでずっと斜めに走らせると、入れ替わる艇どうし(並んで走る1着と2着など)が長く重なって
+// 艇番が読めなかった(⑤b・375pxで実測)。ゴールする時刻と位置は変わらない。
 // スタート展示は再生しない。完走しなかった艇のいるレースは再生しない(plan が null を返す。
 // 出題の側でも6艇完走のレースしか選んでいない)。
 //
@@ -13,26 +17,41 @@
 // Web Animations API(element.animate)が無いブラウザも同じ扱い。
 //
 // 【部品】HTML の要素を並べて、それぞれに element.animate で位置を動かす(canvas は使わない)。
+// 艇は「真上から見た小さなボート」のインラインSVG(オリジナルの図形・画像ファイルは使わない・⑤b)。
+// 艇首は進行方向(右・ゴールの向き)。色は艇番の6色で、白と黒だけ細い縁取り。航跡・水しぶき・引き波は描かない
+// (「実際の航跡ではない」ので、それらしく見せる演出を足さない)。
 //   TeiyomiQuizReplay.plan(answer)                 … 時間割(テスト用にも出す)。再生できなければ null
 //   TeiyomiQuizReplay.play(el, answer, opts)       … 再生。opts.lanes(艇の色)・opts.onDone(終わったら1回)
 //   TeiyomiQuizReplay.showFinal(el, answer, opts)  … 最後の並びだけ(開き直したとき)。「再生する」付き
 (function () {
   "use strict";
 
-  // 時間(ミリ秒)。スタートまでの助走 D に、ST 1秒ぶんを SCALE_ST として足して、越える順と間を出す
-  var T_ENTRY = 1000;         // 1. 進入
-  var T_START = 1400;         // 2. スタートの助走を始める時刻
-  var RUNUP = 900;            // 助走(ST 0 の艇がラインに着くまで)
-  var SCALE_ST = 3000;        // ST 1.00秒 = 3秒で見せる(0.10秒の差 = 0.3秒)
-  var AFTER_START = 300;      // 全艇が越えてからゴールへ向かうまでの間
-  var TO_GOAL = 2600;         // ラインから1着がゴールするまで
-  var GAP_MS_PER_SEC = 350;   // 着差: レースタイム1秒 = 0.35秒で見せる
-  var GAP_MAX_MS = 2000;      // ただし1着から最下位までを2秒に収める
-  var GAP_MIN_SEC = 0.2;      // 着の順を崩さないための最小の差
-  var HOLD = 700;             // 最後の並びを見せてから終わる
+  // 再生の速さ。**ここ1か所で全体の長さを変える。** すべての時間にこの倍率を掛けるので、
+  // 進入・スタート・ゴールの比率は変わらない。1 = 最初の版(約8〜9秒)。
+  // 2026-09-19 JAM: 1.5倍ゆっくり(約12〜13秒)
+  var SLOW = 1.5;
+  function ms(x) { return Math.round(x * SLOW); }
+
+  // 時間(ミリ秒・倍率を掛ける前の値で書く)。スタートまでの助走に、ST 1秒ぶんを SCALE_ST として足して、越える順と間を出す
+  var T_ENTRY = ms(1000);         // 1. 進入
+  var T_START = ms(1400);         // 2. スタートの助走を始める時刻
+  var RUNUP = ms(900);            // 助走(ST 0 の艇がラインに着くまで)
+  var SCALE_ST = ms(3000);        // ST 1.00秒 = 3秒で見せる(0.10秒の差 = 0.3秒)
+  var AFTER_START = ms(300);      // 全艇が越えてからゴールへ向かうまでの間
+  var TO_GOAL = ms(2600);         // ラインから1着がゴールするまで
+  var GAP_MS_PER_SEC = ms(350);   // 着差: レースタイム1秒 = 0.35秒で見せる
+  var GAP_MAX_MS = ms(2000);      // ただし1着から最下位までを2秒に収める
+  var GAP_MIN_SEC = 0.2;          // 着の順を崩さないための最小の差(秒・レースタイムの単位)
+  var HOLD = ms(700);             // 最後の並びを見せてから終わる
+  var SWAP = ms(600);             // ラインを越えてから、着順の列へ移り終えるまで
+  var ENTRY_MOVE = ms(600);       // 進入: 枠番の列からコースの列へ移り終えるまで(残りは止まって見せる。入れ替えで長く重ならないように)
+  var FADE = ms(150);             // STの数字が出るまで
+  var ST_SHOW = ms(900), ST_GONE = ms(1300);   // ゴールへ向かい始めてから、STを消し始める・消し終わる
+  var RANK_IN = ms(200);          // 最後の艇がゴールする少し前に「n着」を出す
 
   // 画面の位置。横は %(幅に合わせて伸び縮み)、縦は px(6列)
-  var X_WAIT = 5, X_LINE = 27, X_GOAL = 80, X_RANK = 89;
+  // 艇(幅34px)の後ろが左端で切れないよう、待機の位置は 7%
+  var X_WAIT = 7, X_LINE = 27, X_GOAL = 80, X_RANK = 89;
   var TOP = 26, ROW = 30;
 
   function isPerm(a) {
@@ -91,6 +110,9 @@
     var end = 0;
     boats.forEach(function (b) {
       b.tArr = tGo + TO_GOAL + Math.round(gp.sec[b.rank - 1] * scale);
+      // 列の入れ替えを終える時刻と、そのときの横の位置(ラインからゴールまでの直線の上)
+      b.tSwap = b.tLine + SWAP;
+      b.xSwap = Math.round((X_LINE + (X_GOAL - X_LINE) * SWAP / (b.tArr - b.tLine)) * 100) / 100;
       if (b.tArr > end) end = b.tArr;
     });
     return {
@@ -106,17 +128,35 @@
   }
   function stText(st) { return "." + String(Math.round(st * 100)).padStart(2, "0"); }
 
+  /**
+   * 真上から見た小さなボート(34×18)。艇首は右。色は艇番の色、白(1)と黒(2)だけ細い縁取り。
+   * 船尾に小さくモーターの影を置いて、ボートと読めるようにする。数字は艇体の後ろ寄りに。
+   */
+  function boatSvg(n, c) {
+    var stroke = n === 1 ? ' stroke="#5a5a5a" stroke-width="1"' : n === 2 ? ' stroke="#b5b5b5" stroke-width="1"' : "";
+    return '<svg viewBox="0 0 34 18" width="34" height="18" aria-hidden="true" focusable="false">' +
+      '<rect x="0.5" y="6.5" width="3" height="5" rx="1" fill="#6b6b6b"/>' +
+      '<path d="M3 2.5 H21 Q30.5 2.5 33 9 Q30.5 15.5 21 15.5 H3 Z" fill="' + esc(c[0]) + '"' + stroke + '/>' +
+      '<text x="15" y="9.6" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="' +
+        esc(c[1]) + '">' + n + '</text>' +
+    '</svg>';
+  }
+
   /** 再生の枠を描く。点は最後の並び(ゴール・着順の列)に置いておく。 */
   function frame(el, P, lanes) {
     var order = P.boats.slice().sort(function (a, b) { return a.rank - b.rank; });
     var label = "最後の並び: " + order.map(function (b) { return b.rank + "着 " + b.n + "号艇"; }).join("、");
     var dots = P.boats.map(function (b) {
       var c = (lanes && lanes[b.n]) || ["#888", "#fff"];
+      // 重なったときは着順の良い艇を上に描く(抜いた艇の艇番が読めるように)
       return '<span class="q-rp-dot" data-n="' + b.n + '" style="left:' + X_GOAL + '%;top:' + rowTop(b.rank) +
-        'px;background:' + esc(c[0]) + ';color:' + esc(c[1]) + '">' + b.n + '</span>' +
-        // STはラインの手前(左)に出す。出るのはその艇が越えたあとなので、点と重ならない
-        '<span class="q-rp-st nums" data-n="' + b.n + '" style="left:' + (X_LINE - 1.5) + '%;top:' + rowTop(b.course) + 'px">' +
-        esc(stText(b.st)) + '</span>';
+        'px;z-index:' + (10 - b.rank) + '">' +
+        boatSvg(b.n, c) + '</span>' +
+        // STはラインの手前(左)に、艇の半分の長さより離して出す(CSS の translateX)。
+        // 出るのはその艇がラインを越えたあとなので、船尾と重ならない。越えた列(コース)に残るので、
+        // 艇が着順の列へ移ったあとも取り違えないよう艇番を添える(「6 .24」)
+        '<span class="q-rp-st nums" data-n="' + b.n + '" style="left:' + X_LINE + '%;top:' + rowTop(b.course) + 'px">' +
+        '<b>' + b.n + '</b> ' + esc(stText(b.st)) + '</span>';
     }).join("");
     var ranks = "";
     for (var r = 1; r <= 6; r++) {
@@ -194,9 +234,11 @@
       var yLane = rowTop(b.lane) + "px", yCourse = rowTop(b.course) + "px", yRank = rowTop(b.rank) + "px";
       anims.push(dot.animate([
         { offset: 0, left: X_WAIT + "%", top: yLane },
+        { offset: off(ENTRY_MOVE), left: X_WAIT + "%", top: yCourse },
         { offset: off(P.tEntry), left: X_WAIT + "%", top: yCourse },
         { offset: off(P.tStart), left: X_WAIT + "%", top: yCourse },
         { offset: off(b.tLine), left: X_LINE + "%", top: yCourse },
+        { offset: off(b.tSwap), left: b.xSwap + "%", top: yRank },
         { offset: off(b.tArr), left: X_GOAL + "%", top: yRank },
         { offset: 1, left: X_GOAL + "%", top: yRank }
       ], { duration: T, easing: "linear", fill: "both" }));
@@ -204,15 +246,15 @@
       anims.push(st.animate([
         { offset: 0, opacity: 0 },
         { offset: off(b.tLine), opacity: 0 },
-        { offset: off(b.tLine + 150), opacity: 1 },
-        { offset: off(P.tGo + 900), opacity: 1 },
-        { offset: off(P.tGo + 1300), opacity: 0 },
+        { offset: off(b.tLine + FADE), opacity: 1 },
+        { offset: off(P.tGo + ST_SHOW), opacity: 1 },
+        { offset: off(P.tGo + ST_GONE), opacity: 0 },
         { offset: 1, opacity: 0 }
       ], { duration: T, easing: "linear", fill: "both" }));
     });
     Array.prototype.forEach.call(el.querySelectorAll(".q-rp-rank"), function (x) {
       anims.push(x.animate([
-        { offset: 0, opacity: 0 }, { offset: off(P.tEnd - 200), opacity: 0 }, { offset: 1, opacity: 1 }
+        { offset: 0, opacity: 0 }, { offset: off(P.tEnd - RANK_IN), opacity: 0 }, { offset: 1, opacity: 1 }
       ], { duration: T, easing: "linear", fill: "both" }));
     });
 
@@ -243,5 +285,6 @@
     return true;
   }
 
-  window.TeiyomiQuizReplay = { plan: plan, play: play, showFinal: showFinal };
+  window.TeiyomiQuizReplay = { plan: plan, play: play, showFinal: showFinal, SLOW: SLOW,
+    X_LINE: X_LINE, X_GOAL: X_GOAL };
 })();
