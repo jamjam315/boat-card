@@ -5,14 +5,12 @@
 # 文面と事故よけは scripts/x_quiz_post.py(日付・答えは入れない・同じ日に2回は出さない)。
 #
 # 【元栓】POST_LIVE が "true" でない限り、どの経路から起動しても本番投稿しない(dry-run になる)。
-# 2026-09-18 の時点では false。初回は dry-run の文面を JAM が確かめてから有効にする。
-# 有効にするとき:
-#   1. 下の POST_LIVE を "true" に
-#   2. 本番の起動を外部キッカーへ(GitHubのcronは混雑すると数時間遅れる):
-#      supabase/functions/kick-github の許可一覧に x-post-quiz.yml を足してデプロイし、
-#      Supabase Cron に 08:05 JST で {"workflow": "x-post-quiz.yml", "inputs": {"dry_run": "false"}} を登録
-#      (inputs を省くと既定の dry_run=true が効いて投稿されない)
-#   schedule は「キッカーが止まった日の保険」として残す(下の窓の外なら何もしない)。
+# 2026-09-19 に "true" にした(JAM が dry-run の文面を確かめたあと)。
+# 本番の起動は外部キッカー(GitHubのcronは混雑すると数時間遅れる):
+#   Supabase Cron「kick-x-post-quiz」08:05 JST → kick-github → {"workflow": "x-post-quiz.yml", "inputs": {"dry_run": "false"}}
+#   (inputs を省くと既定の dry_run=true が効いて投稿されない)
+# schedule は「キッカーが止まった日の保険」として残す(下の窓の外なら何もしない)。
+# 両方が動いても、同じ日の2件目は x_state/quiz_state.json で止まる(concurrency で直列・状態は main の最新を読む)。
 #
 # 【止めたいとき】POST_LIVE を "false" に戻す。急ぐなら Actions タブ →「今日の一問をXへ投稿」→ Disable workflow。
 name: 今日の一問をXへ投稿
@@ -38,7 +36,7 @@ concurrency:
 
 env:
   # 【投稿の元栓】"true" のときだけ本番投稿になりうる。それ以外は起動経路に関係なく dry-run。
-  POST_LIVE: "false"
+  POST_LIVE: "true"
 
 jobs:
   post:
