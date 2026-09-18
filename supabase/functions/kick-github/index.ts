@@ -67,6 +67,9 @@ const REPOS: Record<
       // JST01:35に発火し、窓ガード(JST19時以降)が正しく弾いて投稿されなかった。
       // 日次の投稿と同じく、起動をこちらへ移す。
       'weekly.yml',
+      // 今日の一問のX投稿(毎朝08:05 JST・2026-09-19)。Cron の本文で dry_run:"false" を渡す。
+      // 投稿してよいかはワークフロー側の元栓 POST_LIVE が決める(ここは起動するだけ)。
+      'x-post-quiz.yml',
     ]),
     tokenEnv: 'GITHUB_KICK_TOKEN',
   },

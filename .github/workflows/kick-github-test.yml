@@ -40,6 +40,7 @@ on:
           - daily.yml
           - results.yml
           - x-post-daily.yml
+          - x-post-quiz.yml
           - generate-daily.yml
 
 jobs:
@@ -60,9 +61,9 @@ jobs:
             exit 1
           fi
 
-          # x-post-daily.yml は投稿してしまうので、この確認では必ず dry-run で起動する。
+          # x-post-daily.yml / x-post-quiz.yml は投稿してしまうので、この確認では必ず dry-run で起動する。
           # (本番の便は Supabase Cron 側が dry_run:false を送る)
-          if [ "${TARGET}" = "x-post-daily.yml" ]; then
+          if [ "${TARGET}" = "x-post-daily.yml" ] || [ "${TARGET}" = "x-post-quiz.yml" ]; then
             BODY="{\"repo\":\"${REPO}\",\"workflow\":\"${TARGET}\",\"inputs\":{\"dry_run\":true}}"
           else
             BODY="{\"repo\":\"${REPO}\",\"workflow\":\"${TARGET}\"}"
