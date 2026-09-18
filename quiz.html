@@ -52,6 +52,23 @@
 .q-meta{margin:0; padding:4px 18px 14px; font-size:12.5px; color:var(--ink2); line-height:1.8;}
 .q-paper{margin-top:14px;}
 .q-empty p{margin:0; padding:16px 18px; font-size:13.5px; color:var(--ink2);}
+/* ドット再生(quiz-replay.js・⑤)。点の位置は再生が left/top を動かす */
+.q-rp .card-head{align-items:center; justify-content:space-between;}
+.q-rp-btn{font-size:12px; padding:6px 12px; border:1px solid var(--line); border-radius:8px;
+  background:var(--bg); color:var(--ink); cursor:pointer;}
+.q-rp-cap{margin:0; padding:10px 18px 0; font-size:13px; font-weight:600; color:var(--ink); min-height:1.7em;}
+.q-rp-track{position:relative; height:212px; margin:6px 14px 0; border:1px solid var(--line);
+  border-radius:var(--radius-sm); background:var(--bg); overflow:hidden;}
+.q-rp-line{position:absolute; top:22px; bottom:6px; width:0; border-left:2px dashed var(--line2);}
+.q-rp-line span{position:absolute; top:-19px; left:0; transform:translateX(-50%); font-size:10.5px;
+  color:var(--muted); white-space:nowrap;}
+.q-rp-dot{position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.28);}
+.q-rp-st{position:absolute; margin-top:-8px; font-size:10.5px; line-height:16px; color:var(--ink2); opacity:0; white-space:nowrap;}
+.q-rp-rank{position:absolute; margin-top:-8px; font-size:11.5px; line-height:16px; font-weight:700; color:var(--ink);
+  opacity:0; white-space:nowrap;}
+.q-rp-note{margin:8px 18px 14px; font-size:11.5px; color:var(--muted); line-height:1.7;}
 /* 持ち点の行(記録欄の部品が budget のときだけ出す・2026-09-18 便D) */
 .ybudget{margin:6px 0 0; font-size:13px; color:var(--ink2);}
 .ybudget b{color:var(--ink); font-weight:700;}
@@ -83,7 +100,7 @@
         <button type="button" class="q-go" id="quizGo" disabled>スタート</button>
         <p class="q-start-note">記録した買い目で、このレースの結果と答案を見ます。スタートを押すと、この問題の記録は締め切られます。</p>
       </section>
-      <!-- ⑤ ドット再生の置き場所 -->
+      <!-- ドット再生(quiz-replay.js)。スタートのあと、結果と答案の前に流す -->
       <div class="q-replay" id="quizReplay" hidden></div>
       <div id="quizResult"></div>
       <div class="q-paper"><div id="paper"></div><div id="next"></div></div>
@@ -93,8 +110,8 @@
   <p class="foot"><b>予想印（◎○▲）は出していません。</b>出典：<a href="https://www.boatrace.jp/" target="_blank" rel="noopener">BOAT RACE公式サイト</a>の番組表・競走成績を整形して表示。<br>舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="/privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="/about.html">運営者情報</a></p>
 </div>
 
-<!-- 読み込み順: 答案の部品・AI講評・つづきが使うもの → 採点エンジン → 記録欄 → AI講評 → 答案の部品 → このページ。
-     ★yomi.js / yomi-race.js / yomi-ai.js / yomi-paper.* / quiz.js を変えたら、ここの ?v= も上げること -->
+<!-- 読み込み順: 答案の部品・AI講評・つづきが使うもの → 採点エンジン → 記録欄 → AI講評 → 答案の部品 → ドット再生 → このページ。
+     ★yomi.js / yomi-race.js / yomi-ai.js / yomi-paper.* / quiz-replay.js / quiz.js を変えたら、ここの ?v= も上げること -->
 <script src="/twa.js"></script>
 <script src="/favorites.js"></script>
 <script src="/membership.js"></script>
@@ -103,6 +120,7 @@
 <script src="/yomi-race.js?v=13"></script>
 <script src="/yomi-ai.js?v=16"></script>
 <script src="/yomi-paper.js?v=6"></script>
-<script src="/quiz.js?v=3"></script>
+<script src="/quiz-replay.js?v=1"></script>
+<script src="/quiz.js?v=4"></script>
 </body>
 </html>

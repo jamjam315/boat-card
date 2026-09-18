@@ -18,7 +18,9 @@
 // **持ち点の数字を「回収率」と呼ばない。** 回収率はサイト内で「払戻 ÷ 賭け金」の1つだけ(答案にも同じ定義で並べる)。
 // 先々ランキング(v2)を作るときも、副指標は「持ち点の増減」の名前で出す(2026-09-18 JAM)。
 //
-// 【スタート】⑤でドット再生を入れる場所。いまは押すとすぐ結果と答案が出る。
+// 【スタート】記録を締め切り、ドット再生(quiz-replay.js・⑤)を流してから結果と答案を出す。
+// 再生できないレース(完走しなかった艇がいる等)や、読み込めなかったときは、すぐ結果と答案を出す。
+// 開き直したとき(スタート済み)は、最後の並びと「再生する」を出す。
 (function () {
   "use strict";
 
@@ -421,11 +423,25 @@
         onChange: updateStart
       });
 
+      var RP = window.TeiyomiQuizReplay;
+      var replayEl = document.getElementById("quizReplay");
+
       go.onclick = function () {
         if (!store.list().length) return;
         store.reveal();
         rec.close();
-        // ⑤: ここで #quizReplay にドット再生を入れ、終わってから結果と答案を出す
+        updateStart();
+        var played = RP && replayEl && RP.play(replayEl, q.answer, {
+          lanes: LANES,
+          onDone: function () {
+            showAnswer();
+            document.getElementById("quizResult").scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+        if (played) {
+          replayEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
         showAnswer();
         document.getElementById("quizResult").scrollIntoView({ behavior: "smooth", block: "start" });
       };
@@ -448,7 +464,10 @@
         });
       }
 
-      if (store.isClosed()) showAnswer();
+      if (store.isClosed()) {
+        if (RP && replayEl) RP.showFinal(replayEl, q.answer, { lanes: LANES });
+        showAnswer();
+      }
     }
   }
 
