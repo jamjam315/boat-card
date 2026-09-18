@@ -74,12 +74,46 @@ webPush.setVapidDetails(
   Deno.env.get('VAPID_PRIVATE_KEY') as string,
 )
 
+/** x-only-user に入れてよい形(URLにも表にも入れないが、念のため縛る)。 */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** 長さの同じ2つの文字列を、突き合わせにかかる時間が中身で変わらない形で比べる。 */
+function timingSafeEqual(a: string, b: string): boolean {
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 export default {
   async fetch(req: Request): Promise<Response> {
     // ---- 起動保護 ----
+    //
+    // 毎朝の便は CRON_SECRET で入る。加えて、**運営が手で1通だけ出すため**に
+    // service role キーでも入れるようにしてある(2026-09-18)。service role は
+    // もともとデータベースを何でもできる鍵なので、これで増える権限は無い。
     const secret = Deno.env.get('CRON_SECRET')
-    if (!secret || req.headers.get('x-cron-secret') !== secret) {
+    const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer /i, '')
+    const byCron = !!secret && req.headers.get('x-cron-secret') === secret
+    const byAdmin = serviceRole.length > 0 && bearer.length === serviceRole.length &&
+      timingSafeEqual(bearer, serviceRole)
+    if (!byCron && !byAdmin) {
       return new Response('unauthorized', { status: 401 })
+    }
+
+    // ---- 手で1通だけ出すときの指定(運営用) ----
+    //
+    //   x-only-user    … この user_id だけに送る（**指定が無ければ今までどおり全員**）
+    //   x-only-channel … 'ios' ならiOSアプリにだけ送る（ブラウザには送らない）
+    //   x-dry-run      … '1' なら文面を組み立てて返すだけで、送らない
+    //
+    // 1人だけに出すときは、その日の送信記録(push_send_log)を見ないし、書かない。
+    // 「朝の便がもう届いた人」にも出せるようにし、翌朝の便に影響させないため。
+    const onlyUser = req.headers.get('x-only-user')
+    const onlyChannel = req.headers.get('x-only-channel')
+    const dryRun = req.headers.get('x-dry-run') === '1'
+    if (onlyUser !== null && !UUID_RE.test(onlyUser)) {
+      return Response.json({ error: 'bad_only_user' }, { status: 400 })
     }
 
     const today = todayJst()
@@ -130,12 +164,19 @@ export default {
     if (!hasWeb && !hasIos) return Response.json({ sent: 0, users: 0 })
 
     // 送る相手は「ブラウザの購読を持つ人」と「iOS端末を持つ人」の和集合。
-    const userIds = [
+    const allUserIds = [
       ...new Set([
         ...(subs ?? []).map((s) => s.user_id),
         ...(devices ?? []).map((d) => d.user_id as string),
       ]),
     ]
+    // 1人だけの指定があれば、その人が送り先に居るときだけに絞る。
+    const userIds = onlyUser === null
+      ? allUserIds
+      : allUserIds.filter((id) => id === onlyUser)
+    if (onlyUser !== null && userIds.length === 0) {
+      return Response.json({ sent: 0, skipped: 'no_destination_for_user', trigger })
+    }
 
     const [favRes, memRes, logRes, alertRes] = await Promise.all([
       // お気に入りは「登録が古い順」が無料プランの3名選定の意味を持つので
@@ -209,7 +250,7 @@ export default {
     let alertUsers = 0   // 条件アラートが1件以上当たった人数(効きを見るための記録)
 
     for (const userId of userIds) {
-      if (alreadySent.has(userId)) { skippedDone++; continue }
+      if (onlyUser === null && alreadySent.has(userId)) { skippedDone++; continue }
 
       const matched: Entry[] = []
       for (const toban of favByUser.get(userId) ?? []) {
@@ -231,8 +272,21 @@ export default {
       const message = buildMessage(matched, { premium: isPremium, frames, alerts: hits })
       const payload = JSON.stringify(message)
 
+      // 試し撃ち。**送らずに**、実際に送るのと同じ文面を返す。
+      if (dryRun) {
+        return Response.json({
+          date: today, trigger, dryRun: true, user: userId.slice(0, 8),
+          premium: isPremium, matched: matched.length, alerts: hits.length,
+          destinations: {
+            web: (subsByUser.get(userId) ?? []).length,
+            ios: (devicesByUser.get(userId) ?? []).length,
+          },
+          message,
+        })
+      }
+
       let ok = false
-      for (const s of subsByUser.get(userId) ?? []) {
+      for (const s of (onlyChannel === 'ios' ? [] : subsByUser.get(userId) ?? [])) {
         try {
           await webPush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -269,6 +323,8 @@ export default {
 
       if (ok) {
         sentUsers++
+      }
+      if (ok && onlyUser === null) {
         const { error } = await supabaseAdmin.from('push_send_log')
           .upsert({ send_date: today, user_id: userId }, { onConflict: 'send_date,user_id' })
         if (error) {
