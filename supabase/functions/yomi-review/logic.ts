@@ -137,8 +137,9 @@ export function parseSheet(raw: unknown): { sheet: Sheet } | { error: string } {
   for (const x of boatsRaw) {
     const o = (x ?? {}) as Record<string, unknown>;
     if (!isLane(o.n)) return { error: "boat.n" };
+    // 直近の着順は古い→新しい。長ければ新しいほうの8走を残す(2026-09-18 まで先頭=古いほうを残していた)
     const last = Array.isArray(o.last)
-      ? o.last.filter((v): v is number => typeof v === "number").slice(0, 8)
+      ? o.last.filter((v): v is number => typeof v === "number").slice(-8)
       : [];
     boats.push({
       n: o.n,
@@ -279,6 +280,39 @@ export function pickMaezuke(maezuke: Maezuke | null, sheet: Sheet) {
  * user_id は、この関数が組み立てる文字列のどこにも現れない(登番は
  * [pickMaezuke] の突き合わせに使うだけで、出力には艇番しか出さない)。
  */
+/**
+ * 買い目を、どの着に何号艇(何コース)を置いたかの文にする(2026-09-18 5b)。
+ *
+ * 組の数字(1-2-3)だけを渡していたら、推論量が既定でも「押さえを2着候補と読む」
+ * 「2着に置いた艇を取り違える」読み違えが出た。着ごとに書き、順不同の券種はそう書く。
+ * ボートレースの複勝は2着以内、拡連複は2艇とも3着以内(払戻の行数と同じ)。
+ */
+export function betPositions(sheet: Sheet, b: Bet): string {
+  const lanes = b.combo.split(/[-=]/).map(Number);
+  const boat = (n: number) => {
+    const c = courseOf(sheet, n);
+    return `${n}号艇` + (c ? `(${c}コース)` : "");
+  };
+  const all = lanes.map(boat).join("・");
+  switch (b.ken) {
+    case "単勝":
+      return `1着予想: ${boat(lanes[0])}`;
+    case "複勝":
+      return `2着以内予想: ${boat(lanes[0])}`;
+    case "2連単":
+    case "3連単":
+      return lanes.map((n, i) => `${i + 1}着予想: ${boat(n)}`).join(" / ");
+    case "2連複":
+      return `順不同(2艇で1着・2着)予想: ${all}`;
+    case "3連複":
+      return `順不同(3艇で1着〜3着)予想: ${all}`;
+    case "拡連複":
+      return `順不同(2艇とも3着以内)予想: ${all}`;
+    default:
+      return "";
+  }
+}
+
 export function buildUserPrompt(
   sheet: Sheet,
   renren: ReturnType<typeof pickRenren>,
@@ -299,13 +333,16 @@ export function buildUserPrompt(
     .join(" / ");
   L.push(`【結果】${finish}` + (sheet.kimarite ? ` 決まり手 ${sheet.kimarite}` : ""));
 
-  L.push("【記録した買い目】");
+  // 買い目は着ごとに書く(betPositions)。コースは【結果】と同じく、実際の進入コース。
+  L.push("【記録した買い目】(コースは実際の進入)");
   for (const b of sheet.bets) {
-    L.push(`  ${b.ken} ${b.combo} … ${b.hit ? "的中" : "不的中"}`);
+    L.push(`  ${b.ken} ${b.combo} … ${b.hit ? "的中" : "不的中"} … ${betPositions(sheet, b)}`);
   }
 
+  // 押さえは「買い目に出てくる回数」から推定したもので、何着に置いたかではない(2着候補と読まれていた)
   L.push(`【軸】${sheet.axis}号艇` +
-    (sheet.backs.length ? ` 【押さえ】${sheet.backs.map((n) => n + "号艇").join("・")}` : ""));
+    (sheet.backs.length ? ` 【押さえ】${sheet.backs.map((n) => n + "号艇").join("・")}` : "") +
+    "(どちらも買い目に出てくる回数からの推定。何着に置いたかは【記録した買い目】を見る)");
 
   if (sheet.yomi.length) {
     L.push("【読み点の内訳】");
@@ -319,7 +356,7 @@ export function buildUserPrompt(
     const parts = [`${b.n}号艇`];
     if (b.nw2 != null) parts.push(`全国2連率${b.nw2}%`);
     if (b.st != null) parts.push(`平均ST${b.st}`);
-    if (b.last.length) parts.push(`直近${b.last.join("→")}着`);
+    if (b.last.length) parts.push(`直近の着順(古い→新しい)${b.last.join("→")}着`);
     if (b.mo != null) parts.push(`モーター2率${b.mo}%`);
     L.push("  " + parts.join(" / "));
   }

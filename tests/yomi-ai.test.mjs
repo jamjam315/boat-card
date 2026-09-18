@@ -110,3 +110,15 @@ test("60秒待っても返らなかったときも「混み合っています」
   assert.strictEqual(r.message, "AIの応答が混み合っています。少し待ってからもう一度お試しください。");
   assert.ok(/var TIMEOUT_MS = 60000;/.test(SRC), "ブラウザは60秒待つ");
 });
+
+test("AIへ送る直近の着順は、新しいほうの8走(ks.r は古い→新しい・2026-09-18)", () => {
+  const ai = load();
+  const r = [6, 6, 6, 1, 2, 3, 4, 5, 1, 2];   // 古い→新しい。10走
+  const p = {
+    key: "2026-09-11:大村:11", wave: 3, inn: [1, 2, 3, 4, 5, 6],
+    records: [{ ken: "単勝", lanes: [1], score: { st: "hit", top3: [1, 2, 3], kimarite: "逃げ" } }],
+    yomi: null,
+    snapshot: { boats: [1, 2, 3, 4, 5, 6].map((n) => ({ n, ks: { r, s: [0.1] } })) },
+  };
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(ai.buildSheet(p).boats[0].last)), [6, 1, 2, 3, 4, 5, 1, 2]);
+});

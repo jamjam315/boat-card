@@ -9,6 +9,7 @@ import {
   ANON_DAILY_DEFAULT,
   anonDailyLimit,
   anonLimitReached,
+  betPositions,
   buildUserPrompt,
   filterOutput,
   jstDate,
@@ -217,6 +218,8 @@ Deno.test("AIへ渡す本文に、送ってはいけないものが入ってい�
   assertStringIncludes(body, "尼崎");
   assertStringIncludes(body, "1着 1号艇(1コース)");
   assertStringIncludes(body, "3連単 1-3-2");
+  assertStringIncludes(body, "1着予想: 1号艇(1コース) / 2着予想: 3号艇(3コース) / 3着予想: 2号艇(2コース)");
+  assertStringIncludes(body, "直近の着順(古い→新しい)");
   assertStringIncludes(body, "34.3%(n=99,369)");
   assertStringIncludes(body, "1号艇は直近1年で枠より内から進入した割合 67.2%(189走)");
 });
@@ -281,4 +284,39 @@ Deno.test("outcomeOf: 呼び出しの失敗を先に見て、フィルタの種�
   assertEquals(outcomeOf(null, { ok: false, reason: "empty" }), "empty");
   assertEquals(outcomeOf(null, { ok: false, reason: "banned:本命" }), "banned");
   assertEquals(outcomeOf(null, { ok: false, reason: "invented:1-2-3" }), "invented");
+});
+
+// ---------------------------------------------------------------- 買い目の書き方(2026-09-18 5b)
+
+Deno.test("買い目は着ごとに書き、順不同の券種はそう書く。コースは実際の進入", () => {
+  // 進入: 1号艇1コース / 2号艇が6コース / 6号艇が2コース
+  const s = sheet({ in: [1, 6, 3, 4, 5, 2] });
+  const pos = (ken: string, combo: string) => betPositions(s, { ken, combo, hit: false });
+  assertEquals(pos("単勝", "6"), "1着予想: 6号艇(2コース)");
+  assertEquals(pos("複勝", "2"), "2着以内予想: 2号艇(6コース)");
+  assertEquals(pos("2連単", "6-1"), "1着予想: 6号艇(2コース) / 2着予想: 1号艇(1コース)");
+  assertEquals(
+    pos("3連単", "1-2-3"),
+    "1着予想: 1号艇(1コース) / 2着予想: 2号艇(6コース) / 3着予想: 3号艇(3コース)",
+  );
+  assertEquals(pos("2連複", "1=2"), "順不同(2艇で1着・2着)予想: 1号艇(1コース)・2号艇(6コース)");
+  assertEquals(pos("3連複", "1=4=6"), "順不同(3艇で1着〜3着)予想: 1号艇(1コース)・4号艇(4コース)・6号艇(2コース)");
+  assertEquals(pos("拡連複", "1=2"), "順不同(2艇とも3着以内)予想: 1号艇(1コース)・2号艇(6コース)");
+  // 進入が無い古いデータでは、コースを書かない(作らない)
+  assertEquals(betPositions(sheet({ in: null }), { ken: "2連単", combo: "2-1", hit: true }), "1着予想: 2号艇 / 2着予想: 1号艇");
+});
+
+Deno.test("押さえは着順の想定ではないと添え、直近の着順は向きを書く", () => {
+  const body = buildUserPrompt(sheet(), null, []);
+  assertStringIncludes(body, "【押さえ】");
+  assertStringIncludes(body, "何着に置いたかは【記録した買い目】を見る");
+  assert(!/直近\d/.test(body), "向きの無い「直近1→2着」の形が残っていない");
+});
+
+Deno.test("直近の着順は新しいほうの8走を残す(古い→新しいの並び)", () => {
+  const raw = JSON.parse(JSON.stringify(sheet()));
+  raw.boats[0].last = [6, 6, 6, 6, 1, 2, 3, 4, 5, 1];
+  const parsed = parseSheet(raw);
+  assert(!("error" in parsed));
+  if (!("error" in parsed)) assertEquals(parsed.sheet.boats[0].last, [6, 6, 1, 2, 3, 4, 5, 1]);
 });

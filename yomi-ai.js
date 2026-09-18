@@ -68,7 +68,8 @@
         t: b.t || null,
         nw2: typeof b.nw2 === "number" ? b.nw2 : null,
         st: st,
-        last: Array.isArray(ks.r) ? ks.r.slice(0, 8) : [],
+        // ks.r は古い→新しい。新しいほうの8走を送る(2026-09-18 まで slice(0, 8) で古いほうを送っていた)
+        last: Array.isArray(ks.r) ? ks.r.slice(-8) : [],
         mo: typeof b.mo === "number" ? b.mo : null
       };
     });
