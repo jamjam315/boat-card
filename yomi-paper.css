@@ -116,6 +116,9 @@
 .p-cell b{display:block; font-size:13px; margin-top:1px;}
 .p-cell.roi{border-color:var(--akapen);}
 .p-cell.roi b{color:var(--akapen);}
+/* 持ち点の増減(今日の一問だけ・opts.budget)。回収率とは別の数字なので、別の行で出す */
+.p-hold{margin:0; padding:12px 14px 0; font-size:13px;}
+.p-hold b{font-size:17px;}
 
 /* 6. 当日のようす */
 .p-day{padding:10px 14px; border-top:1px solid var(--paper-line); font-size:12.5px;}

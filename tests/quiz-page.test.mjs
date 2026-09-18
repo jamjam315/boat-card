@@ -232,7 +232,7 @@ test("記録欄: budget のときだけ持ち点の行を出し、金額の3つ�
   assert.ok(!full.includes('id="yOpen"'), "使い切ったら記録の入口を出さない");
 });
 
-test("答案: budget を渡すと、収支・回収率を持ち点1,000円基準で出す(使わなかったぶんは手元に残る)", () => {
+test("答案: budget を渡すと「持ち点 1,000円 → 最後の持ち点（増減）」を主に出し、回収率はほかと同じ払戻÷賭け金", () => {
   const top3 = [1, 2, 3].map((c) => QUIZ.answer.order.indexOf(c) + 1);
   const p = Q.paperOf(QUIZ, [{ id: "a", at: "x", ken: "3連単", lanes: top3, tag: "", amount: 300 }], null, Y);
   const paperEl = { innerHTML: "", querySelector: () => null };
@@ -240,10 +240,15 @@ test("答案: budget を渡すと、収支・回収率を持ち点1,000円基準
   const html = paperEl.innerHTML;
   const fin = 1000 - p.result.bet + p.result.yen;
   assert.strictEqual(p.result.bet, 300);
+  const sign = fin - 1000 >= 0 ? "+" : "−";
+  assert.ok(html.includes(`持ち点 1,000円 → <b>${fin.toLocaleString()}円</b>（${sign}${Math.abs(fin - 1000).toLocaleString()}円）`));
   assert.ok(html.includes("<span>使った額</span><b class=\"nums\">300</b>"));
-  assert.ok(html.includes(`回収率</span><b class="nums">${Math.round(fin / 1000 * 1000) / 10}%`), "回収率 = 最後の持ち点 ÷ 1,000");
-  assert.ok(html.includes(`最後の持ち点は ${fin.toLocaleString()}円`));
-  // 渡さなければ、これまでどおり(投入・払戻÷投入)
+  // 回収率はサイト内で1つの定義(払戻 ÷ 賭け金)。持ち点の数字を回収率と呼ばない
+  assert.ok(html.includes(`<span>回収率</span><b class="nums">${p.result.roi}%</b>`));
+  assert.strictEqual(p.result.roi, Math.round(p.result.yen / 300 * 1000) / 10);
+  assert.ok(!html.includes(`${Math.round(fin / 1000 * 1000) / 10}%`) || fin === p.result.yen * 1000 / 300, "持ち点÷1,000 の%を出していない");
+  assert.ok(html.includes("使わなかった 700円は持ち点に残ります"));
+  // 渡さなければ、これまでどおり(投入・払戻・収支・回収率)
   const plainEl = { innerHTML: "", querySelector: () => null };
   G.TeiyomiYomiPaper.render({ paperEl: plainEl, p, when: "今日の一問" });
   assert.ok(plainEl.innerHTML.includes("<span>投入</span>") && !plainEl.innerHTML.includes("持ち点"));
