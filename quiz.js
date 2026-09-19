@@ -18,6 +18,10 @@
 // **持ち点の数字を「回収率」と呼ばない。** 回収率はサイト内で「払戻 ÷ 賭け金」の1つだけ(答案にも同じ定義で並べる)。
 // 先々ランキング(v2)を作るときも、副指標は「持ち点の増減」の名前で出す(2026-09-18 JAM)。
 //
+// 【実績(AI-15)】スタートを押した時点の答案から「その日の点のまとめ」(daySummary)を作り、
+// 通算の記録(quiz-badges.js・消さない)へ1件足す。新しく付いた実績は答案の下に1行で出す。
+// 上部には「解いた問・いまの連続(最長)」を1行。9/17以降に解いてまとめの無い日は、開いたときに一度だけ作る。
+//
 // 【スタート】記録を締め切り、ドット再生(quiz-replay.js・⑤)を流してから結果と答案を出す。
 // 再生できないレース(完走しなかった艇がいる等)や、読み込めなかったときは、すぐ結果と答案を出す。
 // 開き直したとき(スタート済み)は、最後の並びと「再生する」を出す。
@@ -35,6 +39,7 @@
     4: ["#2f6fd0", "#ffffff"], 5: ["#f2c200", "#3a2e00"], 6: ["#1f9e54", "#ffffff"]
   };
   var MEASURED_NOTE = "競走成績に記録された、レース時点の値です。";
+  var FIRST_DATE = "2026-09-17";   // 今日の一問の始まり。これより前の日は実績の元にしない
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -124,6 +129,8 @@
         return mine.concat(other);
       },
       isClosed: function () { return !!load().d.revealed; },
+      /** スタートを押した時刻(ISO)。まだなら null。 */
+      revealedAt: function () { var d = load().d; return d.revealed && typeof d.revealedAt === "string" ? d.revealedAt : null; },
       /** 持ち点。記録欄(opts.budget)と答案(1,000円基準)が使う。 */
       budget: function () {
         var list = records(), spent = spentOf(list);
@@ -370,6 +377,48 @@
     return p;
   }
 
+  /**
+   * その日の点のまとめ(実績の元・AI-15)。答案と同じ作り方(paperOf)で、スタートを押した時点の点を残す。
+   *   yomi … 読み点 / yomiMax … 6艇のどれかを軸にしたときの読み点の最高(「いちばん材料のある艇」)
+   *   hit / hit3t … 的中 / 3連単で的中 / fin … 最後の持ち点(1,000円基準。基準にできない日は null)
+   *   kens … 記録した券種 / onDay … 出題日の当日(JST)に解いたか / at … スタートを押した時刻
+   */
+  function daySummary(q, records, Y, revealedAt) {
+    var p = paperOf(q, records, null, Y);
+    var yomiMax = null;
+    for (var n = 1; n <= 6; n++) {
+      var pn = paperOf(q, [{ id: "m" + n, at: "x", ken: "単勝", lanes: [n], tag: "", amount: UNIT }], null, Y);
+      if (pn.yomi && isNum(pn.yomi.pt) && (yomiMax == null || pn.yomi.pt > yomiMax)) yomiMax = pn.yomi.pt;
+    }
+    var res = p.result || {};
+    var spent = records.reduce(function (s, r) { return s + r.amount; }, 0);
+    var settled = res.status === "hit" || res.status === "miss";
+    return {
+      at: revealedAt,
+      onDay: !!revealedAt && new Date(Date.parse(revealedAt) + JST_MS).toISOString().slice(0, 10) === q.date,
+      yomi: p.yomi && isNum(p.yomi.pt) ? p.yomi.pt : null,
+      yomiMax: yomiMax,
+      hit: res.status === "hit",
+      hit3t: p.records.some(function (r) { return r.ken === "3連単" && r.score && r.score.st === "hit"; }),
+      fin: settled && spent <= BUDGET && isNum(res.bet) && isNum(res.yen) ? BUDGET - res.bet + res.yen : null,
+      kens: records.map(function (r) { return r.ken; }).filter(function (k, i, a) { return a.indexOf(k) === i; }),
+      v: Y.YOMI_VERSION
+    };
+  }
+
+  /** 端末にある、スタートまで進んだ出題日の一覧(実績のまとめを作り直すときに使う)。 */
+  function revealedDays(ls, Y) {
+    var o = readAllDays(ls);
+    return Object.keys(o.days).filter(isDate).sort().map(function (date) {
+      var d = o.days[date];
+      if (!d || !d.revealed || typeof d.revealedAt !== "string" || !Array.isArray(d.records)) return null;
+      var recs = d.records.filter(function (r) {
+        return r && typeof r.id === "string" && Y.isBet(r.ken, r.lanes) && isNum(r.amount) && r.amount > 0;
+      });
+      return recs.length ? { date: date, records: recs, revealedAt: d.revealedAt } : null;
+    }).filter(Boolean);
+  }
+
   function headerWhen(q, today) {
     return (q.date === today ? "今日の一問" : mdLabel(q.date) + "の一問") + "　" + q.question.venue + " " + q.question.no + "R";
   }
@@ -399,6 +448,36 @@
         show(q);
       })
       .catch(function () { fail("通信に失敗しました。通信状況をご確認のうえ、再読み込みしてお試しください。"); });
+
+    var B = window.TeiyomiQuizBadges;
+    var statusEl = document.getElementById("quizStatus");
+    /** 上部の1行(解いた問・いまの連続)。 */
+    function renderStatus() {
+      if (!B || !statusEl) return;
+      var t = B.statusText(B.evaluate(B.read(localStorage), today));
+      statusEl.textContent = t;
+      statusEl.hidden = !t;
+    }
+    /** 9/17以降に解いてまとめの無い日を、出題ファイルから一度だけ作る(1日ずつ順に)。 */
+    function backfill() {
+      if (!B) return;
+      var have = B.read(localStorage).days;
+      var todo = revealedDays(localStorage, Y).filter(function (d) { return d.date >= FIRST_DATE && !have[d.date]; });
+      var chain = Promise.resolve();
+      todo.forEach(function (d) {
+        chain = chain.then(function () {
+          return fetch("/quiz/" + d.date + ".json", { cache: "no-cache" })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (q2) {
+              if (isQuiz(q2) && q2.date === d.date) B.addDay(localStorage, d.date, daySummary(q2, d.records, Y, d.revealedAt), today);
+            })
+            .catch(function () { /* 取れなければ次に開いたときにもう一度 */ });
+        });
+      });
+      chain.then(renderStatus);
+    }
+    renderStatus();
+    backfill();
 
     function show(q) {
       var store = dayStore(localStorage, date, Y);
@@ -431,10 +510,16 @@
         store.reveal();
         rec.close();
         updateStart();
+        // 実績: スタートを押した時点の点を通算の記録へ足し、新しく付いたものを答案の下に出す
+        var fresh = [];
+        if (B && date >= FIRST_DATE) {
+          fresh = B.addDay(localStorage, date, daySummary(q, store.list(), Y, store.revealedAt()), today).fresh;
+          renderStatus();
+        }
         var played = RP && replayEl && RP.play(replayEl, q.answer, {
           lanes: LANES,
           onDone: function () {
-            showAnswer();
+            showAnswer(fresh);
             document.getElementById("quizResult").scrollIntoView({ behavior: "smooth", block: "start" });
           }
         });
@@ -442,12 +527,19 @@
           replayEl.scrollIntoView({ behavior: "smooth", block: "start" });
           return;
         }
-        showAnswer();
+        showAnswer(fresh);
         document.getElementById("quizResult").scrollIntoView({ behavior: "smooth", block: "start" });
       };
 
-      function showAnswer() {
+      function showAnswer(fresh) {
         updateStart();
+        // 新しく付いた実績(答案の下に1行・演出なし)。開き直したときは出さない
+        var nb = document.getElementById("quizBadgesNew");
+        if (nb) {
+          nb.innerHTML = fresh && fresh.length
+            ? '<p class="q-new" role="status"><span class="q-new-k">新しい実績</span>' + esc(fresh.join("・")) + '</p>'
+            : "";
+        }
         document.getElementById("quizResult").innerHTML = resultHtml(q);
         var p = paperOf(q, store.list(), store.ai(), Y);
         // 収支・回収率は1,000円基準。持ち点が入る前(〜2026-09-18)に1,000円を超えて記録した日は、基準にできないので付けない
@@ -475,6 +567,7 @@
     STORE_KEY: STORE_KEY, KEEP_DAYS: KEEP_DAYS, MAX_PER_QUIZ: MAX_PER_QUIZ, BUDGET: BUDGET, UNIT: UNIT,
     MEASURED_NOTE: MEASURED_NOTE,
     esc: esc, todayJst: todayJst, pickDate: pickDate, isQuiz: isQuiz, dayStore: dayStore,
+    daySummary: daySummary, revealedDays: revealedDays, FIRST_DATE: FIRST_DATE,
     questionHtml: questionHtml, resultHtml: resultHtml, paperOf: paperOf, headerWhen: headerWhen
   };
 

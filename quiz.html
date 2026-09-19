@@ -71,6 +71,11 @@
 .q-rp-rank{position:absolute; margin-top:-8px; font-size:11.5px; line-height:16px; font-weight:700; color:var(--ink);
   opacity:0; white-space:nowrap;}
 .q-rp-note{margin:8px 18px 14px; font-size:11.5px; color:var(--muted); line-height:1.7;}
+/* 実績(AI-15)。上部の1行と、答案の下の「新しい実績」(演出なし) */
+.q-status{margin:-4px 2px 10px; font-size:12.5px; color:var(--ink2);}
+.q-new{margin:10px 0 0; padding:10px 14px; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); font-size:13.5px; color:var(--ink); line-height:1.7;}
+.q-new-k{display:inline-block; margin-right:8px; font-size:11.5px; font-weight:700; color:var(--accent);}
 /* 持ち点の行(記録欄の部品が budget のときだけ出す・2026-09-18 便D) */
 .ybudget{margin:6px 0 0; font-size:13px; color:var(--ink2);}
 .ybudget b{color:var(--ink); font-weight:700;}
@@ -91,6 +96,9 @@
   </header>
   <p class="back"><a href="/index.html">← トップ（今日の出走表）に戻る</a></p>
 
+  <!-- 実績(quiz-badges.js・AI-15)。解いた問といまの連続。端末の中の記録だけから出す -->
+  <p class="q-status nums" id="quizStatus" hidden></p>
+
   <div class="q-intro">過去に実際にあったレースです。<b>番組表の数字を読んで買い目を記録し、「スタート」で結果と答案を見ます。</b>
     レースの日付は、結果のところで出ます。予想印は出していません。</div>
 
@@ -105,7 +113,7 @@
       <!-- ドット再生(quiz-replay.js)。スタートのあと、結果と答案の前に流す -->
       <div class="q-replay" id="quizReplay" hidden></div>
       <div id="quizResult"></div>
-      <div class="q-paper"><div id="paper"></div><div id="next"></div></div>
+      <div class="q-paper"><div id="paper"></div><div id="quizBadgesNew"></div><div id="next"></div></div>
     </div>
   </div>
 
@@ -123,6 +131,7 @@
 <script src="/yomi-ai.js?v=16"></script>
 <script src="/yomi-paper.js?v=6"></script>
 <script src="/quiz-replay.js?v=6"></script>
-<script src="/quiz.js?v=4"></script>
+<script src="/quiz-badges.js?v=1"></script>
+<script src="/quiz.js?v=5"></script>
 </body>
 </html>

@@ -253,3 +253,46 @@ test("答案: budget を渡すと「持ち点 1,000円 → 最後の持ち点（
   G.TeiyomiYomiPaper.render({ paperEl: plainEl, p, when: "今日の一問" });
   assert.ok(plainEl.innerHTML.includes("<span>投入</span>") && !plainEl.innerHTML.includes("持ち点"));
 });
+
+// ---------------------------------------------------------------- 実績のまとめ(AI-15)
+
+test("その日の点のまとめ: 答案と同じ点・6艇の最高の読み点・的中・最後の持ち点・当日に解いたか", () => {
+  const top3 = [1, 2, 3].map((c) => QUIZ.answer.order.indexOf(c) + 1);
+  const recs = [
+    { id: "a", at: "x", ken: "3連単", lanes: top3, tag: "", amount: 300 },
+    { id: "b", at: "x", ken: "単勝", lanes: [6], tag: "", amount: 100 },
+    { id: "c", at: "x", ken: "3連単", lanes: [6, 5, 4], tag: "", amount: 100 },
+  ];
+  const p = Q.paperOf(QUIZ, recs, null, Y);
+  // 出題日(2026-09-17)の JST 23:00 に解いた = 当日 / 翌日 JST 01:00 = あとから
+  const s = plain(Q.daySummary(QUIZ, recs, Y, "2026-09-17T14:00:00.000Z"));
+  assert.strictEqual(s.onDay, true);
+  assert.strictEqual(plain(Q.daySummary(QUIZ, recs, Y, "2026-09-17T16:00:00.000Z")).onDay, false);
+  assert.strictEqual(s.yomi, p.yomi.pt, "答案の読み点と同じ");
+  const maxAxis = Math.max(...[1, 2, 3, 4, 5, 6].map((n) =>
+    Q.paperOf(QUIZ, [{ id: "m", at: "x", ken: "単勝", lanes: [n], tag: "", amount: 100 }], null, Y).yomi.pt));
+  assert.strictEqual(s.yomiMax, maxAxis);
+  assert.strictEqual(s.hit, true);
+  assert.strictEqual(s.hit3t, true);
+  assert.strictEqual(s.fin, 1000 - p.result.bet + p.result.yen, "最後の持ち点(答案の持ち点の行と同じ)");
+  assert.deepStrictEqual(s.kens, ["3連単", "単勝"]);
+  assert.strictEqual(s.v, Y.YOMI_VERSION);
+  // 1,000円を超えて記録してあった日(持ち点の前)は、持ち点を基準にできないので null
+  const big = [{ id: "d", at: "x", ken: "単勝", lanes: [1], tag: "", amount: 5000 }];
+  assert.strictEqual(plain(Q.daySummary(QUIZ, big, Y, "2026-09-17T14:00:00.000Z")).fin, null);
+});
+
+test("スタートまで進んだ日の一覧(まとめを作り直す元)。締め切っていない日・記録の無い日は入れない", () => {
+  const ls = memStorage({ teiyomi_yomi_records: "[]" });
+  const a = Q.dayStore(ls, "2026-09-17", Y);
+  a.add({ ken: "単勝", lanes: [1], amount: 100 });
+  a.reveal();
+  const b = Q.dayStore(ls, "2026-09-18", Y);
+  b.add({ ken: "単勝", lanes: [2], amount: 100 });   // まだスタートしていない
+  const days = plain(Q.revealedDays(ls, Y));
+  assert.deepStrictEqual(days.map((d) => d.date), ["2026-09-17"]);
+  assert.strictEqual(days[0].records.length, 1);
+  assert.ok(typeof days[0].revealedAt === "string");
+  assert.strictEqual(plain(a.revealedAt()), days[0].revealedAt);
+  assert.strictEqual(b.revealedAt(), null);
+});
