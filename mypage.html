@@ -75,6 +75,17 @@ body{background:var(--bg); color:var(--ink);
 .authbox-alt{font-size:11.5px; margin:6px 0 0;}
 .authbox-alt a{color:var(--muted);}
 .authbox-notice{font-size:11px; color:var(--muted); margin:8px 0 0; padding-top:8px; border-top:1px dashed var(--line2); line-height:1.6;}
+/* 今日の一問の実績(AI-15)。付いたものは濃く、まだのものは条件を薄く */
+.qb-status{margin:0 0 6px; font-size:13px; color:var(--ink);}
+.qb-list{list-style:none; margin:0; padding:0;}
+.qb-row{display:flex; align-items:flex-start; gap:8px; padding:7px 0; border-top:1px solid var(--line); font-size:13px; color:var(--muted);}
+.qb-row.got{color:var(--ink);}
+.qb-mark{width:1em; flex:none; color:var(--muted);}
+.qb-row.got .qb-mark{color:var(--accent);}
+.qb-body{flex:1; min-width:0;}
+.qb-body b{font-weight:600;}
+.qb-desc{display:block; font-size:11.5px; color:var(--muted); line-height:1.5;}
+.qb-when{flex:none; font-size:12px; white-space:nowrap;}
 .authbox-email{font-weight:600; color:var(--ink);}
 
 /* ---- 本日の出走(トップから移設) ---- */
@@ -249,6 +260,10 @@ body{background:var(--bg); color:var(--ink);
   <div id="yomiBox"></div>
   <p class="sec-note"><a href="quiz.html">今日の一問で読みを練習する →</a></p>
 
+  <!-- 今日の一問の実績(AI-15)。端末の中の記録だけから出す(サーバーには送らない) -->
+  <p class="sec-label">🎯 今日の一問の実績</p>
+  <div id="quizBadgesBox"></div>
+
   <p class="sec-label">使い方</p>
   <div class="authbox"><a href="guide-premium.html">プレミアムの使い方を見る →</a></div>
 
@@ -280,6 +295,9 @@ body{background:var(--bg); color:var(--ink);
      ★yomi.js か yomi-race.js を変えたら、この数字を3か所すべて上げること
        (yomi.html / mypage.html / build_race_pages.py) -->
 <script src="yomi.js?v=15"></script>
+<!-- 今日の一問の実績の一覧に使う(計算と、解いた日のまとめの作り直し)。quiz.js はこのページでは画面を作らない -->
+<script src="quiz-badges.js?v=1"></script>
+<script src="quiz.js?v=6"></script>
 <script>
 (function(){
 "use strict";
@@ -1260,6 +1278,35 @@ function yomiPaperHtml(res){
 }
 renderYomiBox();
 fetchYomiScores();
+
+/** 今日の一問の実績の一覧(AI-15)。付いたものは日付、まだのものは条件を出す。 */
+function renderQuizBadges(){
+  const box = document.getElementById("quizBadgesBox");
+  const B = window.TeiyomiQuizBadges, Q = window.TeiyomiQuiz;
+  if(!box || !B || !Q) return;
+  const ev = B.evaluate(B.read(localStorage), Q.todayJst());
+  const md = d => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : "";
+  const rows = ev.list.map(b => {
+    const got = !!b.earned;
+    let when = "まだ";
+    if(got && b.kind === "best") when = `${Number(b.value).toLocaleString()}${b.unit}（${md(b.earned)}）`;
+    else if(got) when = md(b.earned) + (b.count > 1 ? `・${b.count}回` : "");
+    return `<li class="qb-row${got ? " got" : ""}"><span class="qb-mark" aria-hidden="true">${got ? "●" : "○"}</span>` +
+      `<span class="qb-body"><b>${esc(b.name)}</b><span class="qb-desc">${esc(b.desc)}</span></span>` +
+      `<span class="qb-when nums">${esc(when)}</span></li>`;
+  }).join("");
+  box.innerHTML = `<div class="authbox">
+    <p class="qb-status nums">${esc(B.statusText(ev) || "まだ解いた問はありません。")}</p>
+    <ul class="qb-list">${rows}</ul>
+    <p class="authbox-notice">実績はこの端末（このブラウザ／アプリ）の中にだけ保存されます。ログインしても別の端末には引き継がれず、ブラウザとアプリの間でも別々です。ブラウザのデータを消すと実績も消えます。しばらく開かないと消えることがあります。</p>
+    <p class="authbox-notice"><a href="quiz.html">今日の一問へ →</a></p>
+  </div>`;
+}
+renderQuizBadges();
+// 9/17以降に解いてまとめの無い日があれば、出題ファイルから一度だけ作ってから描き直す
+if(window.TeiyomiQuiz && window.TeiyomiQuizBadges && window.TeiyomiYomi){
+  TeiyomiQuiz.backfillStats(localStorage, TeiyomiYomi, TeiyomiQuizBadges, TeiyomiQuiz.todayJst()).then(renderQuizBadges);
+}
 
 if(window.TeiyomiMembership){
   TeiyomiMembership.onChange(state=>{

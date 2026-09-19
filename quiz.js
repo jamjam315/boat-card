@@ -419,6 +419,28 @@
     }).filter(Boolean);
   }
 
+  /**
+   * 9/17以降に解いて、通算の記録にまとめの無い日を、出題ファイルから一度だけ作る(1日ずつ順に)。
+   * 今日の一問のページとマイページの実績一覧が呼ぶ。取れなかった日は、次に開いたときにもう一度。
+   */
+  function backfillStats(ls, Y, B, today) {
+    if (!B || !Y) return Promise.resolve();
+    var have = B.read(ls).days;
+    var todo = revealedDays(ls, Y).filter(function (d) { return d.date >= FIRST_DATE && !have[d.date]; });
+    var chain = Promise.resolve();
+    todo.forEach(function (d) {
+      chain = chain.then(function () {
+        return fetch("/quiz/" + d.date + ".json", { cache: "no-cache" })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (q) {
+            if (isQuiz(q) && q.date === d.date) B.addDay(ls, d.date, daySummary(q, d.records, Y, d.revealedAt), today);
+          })
+          .catch(function () { /* 取れなければ次に開いたときにもう一度 */ });
+      });
+    });
+    return chain;
+  }
+
   function headerWhen(q, today) {
     return (q.date === today ? "今日の一問" : mdLabel(q.date) + "の一問") + "　" + q.question.venue + " " + q.question.no + "R";
   }
@@ -458,26 +480,8 @@
       statusEl.textContent = t;
       statusEl.hidden = !t;
     }
-    /** 9/17以降に解いてまとめの無い日を、出題ファイルから一度だけ作る(1日ずつ順に)。 */
-    function backfill() {
-      if (!B) return;
-      var have = B.read(localStorage).days;
-      var todo = revealedDays(localStorage, Y).filter(function (d) { return d.date >= FIRST_DATE && !have[d.date]; });
-      var chain = Promise.resolve();
-      todo.forEach(function (d) {
-        chain = chain.then(function () {
-          return fetch("/quiz/" + d.date + ".json", { cache: "no-cache" })
-            .then(function (res) { return res.ok ? res.json() : null; })
-            .then(function (q2) {
-              if (isQuiz(q2) && q2.date === d.date) B.addDay(localStorage, d.date, daySummary(q2, d.records, Y, d.revealedAt), today);
-            })
-            .catch(function () { /* 取れなければ次に開いたときにもう一度 */ });
-        });
-      });
-      chain.then(renderStatus);
-    }
     renderStatus();
-    backfill();
+    backfillStats(localStorage, Y, B, today).then(renderStatus);
 
     function show(q) {
       var store = dayStore(localStorage, date, Y);
@@ -567,7 +571,7 @@
     STORE_KEY: STORE_KEY, KEEP_DAYS: KEEP_DAYS, MAX_PER_QUIZ: MAX_PER_QUIZ, BUDGET: BUDGET, UNIT: UNIT,
     MEASURED_NOTE: MEASURED_NOTE,
     esc: esc, todayJst: todayJst, pickDate: pickDate, isQuiz: isQuiz, dayStore: dayStore,
-    daySummary: daySummary, revealedDays: revealedDays, FIRST_DATE: FIRST_DATE,
+    daySummary: daySummary, revealedDays: revealedDays, backfillStats: backfillStats, FIRST_DATE: FIRST_DATE,
     questionHtml: questionHtml, resultHtml: resultHtml, paperOf: paperOf, headerWhen: headerWhen
   };
 

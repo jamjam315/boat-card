@@ -296,3 +296,27 @@ test("スタートまで進んだ日の一覧(まとめを作り直す元)。締
   assert.strictEqual(plain(a.revealedAt()), days[0].revealedAt);
   assert.strictEqual(b.revealedAt(), null);
 });
+
+test("解いた日のまとめの作り直し(backfillStats): 9/17以降でまとめの無い日だけ、一度だけ出題ファイルから作る", async () => {
+  const S = load();
+  vm.runInContext(readFileSync(join(ROOT, "quiz-badges.js"), "utf8"), S);
+  const Bd = S.TeiyomiQuizBadges, Q2 = S.TeiyomiQuiz, Y2 = S.TeiyomiYomi;
+  const fetched = [];
+  S.fetch = (url) => {
+    fetched.push(url);
+    const ok = url === "/quiz/2026-09-17.json";
+    return Promise.resolve({ ok, json: () => Promise.resolve(ok ? JSON.parse(JSON.stringify(QUIZ)) : null) });
+  };
+  const ls = memStorage({ teiyomi_yomi_records: "[]" });
+  for (const d of ["2026-09-16", "2026-09-17", "2026-09-18"]) {
+    const s = Q2.dayStore(ls, d, Y2);
+    s.add({ ken: "単勝", lanes: [1], amount: 100 });
+    s.reveal();
+  }
+  await Q2.backfillStats(ls, Y2, Bd, "2026-09-18");
+  assert.deepStrictEqual(fetched, ["/quiz/2026-09-17.json", "/quiz/2026-09-18.json"], "9/16(始まりより前)は取りに行かない");
+  assert.deepStrictEqual(Object.keys(Bd.read(ls).days), ["2026-09-17"], "取れた日だけ足す(9/18 は取れなかった)");
+  fetched.length = 0;
+  await Q2.backfillStats(ls, Y2, Bd, "2026-09-18");
+  assert.deepStrictEqual(fetched, ["/quiz/2026-09-18.json"], "足した日は二度と取りに行かない。取れなかった日はもう一度");
+});

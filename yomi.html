@@ -135,6 +135,14 @@ body{background:var(--bg); color:var(--ink);
     nextEl: document.getElementById("next"),
     p: p
   });
+
+  // 今日の一問への入口(AI-15)。「つづき」が出たときだけ、その最後に1つ足す(答案の紙には刷らない)。
+  var nx = document.querySelector("#next .next");
+  if (nx) {
+    nx.insertAdjacentHTML("beforeend",
+      '<a class="next-btn" href="quiz.html">今日の一問で練習する' +
+      '<small>過去に実際にあったレースで、番組表を読んで買い目を記録する</small></a>');
+  }
 })();
 </script>
 </body>
