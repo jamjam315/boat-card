@@ -62,7 +62,9 @@ env:
   # 以前はこの値を schedule の経路でしか見ておらず、Supabase Cron → kick-github は
   # workflow_dispatch + dry_run=false で来るので素通りしていた。2026-09-14 に
   # catch版の投稿がCronから出たのはそのため(false にしていても止まらなかった)。
-  POST_LIVE: "false"
+  # 2026-09-19 に "true" にした(殿堂の称号版の dry-run を CI で確認し、JAM が文面を承認したあと)。
+  # 初回の本番投稿は 2026-09-21(月)20:20 JST の Supabase Cron(kick-weekly-titles)。止めるときは "false" に戻す。
+  POST_LIVE: "true"
 
 jobs:
   titles:
