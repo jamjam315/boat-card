@@ -66,10 +66,14 @@ def local_path(url):
 
 
 def _digest(path):
+    """中身のハッシュ。改行は LF にそろえてから数える。
+
+    CI(Ubuntu)は LF、手元(Windows)は CRLF でファイルを持つので、そろえないと
+    同じ中身でもハッシュが変わり、手元で一度動かしただけで全URLが「更新された」に化ける。"""
     h = hashlib.sha1()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 16), b""):
-            h.update(chunk)
+            h.update(chunk.replace(b"\r\n", b"\n"))
     return h.hexdigest()[:16]
 
 

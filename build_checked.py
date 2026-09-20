@@ -238,7 +238,7 @@ def render_index(items, measured_on):
     html = HEAD.format(title=esc("検証結果｜艇読み"), desc=esc(desc), url=url,
                        card=f"{SITE}/og-image.png")
     html += '<p class="crumb"><a href="/">艇読み</a> ／ 検証結果</p>\n'
-    html += "<h1>買い続けたら、どうなるか。</h1>\n"
+    html += "<h1>定番の検証 ― 買い続けたら、どうなるか。</h1>\n"
     html += (f'<p class="cond">条件を決めて過去10年ぶんを集計した結果です（{esc(measured_on)}時点）。'
              "どれも同じ条件を自分で回せます。</p>\n")
     for it in items:

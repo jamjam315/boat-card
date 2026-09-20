@@ -615,8 +615,12 @@ def kana_index_urls():
 
 
 def refresh_sitemap():
-    """固定ページ・五十音・検証結果・players_index.jsの選手・race/配下の現存ページから
-    sitemap.xmlを再生成する。ローリングで消えたページはここで自動的に消える。
+    """固定ページ・五十音・検証結果・players_index.jsの選手から sitemap.xml を再生成する。
+
+    【race/ は載せない】(2026-09-20)
+    レースページは7日で消える使い捨てURL。毎日170件ほどが増えて同じだけ404になるので、
+    載せると「検出 - インデックス未登録」が積み上がり、恒久ページのクロールを圧迫する。
+    ページ自体とリンクはそのまま(トップから普通に辿れる)。
 
     固定ページと検証結果の一覧、lastmod の決め方は sitemap_util が持っている
     (build_all_player_pages.py と同じものを引くので、片方にだけ在るURLで
@@ -627,18 +631,6 @@ def refresh_sitemap():
         urls += [f"https://teiyomi.com/players/{t}.html" for t in player_pages]
     except FileNotFoundError:
         pass
-    if os.path.isdir(OUT_DIR):
-        for date_name in sorted(os.listdir(OUT_DIR)):
-            date_path = os.path.join(OUT_DIR, date_name)
-            if not os.path.isdir(date_path) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_name):
-                continue
-            for venue_name in sorted(os.listdir(date_path)):
-                venue_path = os.path.join(date_path, venue_name)
-                if not os.path.isdir(venue_path):
-                    continue
-                for fname in sorted(os.listdir(venue_path)):
-                    if fname.endswith(".html"):
-                        urls.append(f"https://teiyomi.com/race/{date_name}/{venue_name}/{fname}")
     return sitemap_util.write(urls)
 
 

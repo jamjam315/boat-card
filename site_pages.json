@@ -1,5 +1,5 @@
 {
-  "_readme": "sitemap.xml に載せる固定ページの一覧。sitemap は build_all_player_pages.py と build_race_pages.py の両方が全体を書き出すので、片方の一覧にだけ在るURLは、後から走ったほうに消される(yomi-guide.html で実際に起きた)。写しを2つ持たないよう、両方がこのファイルを読む。ページを増やしたらここに足すこと。",
+  "_readme": "sitemap.xml に載せる固定ページの一覧。sitemap は build_all_player_pages.py と build_race_pages.py の両方が全体を書き出すので、片方の一覧にだけ在るURLは、後から走ったほうに消される(yomi-guide.html で実際に起きた)。写しを2つ持たないよう、両方がこのファイルを読む。ページを増やしたらここに足すこと。 なお noindex のページは載せないこと(載せると Search Console で「noindex により除外」になる)。2026-09-20 に /yomi.html(端末の中の記録を出すページ)と /premium/ を外した。使い捨ての race/ 配下も載せない(寿命7日・下の2本のスクリプトを参照)。",
   "fixed": [
     "/",
     "/guide.html",
@@ -14,8 +14,6 @@
     "/mypage.html",
     "/titles.html",
     "/kyusoku.html",
-    "/premium/",
-    "/yomi.html",
     "/quiz.html"
   ]
 }

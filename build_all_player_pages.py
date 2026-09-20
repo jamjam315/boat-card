@@ -25,10 +25,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nums{font-variant-numeric:tabular-nums lining-nums;}
 .topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
 .topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:var(--on-water-sub);}
+/* 帯はブランド表示。h1 は選手名(.pname)のほうに付ける。見た目は今までの h1 と同じ */
+.topbar .site{font-size:16px; margin:0; font-weight:600;}
 .hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
-.hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.hero .pname{font-size:20px; font-weight:700; margin:0;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
   margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
 .fav-btn.active{color:var(--gold);}
@@ -174,49 +176,6 @@ def meta_description(prof):
             f"予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。")
 
 
-def scan_race_urls():
-    """race/配下(日付/会場ローマ字/xR.html)を実際にスキャンしてURL一覧を作る。
-    build_race_pages.pyの7日ローリングで管理されているフォルダなので、ここでは
-    存在するものをそのまま数え上げるだけ(削除・生成は一切行わない)。"""
-    urls = []
-    if not os.path.isdir("race"):
-        return urls
-    for date_name in sorted(os.listdir("race")):
-        date_path = os.path.join("race", date_name)
-        if not os.path.isdir(date_path) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_name):
-            continue
-        for venue_name in sorted(os.listdir(date_path)):
-            venue_path = os.path.join(date_path, venue_name)
-            if not os.path.isdir(venue_path):
-                continue
-            for fname in sorted(os.listdir(venue_path)):
-                if fname.endswith(".html"):
-                    urls.append(f"https://teiyomi.com/race/{date_name}/{venue_name}/{fname}")
-    return urls
-
-
-# 五十音インデックス。/players/ の一覧はJSで描画していて、HTMLには選手ページへの
-# リンクが1本も無かった。Googleから見ると1,636ページがsitemapにしか存在せず、
-# 「検出 - インデックス未登録」のまま積み上がる。行ごとの静的な一覧を置いて、
-# トップ → /players/ → 五十音 → 選手ページ をHTMLだけで辿れるようにする。
-#
-# 半角カナ(fanの「カナ」)を NFKC で全角に直してから先頭1文字で振り分ける。
-# 濁点付き(ﾄﾞ など)は正規化すると1文字になるので、濁音も表に入れておくこと
-# (入れ忘れて「ド」で始まる4人が行なしになった)。
-KANA_ROWS = [
-    ("a",  "あ", "アイウエオ"),
-    ("ka", "か", "カキクケコガギグゲゴ"),
-    ("sa", "さ", "サシスセソザジズゼゾ"),
-    ("ta", "た", "タチツテトダヂヅデド"),
-    ("na", "な", "ナニヌネノ"),
-    ("ha", "は", "ハヒフヘホバビブベボパピプペポ"),
-    ("ma", "ま", "マミムメモ"),
-    ("ya", "や", "ヤユヨ"),
-    ("ra", "ら", "ラリルレロ"),
-    ("wa", "わ", "ワヲン"),
-]
-
-
 def kana_norm(kana):
     return unicodedata.normalize("NFKC", kana or "").strip()
 
@@ -300,13 +259,12 @@ ul.plist a{{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; padding
 
 
 def build_sitemap(written):
-    """固定ページ・五十音・検証結果・全図鑑ページ・現存レースページから作る。
+    """固定ページ・五十音・検証結果・全図鑑ページから作る(race/ は載せない・2026-09-20)。
 
     固定ページと検証結果の一覧、lastmod の決め方は sitemap_util が持っている。
     build_race_pages.py も同じものを引くので、片方にだけ在るURLで消し合わない。"""
     urls = sitemap_util.fixed_urls() + kana_index_urls() + sitemap_util.checked_urls()
     urls += [f"https://teiyomi.com/players/{t}.html" for t in written]
-    urls += scan_race_urls()
     return sitemap_util.write(urls)
 
 
@@ -545,13 +503,13 @@ def render_page(prof, history_rows=None, neighbors=None):
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>艇読み — 選手図鑑</h1>
+    <p class="site">艇読み — 選手図鑑</p>
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
     {hero_nav_html(neighbors, "prev")}
     <div class="hero-body">
-      <div class="pname">{fp['氏名']} <span style="font-weight:400;font-size:13px;color:var(--ink2);">{fp['級別']}</span><button class="fav-btn" id="favBtn" data-toban="{prof['touban']}" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
+      <h1 class="pname">{fp['氏名']} <span style="font-weight:400;font-size:13px;color:var(--ink2);">{fp['級別']}</span><button class="fav-btn" id="favBtn" data-toban="{prof['touban']}" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></h1>
       <div class="pmeta">{fp['年齢']}歳 ・ {fp['支部']}支部 ・ {fp['体重']}kg</div>
       <div class="catch">「{prof['catch']}」</div>
       <div class="catch-basis">{prof['catch_basis']}</div>

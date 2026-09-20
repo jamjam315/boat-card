@@ -39,7 +39,13 @@ body{background:var(--bg); color:var(--ink);
   background:repeating-linear-gradient(180deg, transparent 0 17px, rgba(255,255,255,.05) 17px 18px);}
 .lanes{display:grid; grid-template-rows:repeat(6,1fr); gap:2px; width:16px; height:34px; position:relative; z-index:1;}
 .lanes i{display:block; border-radius:2px;}
-.topbar h1{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+.topbar .site{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
+/* ページの主題(h1)と節の見出し(h2)。帯はブランド、h1 は中身の題という関係にする */
+.bt-h1{font-size:20px; font-weight:700; margin:0 0 8px; line-height:1.5; color:var(--ink); letter-spacing:.02em;}
+.bt-h2{font-size:14px; font-weight:700; margin:20px 2px 8px; color:var(--ink);}
+.bt-about{margin-top:6px;}
+.bt-about p{margin:0 2px; font-size:12.5px; color:var(--ink2); line-height:1.85;}
+.bt-about p+p{margin-top:8px;}
 .topbar p{font-size:11.5px; margin:1px 0 0; color:var(--on-water-sub); letter-spacing:.02em; position:relative; z-index:1;}
 
 .back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
@@ -99,7 +105,7 @@ body{background:var(--bg); color:var(--ink);
       <i style="background:#fff"></i><i style="background:#2b2b2b"></i><i style="background:#d83a36"></i>
       <i style="background:#2f6fd0"></i><i style="background:#f2c200"></i><i style="background:#1f9e54"></i>
     </div>
-    <div><h1>艇読み</h1><p>買い方のバックテスト</p></div>
+    <div><p class="site">艇読み</p><p>買い方のバックテスト</p></div>
   </header>
   <a class="back" href="index.html">← トップに戻る</a>
 
@@ -109,11 +115,14 @@ body{background:var(--bg); color:var(--ink);
     プレミアム版（条件を自分で指定して検証）→
   </a>
 
+  <h1 class="bt-h1">バックテスト ― 会場別・買い方別の的中率と回収率</h1>
+
   <section class="bt-intro">
     <p>これは過去1年（<span id="btPeriod" class="nums">集計中</span>）の実際のレース結果を、機械的に集計した"事実"です。予想ではなく、この買い方を推奨するものでもありません。</p>
     <p>24会場の一覧比較ではなく、会場を1つずつ選んで確認する形式です。</p>
   </section>
 
+  <h2 class="bt-h2">会場を選ぶ</h2>
   <div class="bt-scope">
     <label class="bt-scope-label" for="btVenue">会場</label>
     <select class="bt-select" id="btVenue"><option value="全国">全国</option></select>
@@ -122,6 +131,7 @@ body{background:var(--bg); color:var(--ink);
   <a class="bt-custom-link" href="backtest-custom.html">→ 会場・期間・券種・買い目を自分で指定して検証する</a>
   <div><a class="bt-custom-link" href="checked/">→ 定番の検証を見る（よくある買い方12本の結果）</a></div>
 
+  <h2 class="bt-h2">買い方を選ぶ</h2>
   <div class="bt-tabs" role="tablist" aria-label="買い方の種類">
     <button class="bt-tab" role="tab" data-key="単勝" aria-selected="true">単勝</button>
     <button class="bt-tab" role="tab" data-key="複勝" aria-selected="false">複勝</button>
@@ -138,6 +148,13 @@ body{background:var(--bg); color:var(--ink);
     </table>
   </div>
   <div class="bt-note" id="btNote"></div>
+
+  <section class="bt-about">
+    <h2 class="bt-h2">この数字の読み方</h2>
+    <p>的中率は、その買い方で買ったレースのうち当たったレースの割合です。回収率は、使った金額に対して戻ってきた金額の割合で、100%ならちょうど差し引きゼロになります。払戻は売上から一定の割合が引かれたあとで分け合う仕組みなので、長く続けるほど回収率は100%より下に落ち着きます。この表でも多くの組み合わせが100%を下回ります。100%を超えている組み合わせがあっても、それは過去1年でそうだったという事実で、次も同じになるという意味ではありません。対象数(集計したレース数)が少ないほど、たまたまの影響が大きくなります。</p>
+    <h2 class="bt-h2">集計の前提</h2>
+    <p>使っているのは、公式に公表された出走表と競走成績です。1レースあたりの賭け金は単勝・複勝が100円、2連単(1着ながし)は2着に5点流して500円として、機械的に当てはめています。会場を選ぶと、その会場で行われたレースだけで同じ集計をやり直します。予想印は出していません。特定の買い方を勧めるものでもありません。会場・期間・券種・買い目を自分で指定した検証はプレミアムの<a href="backtest-custom.html">バックテスト(条件指定)</a>で、よくある買い方12本の結果は<a href="checked/">定番の検証</a>でまとめています。</p>
+  </section>
 
   <p class="foot">舟券の購入は20歳になってから。のめり込みに注意し、余裕資金の範囲で楽しみましょう。心配な方は、<a href="https://www.caa.go.jp/policies/policy/consumer_policy/caution/caution_012/" target="_blank" rel="noopener">消費者庁の案内ページ</a>（相談窓口の案内）をご確認ください。<br>個人情報の取り扱いについては<a href="privacy.html">プライバシーポリシー</a>をご覧ください。<br><a href="about.html">運営者情報</a></p>
 </div>
