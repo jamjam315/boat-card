@@ -6,7 +6,8 @@
 //   1. 問題(question)と答え(answer)が分かれていて、問題にはレースの日付・締切・レースキーが入っていない
 //   2. 出題の決まり: 6艇とも完走・払戻あり・出題日の8日以上前のレース・使用済みを出さない・
 //      同じ会場を7日以内に出さない
-//   3. 答えの中身が払戻と食い違わない(着順から作った3連単が払戻の3連単と一致)
+//   3. 答えの中身が払戻と食い違わない(着順から作った3連単が払戻の3連単と一致)。
+//      レースタイムの幅は距離ごとに見る(下の RT_SEC)
 //   4. 読み採点のエンジンでそのまま採点できる({...answer, wx} で scoreOne、{boats} で buildPaper)
 import { test } from "node:test";
 import assert from "node:assert";
@@ -19,6 +20,13 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = join(ROOT, "quiz");
 const files = existsSync(DIR) ? readdirSync(DIR).filter((f) => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort() : [];
 const quizzes = files.map((f) => ({ file: f, q: JSON.parse(readFileSync(join(DIR, f), "utf8")) }));
+
+// レースタイム(秒)の幅。距離で違うので、1本の幅で見ない。
+// 実データ(2026-07-26以降の競走成績)は 1800m が 106.1〜146.2秒(41,267本)、
+// 1200m が 72.6〜85.6秒(662本)。1800m のつもりの幅(90〜150)で見ていたため、
+// 1200m 戦(全体の1.6%)を引いた晩は必ず落ち、出題が6晩配られなかった(2026-09-18〜24)。
+// ここに無い距離は通さない。黙って通すと、読めない数字の出題がそのまま配られる。
+const RT_SEC = { 1200: [60, 100], 1800: [90, 150] };
 
 const DAY = 86400000;
 const days = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / DAY);
@@ -61,7 +69,11 @@ test("答え: どのレースか・着順・進入・ST・レースタイム・�
     assert.deepStrictEqual([...A.order].sort(), [1, 2, 3, 4, 5, 6], `${file} 6艇とも着がある`);
     assert.deepStrictEqual([...A.in].sort(), [1, 2, 3, 4, 5, 6], `${file} 進入`);
     assert.ok(A.st.every((x) => typeof x === "number" && x >= 0 && x < 1), `${file} ST`);
-    assert.ok(A.rt.every((x) => x === null || (x > 90 && x < 150)), `${file} レースタイム(秒)`);
+    const dist = q.question.dist;
+    const sec = RT_SEC[dist];
+    assert.ok(sec, `${file} 距離 ${dist} は 1200/1800 のどちらでもない`);
+    assert.ok(A.rt.every((x) => x === null || (Number.isFinite(x) && x > sec[0] && x < sec[1])),
+      `${file} レースタイム(秒)・${dist}m なら ${sec[0]}〜${sec[1]}`);
     assert.ok(A.pay["3連単"] && A.pay["3連単"].length, `${file} 3連単の払戻`);
     const top3 = [1, 2, 3].map((c) => A.order.indexOf(c) + 1).join("-");
     assert.ok(A.pay["3連単"].some((p) => p.c === top3), `${file} 着順 ${top3} と3連単の払戻`);
