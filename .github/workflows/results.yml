@@ -125,7 +125,8 @@ jobs:
         id: snap
         continue-on-error: true
         env:
-          SELFTEST: ${{ inputs.notify_selftest }}
+          # このファイルの他の入力と同じ書き方にする(schedule では中身が無いので空になる)
+          SELFTEST: ${{ github.event.inputs.notify_selftest }}
         run: |
           python scripts/archive_race_snapshots.py
           # 稽古は仕事を済ませてから。印だけ伏せる(貯め損ねを作らない)
@@ -144,7 +145,8 @@ jobs:
         id: quiz
         continue-on-error: true
         env:
-          SELFTEST: ${{ inputs.notify_selftest }}
+          # このファイルの他の入力と同じ書き方にする(schedule では中身が無いので空になる)
+          SELFTEST: ${{ github.event.inputs.notify_selftest }}
         run: |
           echo "QUIZ_OK=0" >> "$GITHUB_ENV"
           python build_quiz.py
