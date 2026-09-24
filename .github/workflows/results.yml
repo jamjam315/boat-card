@@ -34,6 +34,9 @@ env:
 jobs:
   collect:
     runs-on: ubuntu-latest
+    # 今日の一問を配れたか(配れた晩だけ "1")。配れなかった晩は下の notify-quiz が Issue で知らせる。
+    outputs:
+      quiz_ok: ${{ steps.quiz.outputs.ok }}
     steps:
       - uses: actions/checkout@v7
 
@@ -112,16 +115,21 @@ jobs:
       # 2) 今日から1週間先まで、まだ無い日の出題を quiz/{出題日}.json に作る(作った日は作り直さない)。
       #    作ったらコミットの前にテストを流す。崩れていたら QUIZ_OK=0 を立て、下のコミットで quiz/ を足さない
       #    (その晩の出題は配らない。次の晩に作り直される)
+      #    配らなかったことは下の notify-quiz が Issue で知らせる。ここを黙らせると、在庫(7日)が
+      #    尽きる日まで気づけない。2026-09-18〜24 は毎晩ここで止まっていて、朝のX投稿が在庫切れで
+      #    落ちて初めて分かった。
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: 今日の一問を1週間先まで作り置く(崩れていたら配らない)
+        id: quiz
         continue-on-error: true
         run: |
           echo "QUIZ_OK=0" >> "$GITHUB_ENV"
           python build_quiz.py
           node --test tests/quiz-data.test.mjs
           echo "QUIZ_OK=1" >> "$GITHUB_ENV"
+          echo "ok=1" >> "$GITHUB_OUTPUT"
 
       - name: 変化があればコミット(main・公開サイト)
         run: |
@@ -211,3 +219,32 @@ jobs:
           --title "結果データ収集(results.yml)が失敗しました"
           --hint "結果そのものは毎朝の daily.yml が前日ぶんを拾い直す(集計 stats.js などは次の 01:00 で作り直し)。
           push の衝突なら、先に走った run が公開済みのことが多い。"
+
+  # ---- 今日の一問が配られなかったときの通知(2026-09-24) ----
+  # collect の中の「作り置き」は continue-on-error + 自前の関門(QUIZ_OK)で、失敗しても本線を
+  # 止めない。そのぶんジョブは緑のままなので、ここで Issue を立てないと誰にも届かない。
+  # 実際 2026-09-18〜24 の6晩、毎晩ここで止まっていたのに run はすべて緑で、在庫(7日ぶん)が
+  # 尽きた9/24の朝、X投稿が「出題ファイルが無い」で落ちて初めて分かった。
+  # collect ごと失敗した晩は上の notify-failure が知らせるので、ここは緑だったときだけ動く。
+  notify-quiz:
+    needs: [collect]
+    if: always() && needs.collect.result == 'success' && needs.collect.outputs.quiz_ok != '1'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 出題を配れなかったことを Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "今日の一問の出題が配られませんでした(results.yml)"
+          --what "collect(今日の一問を1週間先まで作り置く)"
+          --hint "作り置き(build_quiz.py → tests/quiz-data.test.mjs)が落ちた晩は、その晩ぶんを1日も配らない。
+          run のログの [quiz] の行(その日どのレースを引いたか)と、その下の error: の行を見る。
+          在庫は7日ぶんなので、続くと朝08:05のX投稿と quiz.html が止まる。
+          直したあと results.yml を手動で1回走らせれば、その日から配り直せる。"
