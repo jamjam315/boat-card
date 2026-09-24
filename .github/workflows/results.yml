@@ -11,6 +11,14 @@ on:
       ai_health_date:
         description: 'AI講評の成否を見る日(YYYY-MM-DD)。空ならJSTの前日'
         default: ''
+      # 鳴らせない警報は、鳴らないのと同じ。ここを true にすると、池と作り置きの
+      # 「済んだ印」だけを伏せて、notify-quiz が本当に Issue を立てるところまで通す。
+      # 仕事そのもの(貯める・作る・配る)は普通に済ませるので、何も失わない。
+      # 立った Issue は稽古なので、確かめたら閉じる。
+      notify_selftest:
+        description: '通知の配線を試す(池と作り置きの印だけ伏せて、Issueが立つか見る。仕事は普通に済ませます)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,8 +42,10 @@ env:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    # 今日の一問を配れたか(配れた晩だけ "1")。配れなかった晩は下の notify-quiz が Issue で知らせる。
+    # 今日の一問の2段(池を貯める・出題を作り置く)が済んだか(済んだ晩だけ "1")。
+    # 済まなかった晩は下の notify-quiz が Issue で知らせる。
     outputs:
+      snap_ok: ${{ steps.snap.outputs.ok }}
       quiz_ok: ${{ steps.quiz.outputs.ok }}
     steps:
       - uses: actions/checkout@v7
@@ -109,9 +119,18 @@ jobs:
       # 後のコミットは止めない(continue-on-error)。
       # 1) 前日のレースページと同じ番組表の数字(data.js)を、出題の池として data ブランチの snapshots/ に貯める。
       #    この時刻の data.js は前日の最後の版(今日の版なら貯めずに飛ばす)
+      #    ここも落ちたら下の notify-quiz が知らせる。その日の data.js は翌日には別の日のものに
+      #    なっているので、貯め損ねた日はもう入らない(黙って落ちると池が静かに痩せる)。
       - name: 今日の一問の池を貯める(前日の data.js → snapshots/)
+        id: snap
         continue-on-error: true
-        run: python scripts/archive_race_snapshots.py
+        env:
+          SELFTEST: ${{ inputs.notify_selftest }}
+        run: |
+          python scripts/archive_race_snapshots.py
+          # 稽古は仕事を済ませてから。印だけ伏せる(貯め損ねを作らない)
+          if [ "$SELFTEST" = "true" ]; then echo "通知の配線を試すため、済んだ印を伏せます"; exit 1; fi
+          echo "ok=1" >> "$GITHUB_OUTPUT"
       # 2) 今日から1週間先まで、まだ無い日の出題を quiz/{出題日}.json に作る(作った日は作り直さない)。
       #    作ったらコミットの前にテストを流す。崩れていたら QUIZ_OK=0 を立て、下のコミットで quiz/ を足さない
       #    (その晩の出題は配らない。次の晩に作り直される)
@@ -124,11 +143,15 @@ jobs:
       - name: 今日の一問を1週間先まで作り置く(崩れていたら配らない)
         id: quiz
         continue-on-error: true
+        env:
+          SELFTEST: ${{ inputs.notify_selftest }}
         run: |
           echo "QUIZ_OK=0" >> "$GITHUB_ENV"
           python build_quiz.py
           node --test tests/quiz-data.test.mjs
           echo "QUIZ_OK=1" >> "$GITHUB_ENV"
+          # 稽古は配ってから。印だけ伏せる(その日の出題は普通に配られる)
+          if [ "$SELFTEST" = "true" ]; then echo "通知の配線を試すため、済んだ印を伏せます"; exit 1; fi
           echo "ok=1" >> "$GITHUB_OUTPUT"
 
       - name: 変化があればコミット(main・公開サイト)
@@ -220,15 +243,18 @@ jobs:
           --hint "結果そのものは毎朝の daily.yml が前日ぶんを拾い直す(集計 stats.js などは次の 01:00 で作り直し)。
           push の衝突なら、先に走った run が公開済みのことが多い。"
 
-  # ---- 今日の一問が配られなかったときの通知(2026-09-24) ----
-  # collect の中の「作り置き」は continue-on-error + 自前の関門(QUIZ_OK)で、失敗しても本線を
-  # 止めない。そのぶんジョブは緑のままなので、ここで Issue を立てないと誰にも届かない。
-  # 実際 2026-09-18〜24 の6晩、毎晩ここで止まっていたのに run はすべて緑で、在庫(7日ぶん)が
+  # ---- 今日の一問の2段が止まったときの通知(2026-09-24) ----
+  # collect の中の「池を貯める」「作り置き」は continue-on-error で、失敗しても本線を止めない。
+  # そのぶんジョブは緑のままなので、ここで Issue を立てないと誰にも届かない。
+  # 実際 2026-09-18〜24 の6晩、毎晩「作り置き」で止まっていたのに run はすべて緑で、在庫(7日ぶん)が
   # 尽きた9/24の朝、X投稿が「出題ファイルが無い」で落ちて初めて分かった。
   # collect ごと失敗した晩は上の notify-failure が知らせるので、ここは緑だったときだけ動く。
+  # 2段は別の題で立てる(直す場所が違う)。両方止まった晩は2枚立つ。
   notify-quiz:
     needs: [collect]
-    if: always() && needs.collect.result == 'success' && needs.collect.outputs.quiz_ok != '1'
+    if: >-
+      always() && needs.collect.result == 'success'
+      && (needs.collect.outputs.snap_ok != '1' || needs.collect.outputs.quiz_ok != '1')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -236,7 +262,21 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v7
+      - name: 池を貯められなかったことを Issue で知らせる
+        if: needs.collect.outputs.snap_ok != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "今日の一問の出題の池が貯まりませんでした(results.yml)"
+          --what "collect(今日の一問の池を貯める)"
+          --hint "scripts/archive_race_snapshots.py が落ちた晩は、その日の data.js が池(dataブランチの snapshots/)に入らない。
+          data.js は翌日には別の日のものに変わるので、その日ぶんは後から拾い直せない。
+          すぐ出題が止まるわけではないが、放っておくと引ける池が痩せていく。
+          run のログの [done] data.js(…) の行を見る。"
       - name: 出題を配れなかったことを Issue で知らせる
+        if: needs.collect.outputs.quiz_ok != '1'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
