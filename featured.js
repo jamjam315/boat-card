@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-27", "toban": "3959", "name": "坪井康晴", "k": "A1", "age": 48, "br": "静岡", "catch": "津の主", "basis": "津で圧倒的な強さを見せているため（詳しくは下の「当地」欄）", "venue": "津", "races": [7, 12], "reason": "home"};
+window.FEATURED = {"date": "2026-09-28", "toban": "3959", "name": "坪井康晴", "k": "A1", "age": 48, "br": "静岡", "catch": "津の主", "basis": "津で圧倒的な強さを見せているため（詳しくは下の「当地」欄）", "venue": "津", "races": [12], "reason": "home"};
