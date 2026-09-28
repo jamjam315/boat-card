@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-28", "toban": "3959", "name": "坪井康晴", "k": "A1", "age": 48, "br": "静岡", "catch": "津の主", "basis": "津で圧倒的な強さを見せているため（詳しくは下の「当地」欄）", "venue": "津", "races": [12], "reason": "home"};
+window.FEATURED = {"date": "2026-09-29", "toban": "4928", "name": "栗城匠", "k": "A1", "age": 31, "br": "東京", "catch": "児島の差し込み屋", "basis": "児島で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "児島", "races": [2, 11], "reason": "home"};
