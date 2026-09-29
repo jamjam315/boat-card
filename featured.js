@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-09-29", "toban": "4928", "name": "栗城匠", "k": "A1", "age": 31, "br": "東京", "catch": "児島の差し込み屋", "basis": "児島で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "児島", "races": [2, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-09-30", "toban": "4538", "name": "笠置博之", "k": "A1", "age": 35, "br": "大阪", "catch": "鳴門巧者", "basis": "鳴門で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "鳴門", "races": [4, 9], "reason": "home"};
