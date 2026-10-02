@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-02", "toban": "4538", "name": "笠置博之", "k": "A1", "age": 35, "br": "大阪", "catch": "鳴門の主", "basis": "鳴門で圧倒的な強さを見せているため（詳しくは下の「当地」欄）", "venue": "鳴門", "races": [7, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-10-03", "toban": "4933", "name": "板橋侑我", "k": "A2", "age": 30, "br": "静岡", "catch": "蒲郡巧者", "basis": "蒲郡で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "蒲郡", "races": [6, 12], "reason": "home"};
