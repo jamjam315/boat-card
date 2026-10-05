@@ -164,7 +164,12 @@ def who(h):
 
 
 def desc_for(desc, key):
-    """会場称号は「〇〇の守護神」の定義を使う。"""
+    """会場称号は「〇〇の守護神」の定義を使う。
+    称号そのものの定義があればそれを先に使う。ランキング型の「音速の申し子」は名前の末尾が
+    「の申し子」なので、先に末尾で見ると会場の申し子の定義(「その水面に来ると…」)を引いてしまう
+    (2026-10-05 に見つけた。それまで音速の申し子の首位交代は投稿されていない)。"""
+    if key in desc:
+        return desc[key]
     for suffix in VENUE_SUFFIXES:
         if key.endswith(suffix):
             return desc.get("〇〇" + suffix, "")
