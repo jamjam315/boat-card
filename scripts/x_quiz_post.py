@@ -6,17 +6,19 @@
 
 【本文に入れるもの・入れないもの】(2026-09-16 JAM・文面は 2026-09-19 の確定稿)
   入れる … 会場・レース番号・種別と距離・気象(レース時点の値)・6艇の艇番と選手名と級別
-  リンクは本文に入れず、返信1件で付ける(「今日の一問 → URL」・殿堂ウォッチと同じ形)
+  リンクは入れない(本文にも返信にも)。行き先は「プロフィールのリンク→「今日の一問」から」と書く。
+    URL入りの投稿は1件$0.20(通常$0.015)。以前は返信でURLを付けていたが、10/4は本文1,000表示に
+    対し返信13表示で、費用に見合わなかった(2026-10-05 返信をやめた。x_post の説明も参照)
   入れない … レースの日付(ページでも結果のところまで伏せている)・着順・払戻・決まり手など答えの側のもの
   予想印も入れない(サイトと同じ)。購入を促す言い方もしない。
 出題ファイルの question だけを読み、answer には触れない(答えを本文に混ぜる経路を作らない)。
 
 【事故を構造で防ぐ】(x_kyusoku_watch.py と同じ作法)
-  - 投稿は x_post.post_thread() 経由。本文1件+返信1件・リトライ無し・本文の失敗は非0終了
-    (返信だけ失敗したときは本文を二重に出さないよう0で終わる。x_post の説明のとおり)
+  - 投稿は x_post.post() 経由。本文1件だけ・リトライ無し・失敗は非0終了
+    (本文にリンクらしき文字列があれば、x_post が送らずに止める)
   - 同じ日に2回は投稿しない(x_state/quiz_state.json の last_posted_date)
   - 今日の出題ファイルが無い・崩れている日は投稿しない(非0で終わって気づけるようにする。
-    リンク先が「準備しています」のまま投稿すると、押した人が何も遊べない)
+    案内先が「準備しています」のまま投稿すると、見に来た人が何も遊べない)
   - 本文が長すぎたら、気象の行 → 級別の順に削って作り直す。それでも入らなければ投稿しない
   - 投稿に失敗したら状態を更新しない
   - 本番に出すかどうかは、ワークフロー(x-post-quiz.yml)の POST_LIVE が決める(元栓)
@@ -39,10 +41,8 @@ JST = zoneinfo.ZoneInfo("Asia/Tokyo")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 QUIZ_DIR = os.path.join(REPO, "quiz")
 STATE_PATH = os.path.join(REPO, "x_state", "quiz_state.json")
-URL = "https://teiyomi.com/quiz.html"
 TAGS = "#ボートレース #競艇"
-LEAD = "過去に実際にあったレースです。番組表を読んで買い目を記録すると、スタートで結果と答案が出ます。"
-REPLY = "今日の一問 → " + URL
+LEAD = "過去に実際にあったレースです。答え合わせはプロフィールのリンク→「今日の一問」から。"
 
 
 def load_question(path):
@@ -158,8 +158,9 @@ def main():
     if a.preview:
         print(f"[quiz-x] {today} の本文(文字数 {x_post.weighted_len(text)}/{x_post.MAX_WEIGHTED}・全角=2)")
         print(text)
-        print(f"[quiz-x] 返信(文字数 {x_post.weighted_len(REPLY)}/{x_post.MAX_WEIGHTED})")
-        print(REPLY)
+        link = x_post.find_link(text)
+        if link:
+            sys.exit(f"[quiz-x] 本文にリンクらしき文字列があります: {link}")
         return
 
     state = load_state(a.state)
@@ -167,7 +168,8 @@ def main():
         print(f"[quiz-x] 今日({today})はすでに投稿済みのため投稿しません。")
         return
 
-    x_post.post_thread(text, REPLY, dry_run=a.dry_run)
+    # 失敗すると post() の中で非0終了し、下の状態保存には来ない。
+    x_post.post(text, dry_run=a.dry_run)
     if not a.dry_run:
         state["last_posted_date"] = today
         save_state(state, a.state)

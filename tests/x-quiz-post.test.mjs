@@ -21,8 +21,7 @@ test("出題ファイルの全日で、本文に答えの側(日付・着順・�
   for (const f of FILES) {
     const q = JSON.parse(readFileSync(join(ROOT, "quiz", f), "utf8"));
     const out = preview(q.date);
-    const [head, reply] = out.split(/\[quiz-x\] 返信[^\n]*\n/);
-    const body = head.split("\n").slice(1).join("\n");
+    const body = out.split("\n").slice(1).join("\n");
     const A = q.answer;
     const [y, m, d] = A.date.split("-");
     for (const s of [A.date, `${Number(m)}/${Number(d)}`, `${Number(m)}月${Number(d)}日`, `${y}年`]) {
@@ -38,9 +37,11 @@ test("出題ファイルの全日で、本文に答えの側(日付・着順・�
     // 出すものは出ている
     assert.ok(body.includes(q.question.venue) && body.includes(`${q.question.no}R`), `${f} 会場とレース番号`);
     for (const b of q.question.boats) assert.ok(body.includes(`${b.n} ${b.name.replace(/\s+/g, " ").trim()}`), `${f} ${b.n}号艇の選手名`);
-    assert.ok(!body.includes("http"), `${f} リンクは本文に入れない`);
-    assert.strictEqual(reply.trim(), "今日の一問 → https://teiyomi.com/quiz.html", `${f} リンクは返信で`);
-    assert.ok(body.includes("過去に実際にあったレースです。番組表を読んで買い目を記録すると、スタートで結果と答案が出ます。\n#ボートレース #競艇"), `${f} 末尾2行`);
+    // リンクは本文にも返信にも入れない(URL入りの投稿は1件$0.20・2026-10-05)。
+    // ドメインだけでもXが自動でリンクにするので、teiyomi.com も書かない
+    assert.ok(!/https?:\/\/|www\.|teiyomi\.com|[A-Za-z0-9-]\.[A-Za-z]{2,}/.test(body), `${f} 本文にリンクらしき文字列`);
+    assert.ok(!out.includes("返信"), `${f} 返信は出さない`);
+    assert.ok(body.includes("過去に実際にあったレースです。答え合わせはプロフィールのリンク→「今日の一問」から。\n#ボートレース #競艇"), `${f} 末尾2行`);
     const n = Number(/文字数 (\d+)\/280/.exec(out)[1]);
     assert.ok(n <= 280, `${f} 長さ ${n}`);
   }

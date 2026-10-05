@@ -98,7 +98,7 @@ def main():
     state = W.state_of(snaps[0][1], None, snaps[0][0])
     for k in range(1, len(snaps)):
         date_iso, cur = snaps[k]
-        kind, text, reply = W.decide(state, cur, date_iso, desc)
+        kind, text = W.decide(state, cur, date_iso, desc)
         state = W.state_of(cur, state, date_iso)
         counts[kind or "none"] += 1
         print("=" * 60)
@@ -109,8 +109,6 @@ def main():
             continue
         print(text)
         print(f"  （本文 {W.x_post.weighted_len(text)}/{W.x_post.MAX_WEIGHTED}）")
-        print("  ── リプ ──")
-        print("  " + reply)
         print()
 
     print("■ 内訳:", dict(counts))

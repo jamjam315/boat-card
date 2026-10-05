@@ -41,15 +41,22 @@ uplift 0.04〜0.07pt 差で毎週入れ替わっていた(表示はどちらも 
 【事故を構造で防ぐ】
   - 状態ファイルが無い初回は、判定せず保存だけする
   - 同じ日に2回は投稿しない(last_posted_date)
-  - 投稿は x_post.post_thread() 経由。本文1件+返信1件・リトライ無し
+  - 投稿は x_post.post() 経由。本文1件だけ・リトライ無し
   - 本文の投稿に失敗したら状態を更新しない。翌週、同じ変化がもう一度拾われる
+
+【リンクを入れない】(2026-10-05)
+以前は返信で殿堂のURLを付けていた。URL入りの投稿は1件$0.20(通常$0.015)で、返信は
+ほとんど見られていなかった(今日の一問の実測で本文の約1.3%)。返信をやめ、本文の末尾で
+「プロフィールのリンク→「二つ名殿堂」から。」と案内する(トップの入口の名前と同じ)。
+この1行のぶん長くなるので、重み280を超える回は定義の行(——〜)を文の切れ目で後ろから
+短くし、それでも入らなければ外す(compose())。会場の申し子は定義文が長く、末尾の
+「各場1人だけの称号」を落として収まる(2026-10-05 の titles.json で全48枠を測った)。
 """
 import argparse
 import datetime
 import json
 import os
 import sys
-import urllib.parse
 import zoneinfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -61,8 +68,8 @@ TITLES_PATH = os.path.join(REPO, "players", "career", "titles.json")
 DESC_PATH = os.path.join(REPO, "titles_desc.json")
 STATE_PATH = os.path.join(REPO, "x_state", "hall_state.json")
 
-SITE = "https://teiyomi.com"
 TAGS = "#ボートレース #競艇"
+GUIDE = "プロフィールのリンク→「二つ名殿堂」から。"
 MAX_ENTRIES = 3          # B で並べる人数の上限
 SEEN_DAYS = 28           # トップ10入りの「新しく」を判定する記憶の長さ(4週)
 VENUE_SUFFIXES = ("の守護神", "の申し子")
@@ -156,12 +163,6 @@ def who(h):
     return f"{h['name']}選手" + (f"（{h['class']}）" if h.get("class") else "")
 
 
-def anchor_url(name):
-    # 殿堂ページは id="t-{称号名}"。日本語のままだと自動リンクが途中で切れる
-    # クライアントがあるので、断片はエンコードしておく。
-    return f"{SITE}/titles.html#" + urllib.parse.quote("t-" + name)
-
-
 def desc_for(desc, key):
     """会場称号は「〇〇の守護神」の定義を使う。"""
     for suffix in VENUE_SUFFIXES:
@@ -170,39 +171,46 @@ def desc_for(desc, key):
     return desc.get(key, "")
 
 
+def note_choices(note):
+    """定義の行の候補。全文 → 文の切れ目(「。」)で後ろから短くしたもの → 無し、の順。
+    途中で切った文は出さない(読めない定義を出すより、出さないほうがよい)。"""
+    if not note:
+        return [None]
+    parts = [p for p in note.split("。") if p]
+    return [note] + ["。".join(parts[:k]) + "。" for k in range(len(parts) - 1, 0, -1)] + [None]
+
+
+def compose(lines, note):
+    """本文を組む。定義の行(note)は入るところまで短くし、入らなければ外す。
+    それでも入らなければ None。"""
+    for n in note_choices(note):
+        t = "\n".join(lines + ([f"——{n}"] if n else []) + [GUIDE, TAGS])
+        if fits(t):
+            return t
+    return None
+
+
 def text_lead(date_iso, title, h, desc):
-    return (f"二つ名ウォッチ🚤 {md(date_iso)}\n"
-            f"「{title}」の首位が交代しました。\n"
-            f"新しい王は{who(h)}。{metric_str(title, h['metric'])}・{h['n']:,}走。\n"
-            f"——{desc_for(desc, title)}\n"
-            f"{TAGS}")
+    return compose([f"二つ名ウォッチ🚤 {md(date_iso)}",
+                    f"「{title}」の首位が交代しました。",
+                    f"新しい王は{who(h)}。{metric_str(title, h['metric'])}・{h['n']:,}走。"],
+                   desc_for(desc, title))
 
 
 def text_venue(date_iso, key, h, desc):
     role = "守護神" if key.endswith("の守護神") else "申し子"
-    return (f"二つ名ウォッチ🚤 {md(date_iso)}\n"
-            f"「{key}」が交代しました。\n"
-            f"新しい{role}は{who(h)}。{venue_metric_str(key, h['metric'])}・{h['n']:,}走。\n"
-            f"——{desc_for(desc, key)}\n"
-            f"{TAGS}")
+    return compose([f"二つ名ウォッチ🚤 {md(date_iso)}",
+                    f"「{key}」が交代しました。",
+                    f"新しい{role}は{who(h)}。{venue_metric_str(key, h['metric'])}・{h['n']:,}走。"],
+                   desc_for(desc, key))
 
 
 def text_entries(date_iso, rows):
-    lines = "\n".join(
-        f"「{title}」{h['rank']}位 {h['name']}選手（{metric_str(title, h['metric'])}・{h['n']:,}走）"
-        for title, h in rows
-    )
-    return (f"二つ名ウォッチ🚤 {md(date_iso)}\n"
-            f"今週、殿堂に新しく名を連ねた選手：\n"
-            f"{lines}\n"
-            f"——条件別の1着率から、毎日機械的に付け直している二つ名です。\n"
-            f"{TAGS}")
-
-
-def reply_for(kind, key=None):
-    if kind in ("lead", "venue"):
-        return f"殿堂で全順位を見る → {anchor_url(key)}"
-    return f"殿堂 → {SITE}/titles.html"
+    return compose([f"二つ名ウォッチ🚤 {md(date_iso)}",
+                    "今週、殿堂に新しく名を連ねた選手："]
+                   + [f"「{title}」{h['rank']}位 {h['name']}選手（{metric_str(title, h['metric'])}・{h['n']:,}走）"
+                      for title, h in rows],
+                   "条件別の1着率から、毎日機械的に付け直している二つ名です。")
 
 
 def fits(text):
@@ -212,7 +220,7 @@ def fits(text):
 # ---------------------------------------------------------------- 判定
 
 def decide(prev, cur, date_iso, desc):
-    """投稿する1件を決める。(種別, 本文, 返信) か (None, 理由, None)。
+    """投稿する1件を決める。(種別, 本文) か (None, 理由)。
 
     prev は state_of() の形(登番だけ)、cur は snapshot() の形。"""
     # A: ランキング型の首位交代。走数nの多い称号を採る(同数なら称号名で固定)。
@@ -231,8 +239,8 @@ def decide(prev, cur, date_iso, desc):
         leads.append((hs[0]["n"], title))
     for n, title in sorted(leads, key=lambda x: (-x[0], x[1])):
         t = text_lead(date_iso, title, cur["ranked"][title][0], desc)
-        if fits(t):
-            return "lead", t, reply_for("lead", title)
+        if t:
+            return "lead", t
         print(f"[title] 「{title}」の首位交代が長すぎて収まりませんでした。次の候補を見ます。")
 
     # A': 会場称号の交代。空位がからむ変化は交代として扱わない(先頭の説明を参照)。
@@ -252,8 +260,8 @@ def decide(prev, cur, date_iso, desc):
         changes.append((h["n"], key))
     for n, key in sorted(changes, key=lambda x: (-x[0], x[1])):
         t = text_venue(date_iso, key, cur["venue"][key], desc)
-        if fits(t):
-            return "venue", t, reply_for("venue", key)
+        if t:
+            return "venue", t
         print(f"[title] 「{key}」の交代が長すぎて収まりませんでした。次の候補を見ます。")
 
     # B: 新しいトップ10入り。前回その称号が無かった(新設)なら全員新規になるので数えない。
@@ -272,12 +280,12 @@ def decide(prev, cur, date_iso, desc):
     rows.sort(key=lambda r: (r[1]["rank"], -r[1]["n"], r[0]))
     for k in range(min(MAX_ENTRIES, len(rows)), 0, -1):
         t = text_entries(date_iso, rows[:k])
-        if fits(t):
-            return "entries", t, reply_for("entries")
+        if t:
+            return "entries", t
     if rows:
         print(f"[title] トップ10入り {len(rows)}人ぶん、1人でも収まりませんでした。")
 
-    return None, "首位交代もトップ10入りもありません(この週は投稿しません)", None
+    return None, "首位交代もトップ10入りもありません(この週は投稿しません)"
 
 
 # ---------------------------------------------------------------- 本体
@@ -319,15 +327,15 @@ def main():
         save_state(cur, last_posted, a.state, state, today.isoformat())
         return
 
-    kind, text, reply = decide(state, cur, today.isoformat(), desc)
+    kind, text = decide(state, cur, today.isoformat(), desc)
     if kind is None:
         print(f"[title] {text}")
         save_state(cur, last_posted, a.state, state, today.isoformat())
         return
 
     print(f"[title] 投稿する種別: {kind}")
-    # 本文の送信に失敗すると post_thread の中で非0終了し、状態は更新されない。
-    x_post.post_thread(text, reply, dry_run=a.dry_run)
+    # 本文の送信に失敗すると post() の中で非0終了し、状態は更新されない。
+    x_post.post(text, dry_run=a.dry_run)
     if not a.dry_run:
         last_posted = today.isoformat()
     save_state(cur, last_posted, a.state, state, today.isoformat())
