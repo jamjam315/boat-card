@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-07", "toban": "4207", "name": "松下一也", "k": "A1", "age": 43, "br": "静岡", "catch": "常滑の自在まくり屋", "basis": "常滑で際立って好成績、かつ「まくり」が持ち味のため（詳しくは下の「当地」欄）", "venue": "常滑", "races": [4], "reason": "home"};
+window.FEATURED = {"date": "2026-10-08", "toban": "4173", "name": "岡谷健吾", "k": "B1", "age": 43, "br": "広島", "catch": "鳴門巧者", "basis": "鳴門で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "鳴門", "races": [2, 11], "reason": "home"};
