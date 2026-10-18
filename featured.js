@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-18", "toban": "4926", "name": "吉川貴仁", "k": "A1", "age": 32, "br": "三重", "catch": "常滑巧者", "basis": "常滑で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "常滑", "races": [7, 12], "reason": "home"};
+window.FEATURED = {"date": "2026-10-19", "toban": "4926", "name": "吉川貴仁", "k": "A1", "age": 32, "br": "三重", "catch": "常滑巧者", "basis": "常滑で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "常滑", "races": [8, 12], "reason": "home"};
