@@ -10,7 +10,9 @@
 // 5bが選択肢の表を二重に持っていないことは tests/rule-match.test.mjs で見る
 // (CIの deno test はファイルの読み取り権限なしで走るため)。
 import { assert, assertEquals } from 'jsr:@std/assert@^1'
-import { matchesCond, parseDataDate, type AlertCond, type Entry } from './morning-message.ts'
+import {
+  MAT_BANDS, matchesCond, matFromDataBoat, parseDataDate, type AlertCond, type BoatMat, type Entry,
+} from './morning-message.ts'
 
 await import('../../../rule-match.js')
 // deno-lint-ignore no-explicit-any
@@ -206,4 +208,74 @@ Deno.test('matchRaces: 絞れる条件が無いノートは全レースを該当
 Deno.test('matchRaces: 日付が読めない data.js では何も出さない(月の判定を誤らない)', () => {
   const r = RM.ruleFromNote(note({}, { kind: 'yusho' }), VENUES)
   assertEquals(RM.matchRaces({ ...DATA, date: '' }, r, null), [])
+})
+
+// ---- 4. 艇の材料(2026-10-20) ----
+
+Deno.test('艇の材料: 帯の表が TS版とJS版で同じ', () => {
+  const js = Object.fromEntries(RM.MATS.map((m: { key: string; bands: { key: string; min?: number; max?: number }[] }) =>
+    [m.key, m.bands.map((b) => ({ key: b.key, ...(b.min !== undefined ? { min: b.min } : {}), ...(b.max !== undefined ? { max: b.max } : {}) }))]))
+  assertEquals(js, MAT_BANDS)
+})
+
+// data.js の艇。値が分からない形(勝率0.00・ks が空・着が1走だけ・F の ST)も入れる
+const DATA_BOATS = [
+  { n: 1, k: 'A1', nw: 7.12, mo: 45.5, ks: { s: [0.12, 0.15, 0.01], r: [1, 2, null, 3] } },
+  { n: 2, k: 'B1', nw: 0, mo: 0, ks: { s: [], r: [4] } },
+  { n: 3, k: 'A2', nw: 6.5, mo: 40, ks: { s: [0.14, 0.14], r: [2, 2] } },
+  { n: 4, k: 'B2', nw: 4.99, mo: 29.99, ks: { s: [0.18], r: [6, 5, 4, 3] } },
+  { n: 5, k: 'X', nw: null, mo: null, ks: null },
+  { n: 6, k: 'A1', nw: 5.5, mo: 35, ks: { s: [0.16, 0.2], r: [null, 1, 3] } },
+]
+
+Deno.test('艇の材料: data.js の1艇から作る値が TS版とJS版で同じ', () => {
+  for (const b of DATA_BOATS) assertEquals(RM.matFromDataBoat(b), matFromDataBoat(b), JSON.stringify(b))
+  assertEquals(matFromDataBoat(DATA_BOATS[1]), { k: 'B1', nw: null, mo: null, st: null, fm: null })
+  assertEquals(matFromDataBoat(DATA_BOATS[2]), { k: 'A2', nw: 6.5, mo: 40, st: 0.14, fm: 2 })
+})
+
+Deno.test('艇の材料: matchesCond が TS版とJS版で同じ(艇番・この選手・分からない値)', () => {
+  const boats: (BoatMat | null)[] = DATA_BOATS.map((b) => matFromDataBoat(b))
+  const conds: AlertCond[] = []
+  for (const lane of [1, 2, 3, 4, 6, 'self'] as const) {
+    for (const [mat, bands] of Object.entries(MAT_BANDS)) {
+      conds.push({ mats: [{ lane, mat: mat as 'k', bands: [bands[0].key] }] })
+      conds.push({ mats: [{ lane, mat: mat as 'k', bands: bands.slice(1, 3).map((b) => b.key) }] })
+    }
+  }
+  conds.push({ mats: [{ lane: 1, mat: 'k', bands: ['A1'] }, { lane: 1, mat: 'nw', bands: ['7.0-', '6.5-7.0'] }] })
+  conds.push({ races: [5], mats: [{ lane: 'self', mat: 'st', bands: ['-0.14'] }] })
+  let n = 0, hits = 0
+  for (const frame of [1, 2, 3, 4, 5, 6]) {
+    for (const withBoats of [true, false]) {
+      const e: Entry = { ...ENTRY_BASE, race: 5, frame, boats: withBoats ? boats : undefined }
+      for (const c of conds) {
+        const ts = matchesCond(e, c, '2026-10-20', null)
+        const js = RM.matchesCond(e, c, '2026-10-20', null)
+        if (ts !== js) throw new Error(`食い違い: frame=${frame} boats=${withBoats} cond=${JSON.stringify(c)} ts=${ts} js=${js}`)
+        n++
+        if (ts) hits++
+      }
+    }
+  }
+  assert(hits > 0 && hits < n, `hits=${hits} n=${n}`)
+  // 境目は「以上・未満」: 6.5 は 6.5〜7.0 に入り、5.0未満には 4.99 が入る
+  const e: Entry = { ...ENTRY_BASE, frame: 3, boats }
+  assert(matchesCond(e, { mats: [{ lane: 3, mat: 'nw', bands: ['6.5-7.0'] }] }, '2026-10-20', null))
+  assert(!matchesCond(e, { mats: [{ lane: 3, mat: 'nw', bands: ['6.0-6.5'] }] }, '2026-10-20', null))
+  assert(matchesCond(e, { mats: [{ lane: 4, mat: 'nw', bands: ['-5.0'] }] }, '2026-10-20', null))
+  // 勝率0.00(まだ記録が無い)はどの帯にも入らない
+  assert(!matchesCond(e, { mats: [{ lane: 2, mat: 'nw', bands: ['-5.0'] }] }, '2026-10-20', null))
+})
+
+Deno.test('艇の材料: 検証ノートの filter.mats が cond.mats に入る(帯の並びは表の順・空の行は落とす)', () => {
+  const r = RM.ruleFromNote(note({ toban: '4218' }, {
+    mats: [
+      { lane: 'self', mat: 'nw', bands: ['6.0-6.5', '7.0-'] },
+      { lane: 1, mat: 'k', bands: [] },
+      { lane: 9, mat: 'st', bands: ['-0.14'] },
+      { lane: 2, mat: 'xx', bands: ['a'] },
+    ],
+  }), VENUES)
+  assertEquals(r.cond, { mats: [{ lane: 'self', mat: 'nw', bands: ['7.0-', '6.0-6.5'] }] })
 })

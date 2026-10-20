@@ -196,6 +196,16 @@ body{background:var(--bg); color:var(--ink);
 .bt-years tr:last-child td{border-bottom:none;}
 .bt-years td small{display:block; font-size:10.5px; color:var(--muted); font-weight:400;}
 .bt-more-note{margin:10px 0 0; font-size:10.5px; color:var(--muted); line-height:1.6;}
+/* 艇の材料(2026-10-20) */
+.bt-wrap{display:flex; flex-wrap:wrap; gap:6px;}
+.bt-mat-row{margin-top:10px; padding:10px; border:1px solid var(--line2); border-radius:10px; background:var(--surface);}
+.bt-mat-head{display:flex; gap:6px; align-items:center; margin-bottom:8px;}
+.bt-mat-head .bt-select{width:auto; flex:1 1 0; min-width:0; padding:6px 4px; font-size:12.5px;}
+.bt-mat-del{flex:0 0 auto; border:none; background:transparent; color:var(--muted); font-size:12px;
+  font-family:inherit; cursor:pointer; padding:6px 4px; text-decoration:underline;}
+.bt-mat-add{margin-top:10px;}
+.bt-pick{margin-top:12px;}
+.bt-pick .bt-pill-note{margin:0 0 6px;}
 .bt-loading{font-size:12.5px; color:var(--muted); margin-top:10px;}
 
 .bt-checking{font-size:12.5px; color:var(--muted); margin-top:14px; padding:0 4px;}
@@ -334,6 +344,15 @@ body{background:var(--bg); color:var(--ink);
     </div>
   </div>
 
+  <div class="bt-filter" id="stepMat">
+    <p class="bt-filter-title">艇の材料でしぼる <span class="bt-badge">任意</span></p>
+    <p class="bt-filter-desc">番組表と、そのレースの前日までの成績から決まる値です（レースの朝に分かっていた値）。読み採点と同じ帯で分けています。</p>
+    <div id="matRows"></div>
+    <button type="button" class="bt-pill bt-mat-add" id="matAddBtn">＋ 条件を足す</button>
+    <p class="bt-pill-note">「6.5〜7.0」は6.5以上7.0未満です。帯を複数選ぶと、どれかに入るレースが対象です。条件を2つ以上足すと、すべてを満たすレースが対象です。</p>
+    <p class="bt-pill-note">平均ST・直近3走は、今節に2走以上あれば今節の走り、無ければ直近30日の走りから出しています（当日の走りは入れません）。値が分からない艇（記録がまだ無い新人など）は、どの帯にも入りません。</p>
+  </div>
+
   <div class="bt-filter" id="stepAfter">
     <p class="bt-filter-title">レース属性でしぼる <span class="bt-badge rev">結果からの逆引き</span></p>
     <p class="bt-filter-desc">レースが終わってから分かる情報です。もしこういう展開のレースだけ買えたら、という仮説の検証に使います。</p>
@@ -352,12 +371,20 @@ body{background:var(--bg); color:var(--ink);
     <div id="targetSingle" style="display:none;">
       <p class="bt-pill-note">買う艇を選ぶ(複数選択可・選んだ艇を毎レース買う)</p>
       <div class="bt-boats" id="singleBoats"></div>
+      <div class="bt-pick">
+        <p class="bt-pill-note">または、材料で決める（レースごとに1艇）</p>
+        <div class="bt-wrap" id="singlePick"></div>
+      </div>
     </div>
     <div id="targetMulti" style="display:none;">
       <div class="bt-row" id="modeRow" role="tablist" aria-label="買い方"></div>
       <div id="axisArea" class="bt-sub" style="display:none;">
         <p class="bt-sub-label">軸にする艇</p>
         <div class="bt-boats" id="axisBoats"></div>
+        <div class="bt-pick">
+          <p class="bt-pill-note">または、材料で決める（レースごとに軸が変わります）</p>
+          <div class="bt-wrap" id="axisPick"></div>
+        </div>
         <div id="axisPosArea" style="margin-top:10px; display:none;">
           <p class="bt-sub-label">軸の着順</p>
           <div class="bt-row" id="axisPosRow" role="tablist" aria-label="軸の着順"></div>
@@ -474,6 +501,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="notes.js"></script>
 <script src="rule-match.js"></script>
 <script src="backtest-breakdown.js"></script>
+<script src="backtest-mat.js"></script>
 <script>
 // ---------- プレミアムの壁 ----------
 // 【重要・将来サーバー側防御へ移すときの目印】
@@ -599,9 +627,13 @@ body{background:var(--bg); color:var(--ink);
       dist: "all",
       fixed: "all",
       entry: "all",
-      kimarite: "all"
-    }
+      kimarite: "all",
+      mats: []           // 艇の材料の条件 [{lane: 1〜6 または "self", mat, bands}](2026-10-20)
+    },
+    pickBy: null,        // 単勝・複勝の「材料で決める」(TeiyomiBtMat.PICKS の key)
+    axisBy: null         // 軸ながしの軸の「材料で決める」
   };
+  var MATS = TeiyomiRuleMatch.MATS, BM = TeiyomiBtMat;
   var meta = null;
   var fileCache = {};   // "{romaji}-{年}" → 読み込み済みレコード配列(会場・期間切替のたびの再ダウンロードを避ける)
 
@@ -1138,7 +1170,157 @@ body{background:var(--bg); color:var(--ink);
     if(f.fixed !== "all") parts.push(optByKey(FIXED_OPTS, f.fixed).label);
     if(f.entry !== "all") parts.push(optByKey(ENTRY_OPTS, f.entry).label);
     if(f.kimarite !== "all") parts.push("決まり手" + optByKey(KIMARITE_OPTS, f.kimarite).label);
+    TeiyomiRuleMatch.normMats(f.mats).forEach(function(m){ parts.push(TeiyomiRuleMatch.matCondLabel(m)); });
     return parts.join("・");
+  }
+
+  // ---------- 艇の材料(2026-10-20) ----------
+  /** 照合に使える材料の条件(帯の選ばれていない行は除く)。通常モードでは「この選手」を使わない。 */
+  function matConds(){
+    return TeiyomiRuleMatch.normMats(state.filter.mats).filter(function(m){
+      return state.toban || m.lane !== "self";
+    });
+  }
+  /** 材料で決める艇(単勝・複勝の pickBy / 軸ながしの axisBy)。使っていなければ null。選手モードでは使わない。 */
+  function dynamicPick(){
+    var bet = betDef(state.bet);
+    if(state.toban || !bet) return null;
+    if(bet.kind === "single") return state.pickBy;
+    return state.mode === "axis" ? state.axisBy : null;
+  }
+  function usesMat(){ return matConds().length > 0 || !!dynamicPick(); }
+
+  /** 材料の条件の行を描く。 */
+  function renderMatRows(){
+    var box = document.getElementById("matRows");
+    if(!box) return;
+    // 通常モードに戻ったら「この選手」の行は1号艇にする(選手がいないので)
+    state.filter.mats.forEach(function(m){ if(m.lane === "self" && !state.toban) m.lane = 1; });
+    box.innerHTML = "";
+    state.filter.mats.forEach(function(m, idx){
+      var row = document.createElement("div");
+      row.className = "bt-mat-row";
+      var head = document.createElement("div");
+      head.className = "bt-mat-head";
+      var lane = document.createElement("select");
+      lane.className = "bt-select"; lane.setAttribute("aria-label", "どの艇");
+      var lanes = (state.toban ? [["self", "この選手"]] : []).concat(BOATS.map(function(n){ return [n, n + "号艇"]; }));
+      lanes.forEach(function(p){
+        var o = document.createElement("option"); o.value = String(p[0]); o.textContent = p[1];
+        if(String(m.lane) === String(p[0])) o.selected = true;
+        lane.appendChild(o);
+      });
+      lane.addEventListener("change", function(){
+        m.lane = lane.value === "self" ? "self" : Number(lane.value); hideResult();
+      });
+      var mat = document.createElement("select");
+      mat.className = "bt-select"; mat.setAttribute("aria-label", "材料");
+      MATS.forEach(function(d){
+        var o = document.createElement("option"); o.value = d.key; o.textContent = d.label;
+        if(m.mat === d.key) o.selected = true;
+        mat.appendChild(o);
+      });
+      mat.addEventListener("change", function(){ m.mat = mat.value; m.bands = []; renderMatRows(); hideResult(); });
+      var del = document.createElement("button");
+      del.type = "button"; del.className = "bt-mat-del"; del.textContent = "外す";
+      del.addEventListener("click", function(){ state.filter.mats.splice(idx, 1); renderMatRows(); hideResult(); });
+      head.appendChild(lane); head.appendChild(mat); head.appendChild(del);
+      row.appendChild(head);
+      var pills = document.createElement("div");
+      pills.className = "bt-wrap";
+      var def = TeiyomiRuleMatch.matDef(m.mat);
+      (def ? def.bands : []).forEach(function(b){
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.className = "bt-pill"; btn.textContent = b.label;
+        btn.setAttribute("aria-pressed", m.bands.indexOf(b.key) !== -1 ? "true" : "false");
+        btn.addEventListener("click", function(){
+          var i = m.bands.indexOf(b.key);
+          if(i === -1) m.bands.push(b.key); else m.bands.splice(i, 1);
+          btn.setAttribute("aria-pressed", i === -1 ? "true" : "false");
+          hideResult();
+        });
+        pills.appendChild(btn);
+      });
+      row.appendChild(pills);
+      box.appendChild(row);
+    });
+    var add = document.getElementById("matAddBtn");
+    add.style.display = state.filter.mats.length >= 3 ? "none" : "";
+  }
+
+  /** 「材料で決める」の選択肢(単勝・複勝と軸ながしで使う)。 */
+  function renderPick(boxId, current, onPick){
+    var box = document.getElementById(boxId);
+    box.innerHTML = "";
+    BM.PICKS.forEach(function(p){
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "bt-pill"; btn.textContent = p.label;
+      btn.setAttribute("aria-pressed", current === p.key ? "true" : "false");
+      btn.addEventListener("click", function(){ onPick(current === p.key ? null : p.key); });
+      box.appendChild(btn);
+    });
+  }
+
+  /** 材料で決まった艇(lane)を軸・買う艇にしたときの買い目。相手に軸と同じ艇があれば除く。 */
+  function combosFor(lane){
+    var bet = betDef(state.bet);
+    if(!bet || lane == null) return [];
+    if(bet.kind === "single") return [String(lane)];
+    var restK = bet.n - 1;
+    var oppo = state.oppoBoats.filter(function(n){ return n !== lane; }).sort(function(a,b){return a-b;});
+    if(oppo.length < restK) return [];
+    var nums = bet.ordered
+      ? permute(oppo, restK).map(function(p){ var full = p.slice(); full.splice(state.axisPos - 1, 0, lane); return full; })
+      : combine(oppo, restK).map(function(c){ return [lane].concat(c); });
+    return nums.map(function(n){ return bet.ordered ? n.join("-") : ascKey(n); });
+  }
+  /** 材料で決めるときの点数の幅(軸が1〜6号艇のどれになっても)。 */
+  function pointsRange(){
+    var lo = null, hi = 0;
+    BOATS.forEach(function(n){
+      var c = combosFor(n).length;
+      if(lo === null || c < lo) lo = c;
+      if(c > hi) hi = c;
+    });
+    return { lo: lo || 0, hi: hi };
+  }
+  function pointsText(r){
+    return r.lo === r.hi ? String(r.hi) : r.lo + "〜" + r.hi;
+  }
+
+  // ---- 材料ファイルの読み込み(材料を使う条件のときだけ) ----
+  var matMetaPromise = null;
+  var matStore = BM.createStore();
+  var matLoaded = {};   // "{セット}/{月}" → 読み込み済み
+  function loadMatMeta(){
+    if(!matMetaPromise){
+      matMetaPromise = fetch(DATA_DIR + "mat/meta.json").then(function(r){
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).catch(function(e){ matMetaPromise = null; throw e; });
+    }
+    return matMetaPromise;
+  }
+  /**
+   * 指定した [セット, 月] の材料を読む(セットは all か会場のローマ字)。1つにつき1ファイル。
+   * 全国の月を読んであれば、同じ月の会場のファイルは読まない(全国の月が全会場の行を持つ)。
+   */
+  function loadMatFiles(pairs){
+    return loadMatMeta().then(function(mm){
+      var todo = pairs.filter(function(p){
+        if(matLoaded[p[0] + "/" + p[1]] || matLoaded["all/" + p[1]]) return false;
+        return (mm.sets[p[0]] || []).indexOf(p[1]) !== -1;   // その月のファイルがある
+      });
+      return Promise.all(todo.map(function(p){
+        return fetch(DATA_DIR + "mat/" + p[0] + "/" + p[1] + ".json").then(function(r){
+          if(!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(function(doc){
+          matStore.add(p[1], doc.rows);
+          matLoaded[p[0] + "/" + p[1]] = true;
+        });
+      }));
+    });
   }
 
   function venueLabel(){
@@ -1149,6 +1331,7 @@ body{background:var(--bg); color:var(--ink);
   function resetTarget(){
     state.singleBoats = []; state.axisBoat = null; state.axisPos = 1;
     state.oppoBoats = []; state.boxBoats = []; state.mode = "axis";
+    state.pickBy = null; state.axisBy = null;
   }
 
   function renderTarget(){
@@ -1164,9 +1347,15 @@ body{background:var(--bg); color:var(--ink);
         btn.addEventListener("click", function(){
           var i = state.singleBoats.indexOf(n);
           if(i === -1) state.singleBoats.push(n); else state.singleBoats.splice(i,1);
+          state.pickBy = null;   // 艇番で選んだら「材料で決める」は外す(どちらか一方)
           renderTarget(); hideResult();
         });
         box.appendChild(btn);
+      });
+      renderPick("singlePick", state.pickBy, function(key){
+        state.pickBy = key;
+        if(key) state.singleBoats = [];
+        renderTarget(); hideResult();
       });
       updatePoints();
       return;
@@ -1189,7 +1378,7 @@ body{background:var(--bg); color:var(--ink);
       btn.setAttribute("aria-selected", state.mode === pair[0] ? "true" : "false");
       btn.addEventListener("click", function(){
         state.mode = pair[0];
-        state.axisBoat = null; state.oppoBoats = []; state.boxBoats = [];
+        state.axisBoat = null; state.axisBy = null; state.oppoBoats = []; state.boxBoats = [];
         renderTarget(); hideResult();
       });
       row.appendChild(btn);
@@ -1202,10 +1391,16 @@ body{background:var(--bg); color:var(--ink);
       var btn = boatBtn(n, state.axisBoat === n, false);
       btn.addEventListener("click", function(){
         state.axisBoat = n;
+        state.axisBy = null;     // 艇番で選んだら「材料で決める」は外す
         if(state.oppoBoats.indexOf(n) !== -1) state.oppoBoats.splice(state.oppoBoats.indexOf(n),1);
         renderTarget(); hideResult();
       });
       axisBox.appendChild(btn);
+    });
+    renderPick("axisPick", state.axisBy, function(key){
+      state.axisBy = key;
+      if(key) state.axisBoat = null;
+      renderTarget(); hideResult();
     });
 
     var posArea = document.getElementById("axisPosArea");
@@ -1262,6 +1457,15 @@ body{background:var(--bg); color:var(--ink);
     var hint = document.getElementById("targetHint");
     if(!state.bet){ box.style.display = "none"; hint.textContent = ""; syncRunEnabled(); return; }
     box.style.display = "";
+    if(dynamicPick()){
+      // 材料で決めるときは、軸がどの艇になるかで点数が変わりうる(相手に軸と同じ艇があれば除く)
+      var rg = pointsRange();
+      document.getElementById("pointsVal").textContent = pointsText(rg);
+      document.getElementById("stakeVal").textContent = pointsText({ lo: rg.lo * 100, hi: rg.hi * 100 });
+      hint.textContent = rg.hi === 0 ? validationHint() : "";
+      syncRunEnabled();
+      return;
+    }
     document.getElementById("pointsVal").textContent = combos.length.toLocaleString("ja-JP");
     document.getElementById("stakeVal").textContent = (combos.length * 100).toLocaleString("ja-JP");
     hint.textContent = combos.length === 0 ? validationHint() : "";
@@ -1273,7 +1477,7 @@ body{background:var(--bg); color:var(--ink);
     if(!bet) return "";
     if(bet.kind === "single") return "艇を1つ以上選んでください。";
     if(state.mode === "box") return "ボックスにする艇を" + bet.n + "艇以上選んでください。";
-    if(state.axisBoat == null) return "軸にする艇を選んでください。";
+    if(state.axisBoat == null && !state.axisBy) return "軸にする艇を選んでください。";
     return "相手にする艇を" + (bet.n - 1) + "艇以上選んでください。";
   }
 
@@ -1283,7 +1487,8 @@ body{background:var(--bg); color:var(--ink);
     var hasPeriod = !!state.period || !!state.custom;   // ボタンかカスタム期間のどちらか
     var ok = state.toban
       ? (hasPeriod && !!state.bet)
-      : (!!state.venue && hasPeriod && !!state.bet && buildCombos().length > 0);
+      : (!!state.venue && hasPeriod && !!state.bet &&
+         (buildCombos().length > 0 || (!!dynamicPick() && pointsRange().hi > 0)));
     document.getElementById("runBtn").disabled = !ok;
 
     // 押せないときは理由を出す。黙って押せないボタンを置かない。
@@ -1409,6 +1614,7 @@ body{background:var(--bg); color:var(--ink);
       Array.prototype.forEach.call(row.children, function(c){ c.setAttribute("aria-selected", "false"); });
     }
     renderTarget();
+    renderMatRows();
     syncRunEnabled();
     hideResult();
   }
@@ -1487,8 +1693,23 @@ body{background:var(--bg); color:var(--ink);
       loading.textContent = years.length > 1 ? "データを読み込み中…(" + years.length + "年分)" : "集計中…";
       return Promise.all(years.map(function(y){ return loadPlayerYear(state.toban, y); }))
         .then(function(lists){
+          // 艇の材料の条件があるときだけ、その選手が走った会場×月の材料を読む
+          if(!matConds().length) return lists;
+          var pairs = {};
+          lists.forEach(function(rows){
+            rows.forEach(function(r){
+              if(r[0] < win.from || r[0] > win.to) return;
+              var v = venueByCode()[(r[1] >>> 16) & 0x1F];
+              if(v) pairs[v.romaji + "/" + r[0].slice(0, 7)] = [v.romaji, r[0].slice(0, 7)];
+            });
+          });
+          loading.textContent = "材料を読み込み中…";
+          return loadMatFiles(Object.keys(pairs).map(function(k){ return pairs[k]; })).then(function(){ return lists; });
+        })
+        .then(function(lists){
           loading.textContent = "集計中…";
           var pass = buildFilter();
+          var conds = matConds();
           var stake = (idx.stake && idx.stake[bet.stakeKey]) || 100;
           var n = 0, hit = 0, ret = 0;
           var acc = TeiyomiBtBreakdown.create();
@@ -1498,6 +1719,8 @@ body{background:var(--bg); color:var(--ink);
               var r = rows[j];
               if(r[0] < win.from || r[0] > win.to) continue;
               if(pass && !pass({ d: r[0], m: r[1] })) continue;
+              // 艇の材料(「この選手」はその日に乗っていた艇 r[2])
+              if(conds.length && !BM.passMats(matStore.row(r[0], r[1]), conds, r[2])) continue;
               n++;
               ret += r[bet.col];
               // 的中は着で判定する。単勝が未発売だったり、5艇レースで複勝が
@@ -1564,6 +1787,8 @@ body{background:var(--bg); color:var(--ink);
       axisPos: state.axisPos,
       oppoBoats: (state.oppoBoats || []).slice(),
       boxBoats: (state.boxBoats || []).slice(),
+      pickBy: state.pickBy || null,
+      axisBy: state.axisBy || null,
       filter: JSON.parse(JSON.stringify(state.filter))
     };
   }
@@ -1588,7 +1813,10 @@ body{background:var(--bg); color:var(--ink);
     if(c.filter){
       Object.keys(c.filter).forEach(function(k){ state.filter[k] = c.filter[k]; });
     }
+    // 艇の材料の条件(古いノートには無い)
+    state.filter.mats = (c.filter && Array.isArray(c.filter.mats)) ? JSON.parse(JSON.stringify(c.filter.mats)) : [];
     renderFilters();
+    renderMatRows();
     document.getElementById("monthGrid").style.display = state.filter.month === "custom" ? "" : "none";
     document.getElementById("rnoGrid").style.display = state.filter.rno === "custom" ? "" : "none";
 
@@ -1622,6 +1850,8 @@ body{background:var(--bg); color:var(--ink);
     state.axisPos = c.axisPos || 1;
     state.oppoBoats = (c.oppoBoats || []).slice();
     state.boxBoats = (c.boxBoats || []).slice();
+    state.pickBy = c.pickBy || null;
+    state.axisBy = c.axisBy || null;
     renderTarget();
     syncSessionRow();
     syncRunEnabled();
@@ -1904,6 +2134,7 @@ body{background:var(--bg); color:var(--ink);
     }
 
     loadVenuePeriod(state.venue, win).then(function(records){
+      if(usesMat()) return runMatBacktest(records, win, loading);
       loading.textContent = "集計中…";
       // しぼり込みが何も指定されていなければ pass は null になり、日付の窓だけで
       // 絞る従来どおりの計算になる(=しぼり込み追加前と1件も違わない)。
@@ -1948,6 +2179,88 @@ body{background:var(--bg); color:var(--ink);
       syncRunEnabled();
     }).catch(function(err){
       loading.textContent = "データの読み込みに失敗しました。時間をおいて再度お試しください。";
+      syncRunEnabled();
+    });
+  }
+
+  /** 会場コード → meta.json の会場。 */
+  var venueByCodeCache = null;
+  function venueByCode(){
+    if(!venueByCodeCache){
+      venueByCodeCache = {};
+      (meta.venues || []).forEach(function(v){ venueByCodeCache[v.code] = v; });
+    }
+    return venueByCodeCache;
+  }
+
+  /** 券種の名前。材料で決めるときは、どう決めるかを添える。 */
+  function betHeadLabel(){
+    var bet = betDef(state.bet), by = dynamicPick();
+    return bet.label + (by ? "（" + BM.pickDef(by).label + "）" : "");
+  }
+
+  /**
+   * 艇の材料を使う通常モードの集計。records は runBacktest が読んだ会場×年のレース。
+   * 窓・しぼり込みは runBacktest と同じ判定を使い、材料の条件と「材料で決める艇」だけを足す。
+   */
+  function runMatBacktest(records, win, loading){
+    var mw = moreWindow(win);
+    var months = BM.monthsIn(mw.from, mw.to);
+    var set = state.venue === "zenkoku" ? "all" : state.venue;
+    loading.textContent = "材料を読み込み中…(" + months.length + "か月分)";
+    return loadMatFiles(months.map(function(m){ return [set, m]; })).then(function(){
+      loading.textContent = "集計中…";
+      var pass = buildFilter();
+      var conds = matConds();
+      var by = dynamicPick();
+      var bet = betDef(state.bet);
+      // 艇番で決めた買い目(材料で決めないとき)と、材料で決まる艇ごとの買い目
+      var fixed = by ? [] : buildCombos();
+      var fixedSet = {};
+      fixed.forEach(function(c){ fixedSet[c] = true; });
+      var laneSet = {}, laneCount = {};
+      if(by){
+        BOATS.forEach(function(n){
+          var cs = combosFor(n);
+          laneSet[n] = {}; laneCount[n] = cs.length;
+          cs.forEach(function(c){ laneSet[n][c] = true; });
+        });
+      }
+      var acc = TeiyomiBtBreakdown.create();
+      var n = 0, hitCount = 0, totalPayout = 0, totalStake = 0, noPick = 0, noCombo = 0;
+      for(var j=0;j<records.length;j++){
+        var r = records[j];
+        if(r.d < win.from || r.d > win.to) continue;
+        if(pass && !pass(r)) continue;
+        var row = matStore.row(r.d, r.m);
+        if(conds.length && !BM.passMats(row, conds, null)) continue;
+        var set1 = fixedSet, cnt = fixed.length;
+        if(by){
+          var lane = BM.pickLane(row, by);
+          if(lane === null){ noPick++; continue; }        // 材料が分からず艇を決められない
+          if(!laneCount[lane]){ noCombo++; continue; }   // 軸と相手が重なって買い目が作れない
+          set1 = laneSet[lane]; cnt = laneCount[lane];
+        }
+        var entries = r[bet.key] || [];
+        var hit = false, pay = 0;
+        for(var k=0;k<entries.length;k++){
+          if(set1[entries[k][0]]){ pay += entries[k][1]; hit = true; }
+        }
+        n++;
+        if(hit) hitCount++;
+        totalPayout += pay;
+        totalStake += cnt * 100;
+        acc.add(r.d, r.m, cnt * 100, pay, hit);
+      }
+      showResult({
+        raceCount: n, hitCount: hitCount, totalPayout: totalPayout, totalStake: totalStake,
+        points: fixed.length, pointsLabel: by ? pointsText(pointsRange()) : null,
+        noPick: noPick, noCombo: noCombo,
+        head: venueLabel() + "・" + win.label + "・" + betHeadLabel(),
+        cond: filterLabel(),
+        more: acc.result(mw, mw.long)
+      });
+      loading.style.display = "none";
       syncRunEnabled();
     });
   }
@@ -2016,8 +2329,13 @@ body{background:var(--bg); color:var(--ink);
     retEl.textContent = pct(retRate);
     retEl.className = "val nums" + (retRate >= 1 ? " hi" : "");
     document.getElementById("rStake").textContent = yen(r.totalStake);
-    var note = "1レースあたり " + r.points + "点(" + (r.points*100).toLocaleString("ja-JP") + "円)。総払戻 " + yen(r.totalPayout) +
+    var note = (r.pointsLabel
+        ? "1レースあたり " + r.pointsLabel + "点（材料で決まる艇によって変わります）"
+        : "1レースあたり " + r.points + "点(" + (r.points*100).toLocaleString("ja-JP") + "円)") +
+      "。総払戻 " + yen(r.totalPayout) +
       "。的中率・回収率は小数第1位まで。回収率100%以上は色を分けています(推奨の意味ではありません)。";
+    if(r.noPick) note += " 材料が分からず艇を決められなかった" + r.noPick.toLocaleString("ja-JP") + "レースは対象から外しています。";
+    if(r.noCombo) note += " 軸と相手が同じ艇になり買い目が作れなかった" + r.noCombo.toLocaleString("ja-JP") + "レースは対象から外しています。";
     if(state.toban){
       // 出走数に何を含めているかを毎回書く(母数の意味が変わると数字の意味も変わるため)。
       note += " 非完走(F・失格等)も出走として含みます。";
@@ -2061,6 +2379,12 @@ body{background:var(--bg); color:var(--ink);
     renderPeriods();
     renderBetTypes();
     renderFilters();
+    renderMatRows();
+    document.getElementById("matAddBtn").addEventListener("click", function(){
+      if(state.filter.mats.length >= 3) return;
+      state.filter.mats.push({ lane: state.toban ? "self" : 1, mat: "k", bands: [] });
+      renderMatRows(); hideResult();
+    });
     initPlayerStep();   // 選手の入力欄(?toban= があれば初期選択も)
     initAlertUi();      // 「この絞り込みで通知する」
     initNoteUi();       // 「この検証を記録する」(?note= があれば復元して自動実行)

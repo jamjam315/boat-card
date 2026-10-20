@@ -11,7 +11,7 @@ on:
       ai_health_date:
         description: 'AI講評の成否を見る日(YYYY-MM-DD)。空ならJSTの前日'
         default: ''
-      # 鳴らせない警報は、鳴らないのと同じ。ここを true にすると、池と作り置きの
+      # 鳴らせない警報は、鳴らないのと同じ。ここを true にすると、池・作り置き・艇の材料の
       # 「済んだ印」だけを伏せて、notify-quiz が本当に Issue を立てるところまで通す。
       # 仕事そのもの(貯める・作る・配る)は普通に済ませるので、何も失わない。
       # 立った Issue は稽古なので、確かめたら閉じる。
@@ -47,6 +47,7 @@ jobs:
     outputs:
       snap_ok: ${{ steps.snap.outputs.ok }}
       quiz_ok: ${{ steps.quiz.outputs.ok }}
+      mat_ok: ${{ steps.mat.outputs.ok }}
     steps:
       - uses: actions/checkout@v7
 
@@ -106,6 +107,22 @@ jobs:
         # 過去分を毎日全部作り直しても出力内容は同じ(冪等)。
         # 読み込み元は _data/results/、出力先は main の backtest-data/。
         run: python build_backtest_custom.py
+      # 艇の材料(5bの「艇の材料でしぼる」「材料で決める艇」・2026-10-20)。直近3日が入る月だけ作り直す
+      # (毎晩書き換わるのは今月=月初は前月も のファイルだけ。過去の月は変わらない)。
+      # 番組表は data ブランチの program/ を読む。番組表がそろわない月は書き換えずに非0で終わる
+      # (材料を「不明」で上書きしないため)。本線ではないので続行し、止まった晩は notify-quiz が知らせる。
+      # 出力 backtest-data/mat/ は下のコミット(git add -A backtest-data/)に入る。
+      - name: 艇の材料を今月分作る(backtest-data/mat/)
+        id: mat
+        continue-on-error: true
+        env:
+          # このファイルの他の入力と同じ書き方にする(schedule では中身が無いので空になる)
+          SELFTEST: ${{ github.event.inputs.notify_selftest }}
+        run: |
+          python build_bt_materials.py --days 3
+          # 稽古は仕事を済ませてから。印だけ伏せる
+          if [ "$SELFTEST" = "true" ]; then echo "通知の配線を試すため、済んだ印を伏せます"; exit 1; fi
+          echo "ok=1" >> "$GITHUB_OUTPUT"
 
       # 読み採点(P1-3)は端末の中で採点する。買い目を端末から出さない方針なので、
       # 結果のほうを公開側に置く必要がある。results/ は data ブランチにあって
@@ -245,18 +262,19 @@ jobs:
           --hint "結果そのものは毎朝の daily.yml が前日ぶんを拾い直す(集計 stats.js などは次の 01:00 で作り直し)。
           push の衝突なら、先に走った run が公開済みのことが多い。"
 
-  # ---- 今日の一問の2段が止まったときの通知(2026-09-24) ----
+  # ---- 今日の一問の2段・艇の材料が止まったときの通知(2026-09-24・材料は 2026-10-20 に追加) ----
   # collect の中の「池を貯める」「作り置き」は continue-on-error で、失敗しても本線を止めない。
   # そのぶんジョブは緑のままなので、ここで Issue を立てないと誰にも届かない。
   # 実際 2026-09-18〜24 の6晩、毎晩「作り置き」で止まっていたのに run はすべて緑で、在庫(7日ぶん)が
   # 尽きた9/24の朝、X投稿が「出題ファイルが無い」で落ちて初めて分かった。
   # collect ごと失敗した晩は上の notify-failure が知らせるので、ここは緑だったときだけ動く。
-  # 2段は別の題で立てる(直す場所が違う)。両方止まった晩は2枚立つ。
+  # 段ごとに別の題で立てる(直す場所が違う)。いくつも止まった晩は、その数だけ立つ。
   notify-quiz:
     needs: [collect]
     if: >-
       always() && needs.collect.result == 'success'
-      && (needs.collect.outputs.snap_ok != '1' || needs.collect.outputs.quiz_ok != '1')
+      && (needs.collect.outputs.snap_ok != '1' || needs.collect.outputs.quiz_ok != '1'
+          || needs.collect.outputs.mat_ok != '1')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -290,3 +308,16 @@ jobs:
           run のログの [quiz] の行(その日どのレースを引いたか)と、その下の error: の行を見る。
           在庫は7日ぶんなので、続くと朝08:05のX投稿と quiz.html が止まる。
           直したあと results.yml を手動で1回走らせれば、その日から配り直せる。"
+      - name: 艇の材料を作れなかったことを Issue で知らせる
+        if: needs.collect.outputs.mat_ok != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "バックテストの艇の材料が作れませんでした(results.yml)"
+          --what "collect(艇の材料を今月分作る)"
+          --hint "build_bt_materials.py が落ちた晩は、今月の材料ファイル(backtest-data/mat/)が前の晩のまま。
+          5bの「艇の材料」で絞った検証に、昨日までのレースが入らない。
+          「番組表が N/M レースしか無いので書き換えません」と出ていれば、朝の番組表の取り込み(daily.yml)を見る。
+          直したあと results.yml を手動で1回走らせれば作り直せる。"

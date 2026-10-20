@@ -40,6 +40,74 @@ export type Entry = {
   kind?: string | null   // 種別(優勝戦/準優勝戦/予選/一般/その他)
   dist?: number | null   // 距離(m)
   fixed?: boolean | null // 進入固定
+  // そのレースの6艇の材料(艇番順・2026-10-20)。条件アラートの「艇の材料」の照合に使う
+  boats?: (BoatMat | null)[]
+}
+
+/** 1艇の材料(朝の時点で分かる値)。分からない値は null。 */
+export type BoatMat = {
+  k: string | null    // 級別 A1/A2/B1/B2
+  nw: number | null   // 全国勝率(0.00 は「まだ記録が無い」なので null)
+  mo: number | null   // モーター2連率(%・0.00 は null)
+  st: number | null   // 平均ST(今節2走以上なら今節、無ければ直近30日。data.js の ks.s)
+  fm: number | null   // 直近3走の平均着(着のある走が2走未満なら null)
+}
+
+/** 材料の条件1つ。lane は艇番、"self" はその選手の艇。bands は帯の key(どれかに入ればよい)。 */
+export type MatCond = { lane: number | 'self'; mat: 'k' | 'nw' | 'mo' | 'st' | 'fm'; bands: string[] }
+
+// 艇の材料の帯(2026-10-20)。rule-match.js の MATS と同じ表(rule_match_parity_test.ts が確かめる)。
+// **片方を直したら、もう片方も直すこと。** 帯は「min 以上 max 未満」。
+type Band = { key: string; min?: number; max?: number }
+export const MAT_BANDS: Record<string, Band[]> = {
+  k: [{ key: 'A1' }, { key: 'A2' }, { key: 'B1' }, { key: 'B2' }],
+  nw: [
+    { key: '7.0-', min: 7.0 }, { key: '6.5-7.0', min: 6.5, max: 7.0 }, { key: '6.0-6.5', min: 6.0, max: 6.5 },
+    { key: '5.5-6.0', min: 5.5, max: 6.0 }, { key: '5.0-5.5', min: 5.0, max: 5.5 }, { key: '-5.0', max: 5.0 },
+  ],
+  // 【仮】JAM の決定待ち(2026-10-20)
+  mo: [
+    { key: '45-', min: 45 }, { key: '40-45', min: 40, max: 45 }, { key: '35-40', min: 35, max: 40 },
+    { key: '30-35', min: 30, max: 35 }, { key: '-30', max: 30 },
+  ],
+  st: [
+    { key: '-0.14', max: 0.14 }, { key: '0.14-0.16', min: 0.14, max: 0.16 },
+    { key: '0.16-0.18', min: 0.16, max: 0.18 }, { key: '0.18-', min: 0.18 },
+  ],
+  fm: [
+    { key: '-2.0', max: 2.0 }, { key: '2.0-3.0', min: 2.0, max: 3.0 },
+    { key: '3.0-4.0', min: 3.0, max: 4.0 }, { key: '4.0-', min: 4.0 },
+  ],
+}
+
+/** 値が帯のどれかに入るか(rule-match.js の inMatBands と同じ)。値が分からなければ false。 */
+export function inMatBands(mat: string, value: unknown, bandKeys: string[] | undefined): boolean {
+  const bands = MAT_BANDS[mat]
+  if (!bands || value === null || value === undefined || !bandKeys?.length) return false
+  for (const b of bands) {
+    if (!bandKeys.includes(b.key)) continue
+    if (mat === 'k') { if (value === b.key) return true; continue }
+    if (typeof value !== 'number') return false
+    if ((b.min === undefined || value >= b.min) && (b.max === undefined || value < b.max)) return true
+  }
+  return false
+}
+
+/** data.js の1艇から材料を作る(rule-match.js の matFromDataBoat と同じ)。 */
+// deno-lint-ignore no-explicit-any
+export function matFromDataBoat(b: any): BoatMat | null {
+  if (!b) return null
+  const ks = b.ks ?? {}
+  const s = (ks.s ?? []).filter((x: unknown) => typeof x === 'number') as number[]
+  const r = (ks.r ?? []).filter((x: unknown) => typeof x === 'number') as number[]
+  const t = r.slice(-3)
+  return {
+    k: ['A1', 'A2', 'B1', 'B2'].includes(b.k) ? b.k : null,
+    nw: typeof b.nw === 'number' && b.nw > 0 ? b.nw : null,
+    mo: typeof b.mo === 'number' && b.mo > 0 ? b.mo : null,
+    st: s.length ? s.reduce((a, x) => a + x, 0) / s.length : null,
+    fm: r.length >= 2 ? t.reduce((a, x) => a + x, 0) / t.length : null,
+  }
 }
 
 /**
@@ -60,6 +128,9 @@ export type Entry = {
  *   dists   距離(m)の配列       1800 / 1200
  *   fixed   進入固定            true=固定戦のみ / false=固定でないレースのみ
  *   session 開催区分            "night"=ナイター / "day"=デイ
+ *   mats    艇の材料の条件の配列  [{lane: 1〜6 または "self", mat, bands}](2026-10-20)
+ *           mat は k(級別)/nw(全国勝率)/mo(モーター2連率)/st(平均ST)/fm(直近3走の平均着)。
+ *           bands は MAT_BANDS の key で、どれかに入ればよい。行どうしは AND
  *
  * 【ここに無いものは無視する】
  * 天候・風速・波高・決まり手・実際の進入・枠なりは、レース後にしか分からないので
@@ -75,6 +146,7 @@ export type AlertCond = {
   dists?: number[]
   fixed?: boolean
   session?: 'night' | 'day' | 'all'
+  mats?: MatCond[]
 }
 
 export type Alert = {
@@ -177,6 +249,11 @@ export async function loadToday(): Promise<{
   const allByToban = new Map<string, Entry[]>()
   for (const venue of data.venues ?? []) {
     for (const race of venue.races ?? []) {
+      // そのレースの6艇の材料(艇番順)。同じレースの全員で同じものを指す
+      const boats: (BoatMat | null)[] = [null, null, null, null, null, null]
+      for (const b of race.boats ?? []) {
+        if (b?.n >= 1 && b?.n <= 6) boats[b.n - 1] = matFromDataBoat(b)
+      }
       for (const boat of race.boats ?? []) {
         const entry: Entry = {
           toban: boat.t, name: boat.name, venue: venue.name,
@@ -184,6 +261,7 @@ export async function loadToday(): Promise<{
           localRate: boat.lw, nationalRate: boat.nw,
           localStarts: boat.lwn, motorRate: boat.mo,
           kind: race.kind, dist: race.dist, fixed: race.fixed,
+          boats,
         }
         const list = allByToban.get(boat.t) ?? []
         list.push(entry)
@@ -254,6 +332,12 @@ export function matchesCond(
     if (!nightVenues) return false            // 会場の区分が分からないので判定しない
     const isNight = nightVenues.has(e.venue)
     if ((c.session === 'night') !== isNight) return false
+  }
+  // 艇の材料。分からない値は「当てはまらない」(ほかの条件と同じ考え方)
+  for (const m of c.mats ?? []) {
+    const lane = m.lane === 'self' ? e.frame : m.lane
+    const bm = typeof lane === 'number' ? e.boats?.[lane - 1] : null
+    if (!bm || !inMatBands(m.mat, bm[m.mat], m.bands)) return false
   }
   return true
 }

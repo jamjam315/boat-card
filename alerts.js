@@ -78,6 +78,13 @@
     if (typeof c.fixed === "boolean") out.push("進入固定：" + (c.fixed ? "固定戦のみ" : "固定戦を除く"));
     if (c.session === "night") out.push("開催区分：ナイター場");
     if (c.session === "day") out.push("開催区分：デイ場");
+    // 艇の材料(2026-10-20)。帯の名前は rule-match.js の表から引く(同じ表を2つ持たない)
+    if (c.mats && c.mats.length && window.TeiyomiRuleMatch) {
+      c.mats.forEach(function (m) {
+        var t = TeiyomiRuleMatch.matCondLabel(m);
+        if (t) out.push(t);
+      });
+    }
     return out;
   }
 
