@@ -165,6 +165,8 @@ def build(months):
         rows = []
         if day:
             first = (datetime.date.fromisoformat(d) - datetime.timedelta(days=day - 1)).isoformat()
+            if earliest_all and first < earliest_all:
+                return None, None      # 結果の始まりより前に始まった節は、今節の走りがそろわない
             lo = bisect.bisect_left(ds, first)
             rows = [v for v in a[lo:hi] if v[1] == venue]
         if len(rows) < MIN_KON_SETSU:
