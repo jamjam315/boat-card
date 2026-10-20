@@ -183,6 +183,19 @@ body{background:var(--bg); color:var(--ink);
 /* 回収率100%以上。良し悪しを煽らないため緑のまま(赤緑で射幸心を煽らない方針)。 */
 .bt-result-card .val.hi{color:var(--positive);}
 .bt-result-note{font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.6;}
+/* 最長の連敗・年ごとの内訳(2026-10-20)。数字だけを並べる(色分け・評価の言葉は付けない) */
+.bt-more{margin-top:14px; background:var(--surface); border:1px solid var(--line2); border-radius:12px; padding:12px 14px;}
+.bt-streak{margin:0; font-size:13px; color:var(--ink);}
+.bt-streak .lbl{color:var(--muted); font-size:11.5px;}
+.bt-streak b{font-size:15px;}
+.bt-years-title{margin:14px 0 6px; font-size:11.5px; color:var(--muted);}
+.bt-years{width:100%; border-collapse:collapse; font-size:12.5px;}
+.bt-years th{font-size:11px; font-weight:600; color:var(--muted); text-align:right; padding:0 0 6px 8px; border-bottom:1px solid var(--line2);}
+.bt-years th:first-child, .bt-years td:first-child{text-align:left; padding-left:0;}
+.bt-years td{text-align:right; padding:7px 0 7px 8px; border-bottom:1px solid var(--line); color:var(--ink); white-space:nowrap;}
+.bt-years tr:last-child td{border-bottom:none;}
+.bt-years td small{display:block; font-size:10.5px; color:var(--muted); font-weight:400;}
+.bt-more-note{margin:10px 0 0; font-size:10.5px; color:var(--muted); line-height:1.6;}
 .bt-loading{font-size:12.5px; color:var(--muted); margin-top:10px;}
 
 .bt-checking{font-size:12.5px; color:var(--muted); margin-top:14px; padding:0 4px;}
@@ -385,6 +398,19 @@ body{background:var(--bg); color:var(--ink);
     <p class="bt-note-then" id="noteThen" style="display:none;"></p>
     <p class="bt-note-memo" id="noteMemo" style="display:none;"></p>
 
+    <!-- 最長の連敗と年ごとの内訳(2026-10-20)。計算は backtest-breakdown.js -->
+    <div class="bt-more" id="moreArea" style="display:none;">
+      <p class="bt-streak nums" id="streakLine"></p>
+      <div id="yearsArea" style="display:none;">
+        <p class="bt-years-title">年ごとの内訳</p>
+        <table class="bt-years nums">
+          <thead><tr><th scope="col">年</th><th scope="col">対象数</th><th scope="col">的中率</th><th scope="col">回収率</th></tr></thead>
+          <tbody id="yearsBody"></tbody>
+        </table>
+      </div>
+      <p class="bt-more-note">最長の連敗は、対象レースを日付→レース番号の順に並べて、続けて外れた数です（全国では同じレース番号の中を会場の順に並べます）。</p>
+    </div>
+
     <!-- お試しで動かした人に、プレミアムで何が増えるかを結果のすぐ下で伝える。 -->
     <div class="bt-trial-pitch" id="trialPitch" style="display:none;">
       <p class="bt-trial-ttl">プレミアムなら</p>
@@ -447,6 +473,7 @@ body{background:var(--bg); color:var(--ink);
 <script src="alerts.js"></script>
 <script src="notes.js"></script>
 <script src="rule-match.js"></script>
+<script src="backtest-breakdown.js"></script>
 <script>
 // ---------- プレミアムの壁 ----------
 // 【重要・将来サーバー側防御へ移すときの目印】
@@ -721,6 +748,23 @@ body{background:var(--bg); color:var(--ink);
     var p = periodByKey(state.period);
     if(!p) return null;
     return { from: periodCutoff(p), to: "9999-12-31", label: p.label };
+  }
+
+  /**
+   * 年ごとの内訳・最長の連敗に渡す窓。見出しの範囲は「実際にデータがある範囲」で書くので、
+   * 窓をデータの最初の日・最後の日に丸める(過去N年の to は 9999-12-31 のため)。
+   * 年の表は1年以上の期間のときだけ出す: 過去N年はどれも1年以上、年月指定は12か月以上。
+   */
+  function moreWindow(win){
+    var from = win.from < meta.earliest ? meta.earliest : win.from;
+    var to = win.to > meta.latest ? meta.latest : win.to;
+    var long = true;
+    if(state.custom){
+      var a = state.custom.from, b = state.custom.to;
+      var months = (Number(b.slice(0,4)) - Number(a.slice(0,4))) * 12 + (Number(b.slice(5,7)) - Number(a.slice(5,7))) + 1;
+      long = months >= 12;
+    }
+    return { from: from, to: to, long: long };
   }
 
   // ---------- UI描画 ----------
@@ -1447,6 +1491,7 @@ body{background:var(--bg); color:var(--ink);
           var pass = buildFilter();
           var stake = (idx.stake && idx.stake[bet.stakeKey]) || 100;
           var n = 0, hit = 0, ret = 0;
+          var acc = TeiyomiBtBreakdown.create();
           for(var i=0;i<lists.length;i++){
             var rows = lists[i];
             for(var j=0;j<rows.length;j++){
@@ -1458,16 +1503,21 @@ body{background:var(--bg); color:var(--ink);
               // 的中は着で判定する。単勝が未発売だったり、5艇レースで複勝が
               // 1着ぶんしか無い場合に「払戻>0」で判定すると的中率が実際より
               // 低く出るため、払戻ではなく着順で数える。
-              if(bet.hit(r[3])) hit++;
+              var isHit = bet.hit(r[3]);
+              if(isHit) hit++;
+              // 年ごとの内訳・最長の連敗にも、同じ賭け金・払戻・的中を渡す(決め直さない)
+              acc.add(r[0], r[1], stake, r[bet.col], isHit);
             }
           }
+          var mw = moreWindow(win);
           var nm = (playerNames && playerNames[state.toban]) || state.toban;
           showResult({
             raceCount: n, hitCount: hit, totalPayout: ret,
             totalStake: n * stake, points: stake / 100,
             head: nm + "・" + venueLabel() + "・" + win.label + "・" + bet.label,
             cond: filterLabel(),
-            playerNote: bet.key === "f"
+            playerNote: bet.key === "f",
+            more: acc.result(mw, mw.long)
           });
         });
     });
@@ -1872,21 +1922,27 @@ body{background:var(--bg); color:var(--ink);
 
       var raceCount = scoped.length;
       var hitCount = 0, totalPayout = 0;
+      var acc = TeiyomiBtBreakdown.create();
       for(var j=0;j<scoped.length;j++){
         var entries = scoped[j][bet.key] || [];
-        var hit = false;
+        var hit = false, pay = 0;
         for(var k=0;k<entries.length;k++){
-          if(comboSet[entries[k][0]]){ totalPayout += entries[k][1]; hit = true; }
+          if(comboSet[entries[k][0]]){ pay += entries[k][1]; hit = true; }
         }
+        totalPayout += pay;
         if(hit) hitCount++;
+        // 年ごとの内訳・最長の連敗にも、同じ賭け金・払戻・的中を渡す(決め直さない)
+        acc.add(scoped[j].d, scoped[j].m, stakePerRace, pay, hit);
       }
       var totalStake = stakePerRace * raceCount;
+      var mw = moreWindow(win);
 
       showResult({
         raceCount: raceCount, hitCount: hitCount, totalPayout: totalPayout,
         totalStake: totalStake, points: points,
         head: venueLabel() + "・" + win.label + "・" + bet.label,
-        cond: filterLabel()
+        cond: filterLabel(),
+        more: acc.result(mw, mw.long)
       });
       loading.style.display = "none";
       syncRunEnabled();
@@ -1903,6 +1959,29 @@ body{background:var(--bg); color:var(--ink);
   // 「少ないのに断定的に見える」ことを避けるため、この件数を下回ったら注意を出す。
   var LOW_SAMPLE = 100;
 
+  /** 最長の連敗と年ごとの内訳。対象0なら欄ごと隠す。数字だけを並べる(色分けしない)。 */
+  function renderMore(more){
+    var area = document.getElementById("moreArea");
+    if(!more){ area.style.display = "none"; return; }
+    area.style.display = "";
+    var s = more.streak;
+    var line = document.getElementById("streakLine");
+    line.innerHTML = '<span class="lbl">最長の連敗</span>　<b>' + s.n.toLocaleString("ja-JP") + "</b>レース" +
+      (s.n ? "（" + esc(s.from) + (s.to !== s.from ? "〜" + esc(s.to) : "") + "）" : "");
+    var yearsArea = document.getElementById("yearsArea");
+    if(!more.years){ yearsArea.style.display = "none"; return; }
+    yearsArea.style.display = "";
+    document.getElementById("yearsBody").innerHTML = more.years.map(function(y){
+      // 「2026年（10/19まで）」は、年と範囲を2行に分ける(スマホ幅で列が詰まらないように)
+      var m = /^(\d+年)(?:（(.+)）)?$/.exec(y.label);
+      var yearCell = m ? esc(m[1]) + (m[2] ? "<small>" + esc(m[2]) + "</small>" : "") : esc(y.label);
+      return "<tr><td>" + yearCell + "</td>" +
+        "<td>" + y.races.toLocaleString("ja-JP") + "</td>" +
+        "<td>" + (y.hitRate == null ? "―" : pct(y.hitRate)) + "</td>" +
+        "<td>" + (y.returnRate == null ? "―" : pct(y.returnRate)) + "</td></tr>";
+    }).join("");
+  }
+
   function showResult(r){
     var area = document.getElementById("resultArea");
     area.style.display = "";
@@ -1917,6 +1996,7 @@ body{background:var(--bg); color:var(--ink);
     var warn = document.getElementById("resultWarn");
     warn.style.display = "none";
     document.getElementById("rRaces").textContent = r.raceCount.toLocaleString("ja-JP") + "レース";
+    renderMore(r.raceCount ? r.more : null);
     if(r.raceCount === 0){
       document.getElementById("rHitRate").textContent = "―";
       document.getElementById("rReturn").textContent = "―";
