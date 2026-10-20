@@ -18,17 +18,20 @@
 番組表の選手と、実際に走った選手が違う艇(選手交代)は、番組表の3つを不明にする(別の人の値なので)。
 
 【置き場所と形】backtest-data/mat/(ブラウザが直接読む。材料を使う条件のときだけ)
-  mat/all/{YYYY-MM}.json      … 全国のその月の全レース
-  mat/{ローマ字}/{YYYY-MM}.json … 会場ごと(会場を選んだ検証が全国ぶんを読まずに済むように)
-  mat/meta.json               … どの月があるか・詰め方の版
-  1行 = [鍵, 1号艇, 2号艇, …, 6号艇]
-    鍵 = 日 × 10000 + 会場コード × 100 + レース番号(会場コードは meta.json の venues の code)
-    艇 = 5つを1つの整数に詰めたもの(51ビット。JavaScript の数で正確に扱える 53 ビットに収まる):
-         級別 + 8 × (全国勝率×100 + 1024 × (モーター2連率×100 + 16384 × (平均ST×10000 + 16384 × 直近平均着×100)))
-         級別 0=A1 1=A2 2=B1 3=B2 7=不明 / 全国勝率・直近平均着は 1023=不明 / モーター2連率・平均STは 16383=不明
-    精度は帯の境目をまたがないように決めた。全国勝率・モーター2連率は番組表が小数2桁なのでそのまま。
-    平均STは小数2桁の ST の平均なので、0.14 の手前の値は 0.14 から少なくとも 0.01/走数 離れている。
-    ×10000 の丸め(±0.00005)なら 200走まで境目をまたがない(×1000 では 0.1395 が 0.140 になり帯がずれた)
+  mat/all/{YYYY-MM}/keys.json と k.json nw.json mo.json st.json fm.json
+      … 全国のその月の全レース。材料ごとに分ける(使う材料だけ読めば済むように。全国10年で
+        5つ全部だと圧縮後 約20MB、級別だけなら 約2.5MB)
+  mat/{ローマ字}/{YYYY-MM}.json … 会場ごと。1か月数KBと小さいので、5つを1本にまとめる
+  mat/meta.json …… どの月があるか・形の版
+  どれも列の形(v=2)。レースの並び = keys の並び。材料の列は「レース × 6艇(艇番順)」を平らに並べる
+  (i 番目のレースの n 号艇 = 列[i × 6 + n - 1])。
+    keys … 日 × 10000 + 会場コード × 100 + レース番号(会場コードは backtest-data/meta.json の venues の code)
+    k    … 1レース1文字列。6文字で艇番順、0=A1 1=A2 2=B1 3=B2 7=不明
+    nw   … 全国勝率×100 / mo … モーター2連率×100(どちらも 0=不明。番組表の 0.00 は「まだ記録が無い」)
+    st   … 平均ST×10000 / fm … 直近平均着×100(どちらも -1=不明)
+  精度は帯の境目をまたがないように決めた。全国勝率・モーター2連率は番組表が小数2桁なのでそのまま。
+  平均STは小数2桁の ST の平均なので、0.14 の手前の値は 0.14 から少なくとも 0.01/走数 離れている。
+  ×10000 の丸め(±0.00005)なら 200走まで境目をまたがない(×1000 では 0.1395 が 0.140 になり帯がずれた)
   月で分けるのは git の履歴のため。毎晩書き換わるのは今月(と月初は前月)のファイルだけになる。
 
 【入力】data ブランチの results/ と program/(data_paths が場所を決める)。
@@ -61,20 +64,29 @@ MIN_FORM_RACES = 2     # yomi.js fromKs と同じ。着が2走未満なら調子
 MIN_PROGRAM_SHARE = 0.9   # 番組表がこの割合に満たない月は書き換えない(材料を不明で上書きしないため)
 
 K_CODE = {"A1": 0, "A2": 1, "B1": 2, "B2": 3}
-NONE10 = 1023
-NONE14 = 16383
 
 
-def pack(k, nw, mo, st, fm):
-    """1艇の材料を1つの整数にする(docstring の式)。不明は None で渡す。"""
-    def q(v, scale, top):
+FIELDS = ("k", "nw", "mo", "st", "fm")
+
+
+def cell(k, nw, mo, st, fm):
+    """1艇の材料を、列に入れる整数にする(docstring の形)。不明は None で渡す。"""
+    def q(v, scale, unknown):
         if v is None:
-            return top
+            return unknown
         x = int(round(v * scale))
-        return x if 0 <= x < top else top
-    kk = K_CODE.get(k, 7)
-    return kk + 8 * (q(nw, 100, NONE10) + 1024 * (q(mo, 100, NONE14) + 16384 * (q(st, 10000, NONE14)
-                                                                         + 16384 * q(fm, 100, NONE10))))
+        return x if x >= 0 else unknown
+    return (K_CODE.get(k, 7), q(nw, 100, 0), q(mo, 100, 0), q(st, 10000, -1), q(fm, 100, -1))
+
+
+def columns(rows):
+    """[[鍵, 6艇ぶんの cell], …] を列の形にする。"""
+    rows = sorted(rows)
+    out = {"keys": [r[0] for r in rows],
+           "k": ["".join(str(c[0]) for c in r[1:]) for r in rows]}
+    for i, f in enumerate(FIELDS[1:], start=1):
+        out[f] = [c[i] for r in rows for c in r[1:]]
+    return out
 
 
 def iter_results(year):
@@ -198,7 +210,7 @@ def build(months):
             if b and not same:
                 stats["選手交代"] += 1
             st, fm = flow(t, venue, date, day) if t else (None, None)
-            cells.append(pack(b[1] if same else None, b[2] if same else None, b[3] if same else None, st, fm))
+            cells.append(cell(b[1] if same else None, b[2] if same else None, b[3] if same else None, st, fm))
         key = int(date[8:10]) * 10000 + v["code"] * 100 + rno
         m = date[:7]
         out[("all", m)].append([key] + cells)
@@ -214,27 +226,38 @@ def write(out, stats, months):
             continue
         for row in rows:
             share[m][1] += 1
-            share[m][0] += 1 if any((c % 8) != 7 for c in row[1:]) else 0
+            share[m][0] += 1 if any(c[0] != 7 for c in row[1:]) else 0
     skip = {m for m, (ok, n) in share.items() if n and ok / n < MIN_PROGRAM_SHARE}
     for m in sorted(skip):
         print(f"[mat] {m} は番組表が {share[m][0]}/{share[m][1]} レースしか無いので書き換えません")
+    def dump(path, doc):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(doc, f, separators=(",", ":"))
     written = 0
     for (s, m), rows in sorted(out.items()):
         if m in skip:
             continue
-        rows.sort()
-        path = os.path.join(OUT, s, f"{m}.json")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            json.dump({"v": 1, "month": m, "rows": rows}, f, separators=(",", ":"))
-        written += 1
+        col = columns(rows)
+        n = len(col["keys"])
+        if s == "all":
+            # 全国は材料ごとに分ける(使う材料だけを読めるように)。n は列の長さの確かめに使う
+            dump(os.path.join(OUT, "all", m, "keys.json"), {"v": 2, "n": n, "data": col["keys"]})
+            for f in FIELDS:
+                dump(os.path.join(OUT, "all", m, f + ".json"), {"v": 2, "n": n, "data": col[f]})
+            written += 1 + len(FIELDS)
+        else:
+            dump(os.path.join(OUT, s, m + ".json"), dict({"v": 2, "n": n}, **col))
+            written += 1
     # meta.json: セットごとの月の一覧(実際にあるファイルから作る)
-    sets = {}
+    sets = {"all": sorted(os.path.basename(os.path.dirname(p))
+                          for p in glob.glob(os.path.join(OUT, "all", "*", "keys.json")))}
     for d in sorted(glob.glob(os.path.join(OUT, "*", ""))):
         name = os.path.basename(os.path.dirname(d))
-        sets[name] = sorted(os.path.basename(p)[:7] for p in glob.glob(os.path.join(d, "*.json")))
+        if name != "all":
+            sets[name] = sorted(os.path.basename(p)[:7] for p in glob.glob(os.path.join(d, "*.json")))
     with open(os.path.join(OUT, "meta.json"), "w", encoding="utf-8", newline="\n") as f:
-        json.dump({"v": 1, "generated_at": datetime.datetime.now(JST).strftime("%Y-%m-%dT%H:%M:%S"),
+        json.dump({"v": 2, "generated_at": datetime.datetime.now(JST).strftime("%Y-%m-%dT%H:%M:%S"),
                    "sets": sets}, f, ensure_ascii=False, separators=(",", ":"))
     print(f"[mat] 書き出し {written}ファイル / {dict(stats)}")
     if skip and months:

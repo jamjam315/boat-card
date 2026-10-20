@@ -1289,35 +1289,42 @@ body{background:var(--bg); color:var(--ink);
   }
 
   // ---- 材料ファイルの読み込み(材料を使う条件のときだけ) ----
-  var matMetaPromise = null;
   var matStore = BM.createStore();
-  var matLoaded = {};   // "{セット}/{月}" → 読み込み済み
-  function loadMatMeta(){
-    if(!matMetaPromise){
-      matMetaPromise = fetch(DATA_DIR + "mat/meta.json").then(function(r){
+  var matChunks = {};   // "{セット}/{月}" → その月の材料(会場は1本、全国は鍵に列を足していく)
+  var jsonOnce = {};    // 同じファイルを二度取りに行かない
+  function getJsonOnce(path){
+    if(!jsonOnce[path]){
+      jsonOnce[path] = fetch(DATA_DIR + path).then(function(r){
         if(!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
-      }).catch(function(e){ matMetaPromise = null; throw e; });
+      }).catch(function(e){ delete jsonOnce[path]; throw e; });
     }
-    return matMetaPromise;
+    return jsonOnce[path];
   }
+  function loadMatMeta(){ return getJsonOnce("mat/meta.json"); }
   /**
-   * 指定した [セット, 月] の材料を読む(セットは all か会場のローマ字)。1つにつき1ファイル。
-   * 全国の月を読んであれば、同じ月の会場のファイルは読まない(全国の月が全会場の行を持つ)。
+   * 材料を読む。pairs は [セット, 月](セットは all か会場のローマ字)、fields は要る材料の列。
+   * 全国の月は鍵と要る列だけを読む(材料ごとに別のファイル)。会場の月は1本を丸ごと読む(数KB)。
    */
-  function loadMatFiles(pairs){
+  function loadMat(pairs, fields){
     return loadMatMeta().then(function(mm){
-      var todo = pairs.filter(function(p){
-        if(matLoaded[p[0] + "/" + p[1]] || matLoaded["all/" + p[1]]) return false;
-        return (mm.sets[p[0]] || []).indexOf(p[1]) !== -1;   // その月のファイルがある
-      });
-      return Promise.all(todo.map(function(p){
-        return fetch(DATA_DIR + "mat/" + p[0] + "/" + p[1] + ".json").then(function(r){
-          if(!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        }).then(function(doc){
-          matStore.add(p[1], doc.rows);
-          matLoaded[p[0] + "/" + p[1]] = true;
+      return Promise.all(pairs.map(function(p){
+        var set = p[0], month = p[1], id = set + "/" + month;
+        if((mm.sets[set] || []).indexOf(month) === -1) return null;   // その月のファイルが無い
+        if(set !== "all"){
+          return getJsonOnce("mat/" + id + ".json").then(function(doc){
+            if(!matChunks[id]){ matChunks[id] = doc; matStore.addChunk(set, month, doc); }
+          });
+        }
+        return getJsonOnce("mat/all/" + month + "/keys.json").then(function(kd){
+          var chunk = matChunks[id];
+          if(!chunk){ chunk = matChunks[id] = { keys: kd.data }; matStore.addChunk("all", month, chunk); }
+          return Promise.all(fields.map(function(f){
+            return getJsonOnce("mat/all/" + month + "/" + f + ".json").then(function(fd){
+              // 列の長さが鍵と合わなければ使わない(書きかけ・取り違えのファイルを読まない)
+              if(fd.data.length === kd.data.length * (f === "k" ? 1 : 6)) chunk[f] = fd.data;
+            });
+          }));
         });
       }));
     });
@@ -1704,7 +1711,7 @@ body{background:var(--bg); color:var(--ink);
             });
           });
           loading.textContent = "材料を読み込み中…";
-          return loadMatFiles(Object.keys(pairs).map(function(k){ return pairs[k]; })).then(function(){ return lists; });
+          return loadMat(Object.keys(pairs).map(function(k){ return pairs[k]; }), []).then(function(){ return lists; });
         })
         .then(function(lists){
           loading.textContent = "集計中…";
@@ -1720,7 +1727,10 @@ body{background:var(--bg); color:var(--ink);
               if(r[0] < win.from || r[0] > win.to) continue;
               if(pass && !pass({ d: r[0], m: r[1] })) continue;
               // 艇の材料(「この選手」はその日に乗っていた艇 r[2])
-              if(conds.length && !BM.passMats(matStore.row(r[0], r[1]), conds, r[2])) continue;
+              if(conds.length){
+                var rv = venueByCode()[(r[1] >>> 16) & 0x1F];
+                if(!BM.passMats(rv ? matStore.find(rv.romaji, r[0], r[1]) : null, conds, r[2])) continue;
+              }
               n++;
               ret += r[bet.col];
               // 的中は着で判定する。単勝が未発売だったり、5艇レースで複勝が
@@ -2207,12 +2217,12 @@ body{background:var(--bg); color:var(--ink);
     var mw = moreWindow(win);
     var months = BM.monthsIn(mw.from, mw.to);
     var set = state.venue === "zenkoku" ? "all" : state.venue;
+    var conds = matConds();
+    var by = dynamicPick();
     loading.textContent = "材料を読み込み中…(" + months.length + "か月分)";
-    return loadMatFiles(months.map(function(m){ return [set, m]; })).then(function(){
+    return loadMat(months.map(function(m){ return [set, m]; }), BM.fieldsFor(conds, by)).then(function(){
       loading.textContent = "集計中…";
       var pass = buildFilter();
-      var conds = matConds();
-      var by = dynamicPick();
       var bet = betDef(state.bet);
       // 艇番で決めた買い目(材料で決めないとき)と、材料で決まる艇ごとの買い目
       var fixed = by ? [] : buildCombos();
@@ -2232,11 +2242,11 @@ body{background:var(--bg); color:var(--ink);
         var r = records[j];
         if(r.d < win.from || r.d > win.to) continue;
         if(pass && !pass(r)) continue;
-        var row = matStore.row(r.d, r.m);
-        if(conds.length && !BM.passMats(row, conds, null)) continue;
+        var ref = matStore.find(set, r.d, r.m);
+        if(conds.length && !BM.passMats(ref, conds, null)) continue;
         var set1 = fixedSet, cnt = fixed.length;
         if(by){
-          var lane = BM.pickLane(row, by);
+          var lane = BM.pickLane(ref, by);
           if(lane === null){ noPick++; continue; }        // 材料が分からず艇を決められない
           if(!laneCount[lane]){ noCombo++; continue; }   // 軸と相手が重なって買い目が作れない
           set1 = laneSet[lane]; cnt = laneCount[lane];

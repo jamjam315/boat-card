@@ -5,10 +5,13 @@
 //   (b) 買う艇・軸 … 「全国勝率がいちばん高い艇」など、材料で決まる艇はどれか
 // を答える。帯の表と帯の判定は rule-match.js(MATS・inMatBands)を使う(条件アラートと同じ判定)。
 //
-// 【材料ファイルの1行】[鍵, 1号艇, …, 6号艇]
-//   鍵 = 日 × 10000 + 会場コード × 100 + レース番号
-//   艇 = 級別 + 8 × (全国勝率×100 + 1024 × (モーター2連率×100 + 16384 × (平均ST×10000 + 16384 × 直近平均着×100)))
-//   (詰め方の説明は build_bt_materials.py。51ビットなので、ビット演算ではなく割り算で取り出す)
+// 【材料ファイルの形】(v=2・列の形。詳しくは build_bt_materials.py)
+//   keys … 日 × 10000 + 会場コード × 100 + レース番号。i 番目のレース = keys[i]
+//   k    … 1レース1文字列(6文字・艇番順)。0=A1 1=A2 2=B1 3=B2 7=不明
+//   nw / mo … 全国勝率×100 / モーター2連率×100。0=不明
+//   st / fm … 平均ST×10000 / 直近平均着×100。-1=不明
+//   材料の列は「レース × 6艇」を平らに並べたもの: i 番目のレースの n 号艇 = 列[i × 6 + n - 1]
+// 全国の月は材料ごとに別のファイル(使う材料だけ読む)、会場の月は1本にまとまっている。
 //
 // 【値が分からない艇】番組表に無い・記録がまだ無い(勝率0.00)・走りが足りない艇は null。
 // null はどの帯にも入らず、いちばん高い/速い艇を選ぶときにも数えない(読み採点と同じ扱い)。
@@ -22,51 +25,51 @@
     { key: "fm", label: "直近の平均着がいちばん良い艇", high: false }
   ];
 
-  /** 1艇ぶんの整数を材料に戻す。 */
-  function decodeBoat(p) {
-    if (typeof p !== "number" || !(p >= 0)) return null;
-    var k = p % 8; p = Math.floor(p / 8);
-    var nw = p % 1024; p = Math.floor(p / 1024);
-    var mo = p % 16384; p = Math.floor(p / 16384);
-    var st = p % 16384; p = Math.floor(p / 16384);
-    var fm = p;
-    return {
-      k: k < 4 ? K[k] : null,
-      // 0.00 は「まだ記録が無い」。読み採点と同じく分からない扱いにする
-      nw: nw === 1023 || nw === 0 ? null : nw / 100,
-      mo: mo === 16383 || mo === 0 ? null : mo / 100,
-      st: st === 16383 ? null : st / 10000,
-      fm: fm === 1023 ? null : fm / 100
-    };
-  }
-
   /** そのレースを材料ファイルで引くための鍵。d は "YYYY-MM-DD"、m はしぼり込み用のビット詰め。 */
   function keyOf(d, m) {
     return Number(d.slice(8, 10)) * 10000 + ((m >>> 16) & 0x1F) * 100 + (m & 0xF);
   }
 
   /**
-   * 読み込んだ材料を月ごとに持つ入れ物。row(d, m) でそのレースの行(6艇の整数)を返す。
-   * add は足し込む(選手モードでは同じ月の会場のファイルを何本か読むため)。
+   * 読み込んだ材料の入れ物。セット(all か会場のローマ字)×月ごとに持つ。
+   *   addChunk(set, month, chunk) … chunk = {keys, k?, nw?, mo?, st?, fm?}。全国の月は keys を先に入れ、
+   *                                 材料の列はあとから chunk に足してよい(同じものを指しているので)
+   *   find(set, d, m)             … そのレースの参照 [chunk, i]。無ければ null
    */
   function createStore() {
-    var months = Object.create(null);
+    var sets = Object.create(null);
     return {
-      add: function (month, rows) {
+      addChunk: function (set, month, chunk) {
+        var months = sets[set] || (sets[set] = Object.create(null));
         var map = months[month] || (months[month] = new Map());
-        for (var i = 0; i < rows.length; i++) map.set(rows[i][0], rows[i]);
+        for (var i = 0; i < chunk.keys.length; i++) map.set(chunk.keys[i], [chunk, i]);
       },
-      has: function (month) { return !!months[month]; },
-      row: function (d, m) {
-        var map = months[d.slice(0, 7)];
-        return map ? map.get(keyOf(d, m)) || null : null;
+      has: function (set, month) { return !!(sets[set] && sets[set][month]); },
+      find: function (set, d, m) {
+        var months = sets[set];
+        var map = months && months[d.slice(0, 7)];
+        return (map && map.get(keyOf(d, m))) || null;
       }
     };
   }
 
-  /** 行から、その艇番の材料。 */
-  function boatOf(row, lane) {
-    return row && lane >= 1 && lane <= 6 ? decodeBoat(row[lane]) : null;
+  /** 参照 ref の n 号艇の材料 field の値。分からない(・列をまだ読んでいない)なら null。 */
+  function value(ref, lane, field) {
+    if (!ref || !(lane >= 1 && lane <= 6)) return null;
+    var c = ref[0], i = ref[1];
+    if (field === "k") {
+      var s = c.k && c.k[i];
+      var d = s ? s.charCodeAt(lane - 1) - 48 : 7;
+      return d >= 0 && d < 4 ? K[d] : null;
+    }
+    var col = c[field];
+    if (!col) return null;
+    var v = col[i * 6 + lane - 1];
+    if (typeof v !== "number") return null;
+    if (field === "nw" || field === "mo") return v > 0 ? v / 100 : null;
+    if (field === "st") return v >= 0 ? v / 10000 : null;
+    if (field === "fm") return v >= 0 ? v / 100 : null;
+    return null;
   }
 
   /**
@@ -74,13 +77,12 @@
    *   conds    … [{lane: 1〜6 または "self", mat, bands}](rule-match.js normMats の形)
    *   selfLane … 選手モードでの、その選手の艇番(通常モードは null)
    */
-  function passMats(row, conds, selfLane) {
+  function passMats(ref, conds, selfLane) {
     var RM = root.TeiyomiRuleMatch;
     for (var i = 0; i < conds.length; i++) {
       var c = conds[i];
       var lane = c.lane === "self" ? selfLane : c.lane;
-      var b = boatOf(row, lane);
-      if (!b || !RM.inMatBands(c.mat, b[c.mat], c.bands)) return false;
+      if (!RM.inMatBands(c.mat, value(ref, lane, c.mat), c.bands)) return false;
     }
     return true;
   }
@@ -94,17 +96,24 @@
    * (b) 材料で決まる艇の艇番。分からなければ null。
    * 並んだときは艇番の小さいほう(読み採点の軸の決め方と同じ。内側ほど1着率が高く、機械的に決まる)。
    */
-  function pickLane(row, by) {
+  function pickLane(ref, by) {
     var d = pickDef(by);
-    if (!d || !row) return null;
+    if (!d || !ref) return null;
     var best = null, bestV = null;
     for (var n = 1; n <= 6; n++) {
-      var b = decodeBoat(row[n]);
-      var v = b ? b[by] : null;
+      var v = value(ref, n, by);
       if (v === null) continue;
       if (bestV === null || (d.high ? v > bestV : v < bestV)) { best = n; bestV = v; }
     }
     return best;
+  }
+
+  /** 条件と「材料で決める」に要る材料の列(全国の月はこれだけを読む)。 */
+  function fieldsFor(conds, by) {
+    var out = [];
+    (conds || []).forEach(function (c) { if (out.indexOf(c.mat) === -1) out.push(c.mat); });
+    if (by && out.indexOf(by) === -1) out.push(by);
+    return out;
   }
 
   /** 期間の窓 {from, to} に入る月(YYYY-MM)。 */
@@ -121,8 +130,7 @@
   }
 
   root.TeiyomiBtMat = {
-    PICKS: PICKS, pickDef: pickDef,
-    decodeBoat: decodeBoat, keyOf: keyOf, createStore: createStore, boatOf: boatOf,
-    passMats: passMats, pickLane: pickLane, monthsIn: monthsIn
+    PICKS: PICKS, pickDef: pickDef, keyOf: keyOf, createStore: createStore, value: value,
+    passMats: passMats, pickLane: pickLane, fieldsFor: fieldsFor, monthsIn: monthsIn
   };
 })(typeof window !== "undefined" ? window : globalThis);

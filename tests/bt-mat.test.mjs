@@ -2,7 +2,7 @@
 //   node --test tests/bt-mat.test.mjs
 // 守りたいのは:
 //   1. 帯が読み採点(yomi.js の YOMI_TABLE)と同じ(どの値でも同じ帯に入る)
-//   2. 材料ファイルの整数を正しく戻せる(build_bt_materials.py の詰め方と同じ)。0.00 は分からない扱い
+//   2. 材料ファイルの列を正しく読める(build_bt_materials.py の書き出しと同じ形)。0.00 は分からない扱い
 //   3. しぼり込み(passMats)・材料で決める艇(pickLane)の決まり。並んだら艇番の小さいほう
 import { test } from "node:test";
 import assert from "node:assert";
@@ -46,65 +46,70 @@ test("帯は読み採点と同じ: 全国勝率・平均ST・直近3走は、ど
   assert.strictEqual(ourBand("fm", 2.0), 1);
 });
 
-// build_bt_materials.py の pack と同じ式(テストの中で詰めて、戻せることを確かめる)
-const pack = (k, nw, mo, st, fm) => {
-  const q = (v, s, top) => (v == null ? top : Math.round(v * s));
-  const kk = { A1: 0, A2: 1, B1: 2, B2: 3 }[k] ?? 7;
-  return kk + 8 * (q(nw, 100, 1023) + 1024 * (q(mo, 100, 16383) + 16384 * (q(st, 10000, 16383) + 16384 * q(fm, 100, 1023))));
-};
+// 1レースぶんの材料を、ファイルと同じ列の形で作る(build_bt_materials.cell / columns と同じ)
+const cell = (k, nw, mo, st, fm) => [{ A1: 0, A2: 1, B1: 2, B2: 3 }[k] ?? 7,
+  nw == null ? 0 : Math.round(nw * 100), mo == null ? 0 : Math.round(mo * 100),
+  st == null ? -1 : Math.round(st * 10000), fm == null ? -1 : Math.round(fm * 100)];
+function chunkOf(races) {   // races = [[鍵, 6艇の cell], …]
+  const c = { keys: races.map((r) => r[0]), k: races.map((r) => r[1].map((x) => x[0]).join("")) };
+  ["nw", "mo", "st", "fm"].forEach((f, j) => { c[f] = races.flatMap((r) => r[1].map((x) => x[j + 1])); });
+  return c;
+}
 
-test("材料の整数を戻せる(最大の値でも 53 ビットに収まる)・0.00 は分からない扱い", () => {
-  assert.deepStrictEqual({ ...BM.decodeBoat(pack("A1", 7.12, 45.5, 0.1395, 2.33)) }, { k: "A1", nw: 7.12, mo: 45.5, st: 0.1395, fm: 2.33 });
-  assert.deepStrictEqual({ ...BM.decodeBoat(pack(null, null, null, null, null)) }, { k: null, nw: null, mo: null, st: null, fm: null });
-  assert.deepStrictEqual({ ...BM.decodeBoat(pack("B2", 0, 0, 0.91, 6)) }, { k: "B2", nw: null, mo: null, st: 0.91, fm: 6 });
-  const top = pack(null, null, null, null, null);
-  assert.ok(Number.isSafeInteger(top), "いちばん大きい整数も正確に扱える");
-});
-
-test("Python の詰め方(build_bt_materials.pack)と同じ整数になる", () => {
+test("Python の書き出し(build_bt_materials.columns)とテストの列が同じ・JS で同じ値に戻る", () => {
   const py = process.platform === "win32" ? "python" : "python3";
-  const cases = [["A1", 7.12, 45.5, 0.1395, 2.33], ["B2", 0.0, 0.0, 0.91, 6.0], [null, null, null, null, null], ["A2", 6.5, 40.0, 0.14, 2.0]];
+  const boats = [["A1", 7.12, 45.5, 0.1395, 2.33], ["B2", 0.0, 0.0, 0.91, 6.0], [null, null, null, null, null],
+                 ["A2", 6.5, 40.0, 0.14, 2.0], ["B1", 5.0, 33.33, 0.19, 4.0], ["A1", 3.0, 25.0, null, null]];
   const out = execFileSync(py, ["-c",
     "import sys, json; sys.path.insert(0, sys.argv[1]); import build_bt_materials as B; " +
-    "print(json.dumps([B.pack(*c) for c in json.loads(sys.argv[2])]))", ROOT, JSON.stringify(cases)],
+    "b = json.loads(sys.argv[2]); print(json.dumps(B.columns([[11201] + [B.cell(*x) for x in b]])))", ROOT, JSON.stringify(boats)],
     { encoding: "utf-8", env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
-  assert.deepStrictEqual(JSON.parse(out), cases.map((c) => pack(...c)));
+  const fromPy = JSON.parse(out);
+  assert.deepStrictEqual(fromPy, chunkOf([[11201, boats.map((b) => cell(...b))]]));
+  const ref = [fromPy, 0];
+  assert.deepStrictEqual(["k", "nw", "mo", "st", "fm"].map((f) => BM.value(ref, 1, f)), ["A1", 7.12, 45.5, 0.1395, 2.33]);
+  assert.deepStrictEqual(["k", "nw", "mo", "st", "fm"].map((f) => BM.value(ref, 2, f)), ["B2", null, null, 0.91, 6], "0.00 は分からない扱い");
+  assert.deepStrictEqual(["k", "nw", "mo", "st", "fm"].map((f) => BM.value(ref, 3, f)), [null, null, null, null, null]);
+  assert.strictEqual(BM.value([{ keys: [1], k: ["000000"] }, 0], 1, "nw"), null, "列をまだ読んでいなければ null");
 });
 
-// 1レース = [鍵, 1号艇, …, 6号艇]
-const ROW = [11201,
-  pack("A1", 6.8, 38, 0.15, 2.0),   // 1号艇
-  pack("B1", 4.2, 45, 0.13, 3.67),  // 2号艇: ST いちばん速い
-  pack("A1", 7.2, 30, 0.17, 1.67),  // 3号艇: 全国勝率いちばん高い・直近いちばん良い
-  pack("B2", 0, 0, null, null),     // 4号艇: 新人(分からない)
-  pack("A2", 7.2, 41, 0.13, 1.67),  // 5号艇: 3号艇と同じ勝率・2号艇と同じ ST・3号艇と同じ直近
-  pack("B1", 5.0, 33, 0.19, 4.0)];
+// 1レース(鍵 11201)
+const RACE = chunkOf([[11201, [
+  cell("A1", 6.8, 38, 0.15, 2.0),   // 1号艇
+  cell("B1", 4.2, 45, 0.13, 3.67),  // 2号艇: ST いちばん速い
+  cell("A1", 7.2, 30, 0.17, 1.67),  // 3号艇: 全国勝率いちばん高い・直近いちばん良い
+  cell("B2", 0, 0, null, null),     // 4号艇: 新人(分からない)
+  cell("A2", 7.2, 41, 0.13, 1.67),  // 5号艇: 3号艇と同じ勝率・2号艇と同じ ST・3号艇と同じ直近
+  cell("B1", 5.0, 33, 0.19, 4.0)]]]);
+const REF = [RACE, 0];
 
 test("しぼり込み: 帯のどれかに入れば当てはまる・条件どうしは AND・分からない艇は当てはまらない", () => {
-  assert.ok(BM.passMats(ROW, [{ lane: 1, mat: "k", bands: ["A1"] }, { lane: 1, mat: "nw", bands: ["6.5-7.0", "7.0-"] }], null));
-  assert.ok(!BM.passMats(ROW, [{ lane: 1, mat: "k", bands: ["A1"] }, { lane: 1, mat: "nw", bands: ["7.0-"] }], null));
-  assert.ok(!BM.passMats(ROW, [{ lane: 4, mat: "nw", bands: ["-5.0"] }], null), "勝率0.00は5.0未満にも入らない");
-  assert.ok(BM.passMats(ROW, [{ lane: "self", mat: "st", bands: ["-0.14"] }], 2), "この選手=2号艇");
-  assert.ok(!BM.passMats(ROW, [{ lane: "self", mat: "st", bands: ["-0.14"] }], null), "通常モードに「この選手」は無い");
+  assert.ok(BM.passMats(REF, [{ lane: 1, mat: "k", bands: ["A1"] }, { lane: 1, mat: "nw", bands: ["6.5-7.0", "7.0-"] }], null));
+  assert.ok(!BM.passMats(REF, [{ lane: 1, mat: "k", bands: ["A1"] }, { lane: 1, mat: "nw", bands: ["7.0-"] }], null));
+  assert.ok(!BM.passMats(REF, [{ lane: 4, mat: "nw", bands: ["-5.0"] }], null), "勝率0.00は5.0未満にも入らない");
+  assert.ok(BM.passMats(REF, [{ lane: "self", mat: "st", bands: ["-0.14"] }], 2), "この選手=2号艇");
+  assert.ok(!BM.passMats(REF, [{ lane: "self", mat: "st", bands: ["-0.14"] }], null), "通常モードに「この選手」は無い");
   assert.ok(!BM.passMats(null, [{ lane: 1, mat: "k", bands: ["A1"] }], null), "材料の無いレース");
 });
 
 test("材料で決める艇: いちばん高い/速い/良い艇。並んだら艇番の小さいほう・分からない艇は数えない", () => {
-  assert.strictEqual(BM.pickLane(ROW, "nw"), 3, "7.2 が3号艇と5号艇 → 3号艇");
-  assert.strictEqual(BM.pickLane(ROW, "st"), 2, "0.13 が2号艇と5号艇 → 2号艇");
-  assert.strictEqual(BM.pickLane(ROW, "fm"), 3, "1.67 が3号艇と5号艇 → 3号艇");
-  const allUnknown = [1, ...Array(6).fill(pack(null, null, null, null, null))];
-  assert.strictEqual(BM.pickLane(allUnknown, "nw"), null);
+  assert.strictEqual(BM.pickLane(REF, "nw"), 3, "7.2 が3号艇と5号艇 → 3号艇");
+  assert.strictEqual(BM.pickLane(REF, "st"), 2, "0.13 が2号艇と5号艇 → 2号艇");
+  assert.strictEqual(BM.pickLane(REF, "fm"), 3, "1.67 が3号艇と5号艇 → 3号艇");
+  const unknown = chunkOf([[1, Array(6).fill(cell(null, null, null, null, null))]]);
+  assert.strictEqual(BM.pickLane([unknown, 0], "nw"), null);
   assert.strictEqual(BM.pickLane(null, "nw"), null);
 });
 
-test("鍵と月: 日×10000 + 会場コード×100 + レース番号・窓の月の並び", () => {
+test("入れ物: セット×月ごと・鍵は 日×10000 + 会場コード×100 + レース番号・要る列・窓の月", () => {
   const m = 5 | (11 << 16);   // 5R・会場コード11
   assert.strictEqual(BM.keyOf("2026-09-07", m), 71105);
   const s = BM.createStore();
-  s.add("2026-09", [[71105, 1, 2, 3, 4, 5, 6]]);
-  s.add("2026-09", [[71106, 9, 9, 9, 9, 9, 9]]);   // 足し込む(選手モードで同じ月を2本読む)
-  assert.deepStrictEqual(plain(s.row("2026-09-07", m)), [71105, 1, 2, 3, 4, 5, 6]);
-  assert.strictEqual(s.row("2026-10-07", m), null);
+  const c = chunkOf([[71105, Array(6).fill(cell("A1", 6, 30, 0.15, 3))]]);
+  s.addChunk("kiryu", "2026-09", c);
+  assert.strictEqual(s.find("kiryu", "2026-09-07", m)[1], 0);
+  assert.strictEqual(s.find("all", "2026-09-07", m), null, "別のセットには無い");
+  assert.strictEqual(s.find("kiryu", "2026-10-07", m), null, "別の月には無い");
+  assert.deepStrictEqual(plain(BM.fieldsFor([{ mat: "k" }, { mat: "nw" }, { mat: "k" }], "st")), ["k", "nw", "st"]);
   assert.deepStrictEqual(plain(BM.monthsIn("2025-11-15", "2026-02-03")), ["2025-11", "2025-12", "2026-01", "2026-02"]);
 });
