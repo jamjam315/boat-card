@@ -12,12 +12,12 @@
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>菅章哉の二つ名「鳴門の自在まくり屋」と成績｜艇読み選手図鑑</title>
-<meta name="description" content="菅章哉選手（A1・徳島支部、37歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「鳴門の自在まくり屋」、当地鳴門での勝率は52.8%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<meta name="description" content="菅章哉選手（A1・徳島支部、37歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「鳴門の自在まくり屋」、当地鳴門での勝率は53.8%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/4571.html">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://teiyomi.com/players/4571.html">
 <meta property="og:title" content="菅章哉の二つ名「鳴門の自在まくり屋」と成績｜艇読み選手図鑑">
-<meta property="og:description" content="菅章哉選手（A1・徳島支部、37歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「鳴門の自在まくり屋」、当地鳴門での勝率は52.8%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<meta property="og:description" content="菅章哉選手（A1・徳島支部、37歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「鳴門の自在まくり屋」、当地鳴門での勝率は53.8%。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <meta property="og:image" content="https://teiyomi.com/cards/players/4571.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/cards/players/4571.png">
@@ -33,10 +33,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nums{font-variant-numeric:tabular-nums lining-nums;}
 .topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
 .topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:var(--on-water-sub);}
+/* 帯はブランド表示。h1 は選手名(.pname)のほうに付ける。見た目は今までの h1 と同じ */
+.topbar .site{font-size:16px; margin:0; font-weight:600;}
 .hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
-.hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.hero .pname{font-size:20px; font-weight:700; margin:0;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
   margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
 .fav-btn.active{color:var(--gold);}
@@ -94,13 +96,13 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>艇読み — 選手図鑑</h1>
+    <p class="site">艇読み — 選手図鑑</p>
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
     <a class="hero-nav prev" id="heroPrev" href="4441.html" aria-label="前の選手" style="display:flex"><span class="arrow">‹</span><span class="nm">末永由楽</span></a>
     <div class="hero-body">
-      <div class="pname">菅章哉 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span><button class="fav-btn" id="favBtn" data-toban="4571" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
+      <h1 class="pname">菅章哉 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span><button class="fav-btn" id="favBtn" data-toban="4571" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></h1>
       <div class="pmeta">37歳 ・ 徳島支部 ・ 54kg</div>
       <div class="catch">「鳴門の自在まくり屋」</div>
       <div class="catch-basis">鳴門で際立って好成績、かつ「まくり」が持ち味のため（詳しくは下の「当地」欄）</div>
@@ -114,16 +116,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow"><span class="kname">逃げ</span><span class="kbar"><i style="width:26.3%"></i></span><span class="kval nums">26.3%</span></div><div class="krow ktop"><span class="kname">まくり</span><span class="kbar"><i style="width:57.9%"></i></span><span class="kval nums">57.9%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:5.3%"></i></span><span class="kval nums">5.3%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:7.9%"></i></span><span class="kval nums">7.9%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:1.3%"></i></span><span class="kval nums">1.3%</span></div><div class="note">直近1年・勝ち76件の内訳です。</div>
+    <div class="krow"><span class="kname">逃げ</span><span class="kbar"><i style="width:28.4%"></i></span><span class="kval nums">28.4%</span></div><div class="krow ktop"><span class="kname">まくり</span><span class="kbar"><i style="width:55.4%"></i></span><span class="kval nums">55.4%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:5.4%"></i></span><span class="kval nums">5.4%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:8.1%"></i></span><span class="kval nums">8.1%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:1.4%"></i></span><span class="kval nums">1.4%</span></div><div class="note">直近1年・勝ち74件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
-    <div class="homebox">🏠 <b>鳴門</b>：53走・勝率52.8%（他会場28.4%より+24.4pt）</div>
+    <div class="homebox">🏠 <b>鳴門</b>：52走・勝率53.8%（他会場28.4%より+25.5pt）</div>
   </section>
   
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
-    <div class="kon"><b>直近</b> 着外→1着→着外 / 進入は外めが多い </div>
+    <div class="kon"><b>直近</b> 2着→1着 / 進入は外めが多い <span style="color:var(--muted);font-style:italic;">（直近2走）</span></div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>展示タイムの傾向</div>

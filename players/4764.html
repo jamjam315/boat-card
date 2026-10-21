@@ -11,13 +11,13 @@
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>小池礼乃の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑</title>
-<meta name="description" content="小池礼乃選手（B1・福岡支部、36歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<title>小池礼乃の二つ名「隙を突く抜き屋」と成績｜艇読み選手図鑑</title>
+<meta name="description" content="小池礼乃選手（B1・福岡支部、36歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「隙を突く抜き屋」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/4764.html">
 <meta property="og:type" content="article">
 <meta property="og:url" content="https://teiyomi.com/players/4764.html">
-<meta property="og:title" content="小池礼乃の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑">
-<meta property="og:description" content="小池礼乃選手（B1・福岡支部、36歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
+<meta property="og:title" content="小池礼乃の二つ名「隙を突く抜き屋」と成績｜艇読み選手図鑑">
+<meta property="og:description" content="小池礼乃選手（B1・福岡支部、36歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「隙を突く抜き屋」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <meta property="og:image" content="https://teiyomi.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://teiyomi.com/og-image.png">
@@ -33,10 +33,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nums{font-variant-numeric:tabular-nums lining-nums;}
 .topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
 .topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:var(--on-water-sub);}
+/* 帯はブランド表示。h1 は選手名(.pname)のほうに付ける。見た目は今までの h1 と同じ */
+.topbar .site{font-size:16px; margin:0; font-weight:600;}
 .hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
-.hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.hero .pname{font-size:20px; font-weight:700; margin:0;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
   margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
 .fav-btn.active{color:var(--gold);}
@@ -94,16 +96,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>艇読み — 選手図鑑</h1>
+    <p class="site">艇読み — 選手図鑑</p>
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
     <a class="hero-nav prev" id="heroPrev" href="4318.html" aria-label="前の選手" style="display:flex"><span class="arrow">‹</span><span class="nm">桑原将光</span></a>
     <div class="hero-body">
-      <div class="pname">小池礼乃 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span><button class="fav-btn" id="favBtn" data-toban="4764" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
+      <h1 class="pname">小池礼乃 <span style="font-weight:400;font-size:13px;color:var(--ink2);">B1</span><button class="fav-btn" id="favBtn" data-toban="4764" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></h1>
       <div class="pmeta">36歳 ・ 福岡支部 ・ 47kg</div>
-      <div class="catch">「堅実タイプ（勝ちパターンは平均的）」</div>
-      <div class="catch-basis">決まり手の傾向が全国平均に近い（まくり24.3% / 全国15.8%）</div>
+      <div class="catch">「隙を突く抜き屋」</div>
+      <div class="catch-basis">抜きでの1着が17.1%（全国平均6.3%より+10.8pt）</div>
     </div>
     <a class="hero-nav next" id="heroNext" href="4521.html" aria-label="次の選手" style="display:flex"><span class="arrow">›</span><span class="nm">小池公生</span></a>
   </section>
@@ -114,16 +116,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:45.9%"></i></span><span class="kval nums">45.9%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:24.3%"></i></span><span class="kval nums">24.3%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:5.4%"></i></span><span class="kval nums">5.4%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.8%"></i></span><span class="kval nums">10.8%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:13.5%"></i></span><span class="kval nums">13.5%</span></div><div class="note">直近1年・勝ち37件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:45.7%"></i></span><span class="kval nums">45.7%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:20.0%"></i></span><span class="kval nums">20.0%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:5.7%"></i></span><span class="kval nums">5.7%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:11.4%"></i></span><span class="kval nums">11.4%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:17.1%"></i></span><span class="kval nums">17.1%</span></div><div class="note">直近1年・勝ち35件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
     <div class="nohome">特に際立って強い会場は、まだ見つかっていません。</div>
   </section>
-  
+  <section class="card"><div class="card-ttl"><span class="pin"></span>プロフィールの変遷<span class="card-sub">週次で更新</span></div><ul class="thist"><li><span class="th-date">2026-10-21</span><span class="th-name">「隙を突く抜き屋」</span></li><li><span class="th-date">記録開始時</span><span class="th-name">「堅実タイプ（勝ちパターンは平均的）」</span></li></ul><div class="th-note">冒頭の一言は直近1年の成績から毎週計算し直しているため、走るほどに変わります。殿堂の二つ名とは別のものです。</div></section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
-    <div class="kon"><b>直近</b> 1着→2着→着外 </div>
+    <div class="kon"><b>直近</b> 着外→着外→2着 </div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>展示タイムの傾向</div>

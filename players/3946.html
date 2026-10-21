@@ -33,10 +33,12 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 .nums{font-variant-numeric:tabular-nums lining-nums;}
 .topbar{background:var(--water); color:var(--on-water); border-radius:0 0 var(--radius) var(--radius); padding:16px 18px;}
 .topbar h1{font-size:16px; margin:0;} .topbar p{font-size:11.5px; margin:4px 0 0; color:var(--on-water-sub);}
+/* 帯はブランド表示。h1 は選手名(.pname)のほうに付ける。見た目は今までの h1 と同じ */
+.topbar .site{font-size:16px; margin:0; font-weight:600;}
 .hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-top:14px;
   display:flex; align-items:stretch;}
 .hero-body{flex:1; min-width:0; padding:22px 20px; text-align:center;}
-.hero .pname{font-size:20px; font-weight:700;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
+.hero .pname{font-size:20px; font-weight:700; margin:0;} .hero .pmeta{font-size:12.5px; color:var(--ink2); margin-top:3px;}
 .fav-btn{background:none; border:none; cursor:pointer; font-size:22px; line-height:1; padding:8px 10px;
   margin-left:2px; color:var(--muted); vertical-align:-6px; -webkit-tap-highlight-color:transparent;}
 .fav-btn.active{color:var(--gold);}
@@ -94,13 +96,13 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
 <body>
 <div class="wrap">
   <header class="topbar">
-    <h1>艇読み — 選手図鑑</h1>
+    <p class="site">艇読み — 選手図鑑</p>
     <p>公式番組表・成績を、読める形に。</p>
   </header>
   <section class="hero">
     <a class="hero-nav prev" id="heroPrev" href="4636.html" aria-label="前の選手" style="display:flex"><span class="arrow">‹</span><span class="nm">赤池修平</span></a>
     <div class="hero-body">
-      <div class="pname">赤岩善生 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span><button class="fav-btn" id="favBtn" data-toban="3946" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></div>
+      <h1 class="pname">赤岩善生 <span style="font-weight:400;font-size:13px;color:var(--ink2);">A1</span><button class="fav-btn" id="favBtn" data-toban="3946" aria-label="お気に入り登録・解除" aria-pressed="false">☆</button></h1>
       <div class="pmeta">50歳 ・ 愛知支部 ・ 60kg</div>
       <div class="catch">「下関巧者」</div>
       <div class="catch-basis">下関で際立って好成績のため（詳しくは下の「当地」欄）</div>
@@ -114,16 +116,16 @@ body{background:var(--bg); color:var(--ink); font-family:"Hiragino Kaku Gothic P
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>勝った時の決まり手<span class="card-sub">直近1年</span></div>
-    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:58.1%"></i></span><span class="kval nums">58.1%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:9.3%"></i></span><span class="kval nums">9.3%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:16.3%"></i></span><span class="kval nums">16.3%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.5%"></i></span><span class="kval nums">10.5%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:4.7%"></i></span><span class="kval nums">4.7%</span></div><div class="note">直近1年・勝ち86件の内訳です。</div>
+    <div class="krow ktop"><span class="kname">逃げ</span><span class="kbar"><i style="width:56.6%"></i></span><span class="kval nums">56.6%</span></div><div class="krow"><span class="kname">まくり</span><span class="kbar"><i style="width:10.8%"></i></span><span class="kval nums">10.8%</span></div><div class="krow"><span class="kname">差し</span><span class="kbar"><i style="width:16.9%"></i></span><span class="kval nums">16.9%</span></div><div class="krow"><span class="kname">まくり差し</span><span class="kbar"><i style="width:10.8%"></i></span><span class="kval nums">10.8%</span></div><div class="krow"><span class="kname">抜き</span><span class="kbar"><i style="width:3.6%"></i></span><span class="kval nums">3.6%</span></div><div class="note">直近1年・勝ち83件の内訳です。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>当地(得意会場)</div>
-    <div class="homebox">🏠 <b>下関</b>：10走・勝率60.0%（他会場28.7%より+31.3pt）</div>
+    <div class="homebox">🏠 <b>下関</b>：10走・勝率60.0%（他会場30.1%より+29.9pt）</div>
   </section>
   
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>今の調子</div>
-    <div class="kon"><b>直近</b> 1着→着外→2着 </div>
+    <div class="kon">直近の走行データが見当たりません。</div>
   </section>
   <section class="card">
     <div class="card-ttl"><span class="pin"></span>展示タイムの傾向</div>
