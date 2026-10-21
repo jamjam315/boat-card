@@ -43,6 +43,14 @@ on:
         description: '投稿せずに本文を確認するだけにする（false にすると実際に投稿します）'
         type: boolean
         default: true
+      # 鳴らせない警報は、鳴らないのと同じ(results.yml と同じ考え方)。true にすると、仕事
+      # (状態の更新・選手ページの作り直し・コミット)を普通に済ませたあと、最後にわざと失敗させて
+      # notify-failure が本当に Issue を立てるところまで通す。稽古のときは dry_run に関係なく
+      # 投稿しない(下の投稿の段で dry-run に倒す)。立った Issue は稽古なので、確かめたら閉じる。
+      notify_selftest:
+        description: '失敗の通知を試す(仕事を済ませたあと、わざと失敗させてIssueが立つか見る。投稿はしません)'
+        type: boolean
+        default: false
 
 # 状態ファイル(x_state/)・プロフィールの変遷(profile_history.json)・選手ページをコミットするため。
 permissions:
@@ -132,12 +140,17 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           EVENT_NAME: ${{ github.event_name }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # このファイルの入力の読み方は github.event.inputs(schedule では中身が無く空になる)
+          SELFTEST: ${{ github.event.inputs.notify_selftest }}
         run: |
           # まず元栓。false なら起動経路に関係なく dry-run にする。
           # ここを最初に見るのは、キッカー(workflow_dispatch)が schedule の分岐を
           # 通らないため。元栓を後ろに置くと、また素通りする。
           if [ "${POST_LIVE}" != "true" ]; then
             echo "POST_LIVE=${POST_LIVE} のため dry-run で確認します（event=${EVENT_NAME}・投稿はしません）"
+            python scripts/x_title_watch.py --dry-run
+          elif [ "${SELFTEST}" = "true" ]; then
+            echo "通知の稽古のため dry-run で確認します（投稿はしません）"
             python scripts/x_title_watch.py --dry-run
           elif [ "${EVENT_NAME}" = "schedule" ]; then
             echo "定時実行・本番投稿します"
@@ -151,6 +164,28 @@ jobs:
             echo "手動実行・dry-run で確認します（投稿はしません）"
             python scripts/x_title_watch.py --dry-run
           fi
+
+      # 投稿したら、状態ファイルだけを先にコミットする(2026-10-21)。
+      # 以前は選手ページを作り直したあとにまとめてコミットしていたため、選手ページの段が落ちると
+      # 投稿は出たのに状態が残らず、翌週も同じ変化を「新しい」と見て同じ内容を投稿していた
+      # (2026-09-21〜10-19 の5週。9/21と9/28、10/12と10/19が重複)。投稿と状態の保存を離さない。
+      - name: 二つ名ウォッチの状態を先にコミット
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          git config user.name "boat-bot"
+          git config user.email "boat-bot@users.noreply.github.com"
+          git add x_state/
+          if git diff --staged --quiet; then
+            echo "状態に変化なし"
+            exit 0
+          fi
+          git commit -m "x_state: 二つ名ウォッチの状態を記録 ($(TZ=Asia/Tokyo date +%Y-%m-%d))"
+          for i in 1 2 3; do
+            git push && exit 0
+            echo "pushが弾かれたのでrebaseして再試行 ($i/3)"
+            git pull --rebase origin main || exit 1
+          done
+          exit 1
 
       # 選手ページを作り直す。冒頭の一言が変わった選手は profile_history.json に残る。
       - name: 選手ページを作り直す(一言とプロフィールの変遷)
@@ -175,3 +210,36 @@ jobs:
             git pull --rebase origin main || exit 1
           done
           exit 1
+
+      # 通知の稽古(手動実行で notify_selftest=true のときだけ)。ここまでの仕事は普通に済ませてある。
+      - name: 通知の稽古のため、わざと失敗させる
+        if: github.event.inputs.notify_selftest == 'true'
+        run: |
+          echo "通知の配線を試すため、わざと失敗させます(投稿・選手ページ・コミットは済んでいます)"
+          exit 1
+
+  # ---- 失敗の通知(2026-10-21) ----
+  # 本体(titles)が失敗したら GitHub Issue を立てる。2026-09-21〜10-19 の5週、選手ページの段が
+  # 毎週落ちていたのに通知が無く、誰も気づかなかったため。立て方は results.yml・daily.yml と同じ
+  # (scripts/notify_run_failure.py → gh_issue.py: 同じ題が開いていればコメントで足す・同じ run では1回だけ)。
+  notify-failure:
+    needs: [titles]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 失敗を Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "二つ名ウォッチ・選手ページ(weekly.yml)が失敗しました"
+          --hint "投稿の段より後で落ちた場合、投稿は出ていて、二つ名ウォッチの状態は先にコミット済み(同じ投稿は繰り返さない)。
+          選手ページ・五十音・プロフィールの変遷は前の週のまま。直したら weekly.yml を dry_run のまま手動で1回
+          走らせれば作り直せる(投稿はしない)。"
+
