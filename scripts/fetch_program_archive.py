@@ -3,6 +3,9 @@
 過去の番組表(B票)を公式からまとめて取得し、手元のキャッシュに置く(2026-10-20・最初の一度だけ)。
 
   python scripts/fetch_program_archive.py fetch [--from 2016-07-05] [--to 2026-07-25]
+      [--log ファイル] [--task-name タスク名]
+      --log       … 出力をこのファイルに追記する(タスクスケジューラから窓なしの pythonw で動かすとき)
+      --task-name … 全部取れたら、このタスク(Windows のタスクスケジューラ)を削除する(片付け)
   python scripts/fetch_program_archive.py parse        … 取得した lzh を program/{年}.jsonl に直す
 
 【なぜ要るのか】
@@ -153,6 +156,12 @@ def fetch(a):
             f.write(f"{datetime.datetime.now():%Y-%m-%d %H:%M} 取得 {got}日 / 公式に無かった日 {len(miss)}日\n")
             f.write("".join(m + "\n" for m in miss))
         print(f"[fetch] すべて取得済み: {got}日 / 公式に無かった日 {len(miss)}日 → B/done.txt", flush=True)
+        if a.task_name and os.name == "nt":
+            # 片付け: 1時間ごとに起動しているタスクを消す(取り終えたら残さない)
+            import subprocess
+            r = subprocess.run(["schtasks", "/Delete", "/TN", a.task_name, "/F"], capture_output=True)
+            print(f"[fetch] タスク {a.task_name} を削除: {'できました' if r.returncode == 0 else '失敗 ' + str(r.returncode)}",
+                  flush=True)
 
 
 def parse(a):
@@ -200,8 +209,14 @@ def main():
     f.add_argument("--from", dest="since", default="2016-07-05")
     f.add_argument("--to", dest="until", default="2026-07-25")
     f.add_argument("--interval", type=float, default=2.0)
+    f.add_argument("--log", help="出力を追記するファイル")
+    f.add_argument("--task-name", help="全部取れたら削除するタスクの名前")
     sub.add_parser("parse")
     a = p.parse_args()
+    if getattr(a, "log", None):
+        # pythonw(窓なし)には標準出力が無いので、ファイルへ書く。1行ずつ書き出す
+        out = open(a.log, "a", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = out
     fetch(a) if a.cmd == "fetch" else parse(a)
 
 
