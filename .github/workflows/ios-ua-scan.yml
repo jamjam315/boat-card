@@ -47,6 +47,12 @@ on:
   schedule:
     - cron: '17 23 * * *'
   workflow_dispatch:
+    inputs:
+      # 失敗の通知の稽古(2026-10-21・既定 off)。確認を済ませたあと、わざと失敗させて Issue が立つか見る。
+      notify_selftest:
+        description: '失敗の通知を試す(確認を済ませたあと、わざと失敗させてIssueが立つか見る)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -64,3 +70,33 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: node tools/ios-ua-scan.mjs
+
+      # 通知の稽古(手動実行で notify_selftest=true のときだけ)。確認そのものは済ませてある。
+      - name: 通知の稽古のため、わざと失敗させる
+        if: github.event.inputs.notify_selftest == 'true'
+        run: |
+          echo "通知の配線を試すため、わざと失敗させます(確認は済んでいます)"
+          exit 1
+
+  # ---- 失敗の通知(2026-10-21) ----
+  # 定時(毎朝)の確認で落ちたときだけ Issue を立てる。push・PR のときは、そのコミットに赤い印が付き、
+  # 直した人が見ているので立てない。定時の確認は誰も見ていないので、立てないと次の iOS 審査まで気づけない。
+  notify-failure:
+    needs: [scan]
+    if: failure() && (github.event_name == 'schedule' || github.event.inputs.notify_selftest == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 失敗を Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "iOS の UA での確認(ios-ua-scan.yml)が失敗しました"
+          --hint "毎朝の確認で、iOS アプリの中で出してはいけない文字・リンクが見つかったか、確認の道具が動かなかった。
+          run のログ(node tools/ios-ua-scan.mjs の出力)で、どのページの何かを見る。次の iOS の審査の前に直す。"

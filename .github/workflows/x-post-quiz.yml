@@ -24,6 +24,12 @@ on:
         description: '投稿せずに本文を確認するだけにする（false にすると実際に投稿します・POST_LIVE が true のときだけ）'
         type: boolean
         default: true
+      # 失敗の通知の稽古(2026-10-21・既定 off)。true にすると投稿は必ず dry-run になり、状態はコミットせず、
+      # 最後にわざと失敗させて notify-failure が本当に Issue を立てるところまで通す。立った Issue は閉じる。
+      notify_selftest:
+        description: '失敗の通知を試す(投稿せず・状態もコミットせず、最後にわざと失敗させてIssueが立つか見る)'
+        type: boolean
+        default: false
 
 # 状態ファイル(x_state/quiz_state.json)をコミットするため。
 permissions:
@@ -87,11 +93,16 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           EVENT_NAME: ${{ github.event_name }}
           DRY_RUN: ${{ inputs.dry_run }}
+          # このファイルの入力の読み方は github.event.inputs(schedule では中身が無く空になる)
+          SELFTEST: ${{ github.event.inputs.notify_selftest }}
         run: |
           # まず元栓。キッカー(workflow_dispatch)が schedule の分岐を通らないので、先頭で見る
           # (weekly.yml で元栓を後ろに置いていて素通りした 2026-09-14 の件と同じ形を作らない)。
           if [ "${POST_LIVE}" != "true" ]; then
             echo "POST_LIVE=${POST_LIVE} のため dry-run で確認します（event=${EVENT_NAME}・投稿はしません）"
+            python scripts/x_quiz_post.py --dry-run
+          elif [ "${SELFTEST}" = "true" ]; then
+            echo "通知の稽古のため dry-run で確認します（投稿はしません）"
             python scripts/x_quiz_post.py --dry-run
           elif [ "${EVENT_NAME}" = "schedule" ]; then
             echo "定時実行・本番投稿します"
@@ -106,8 +117,9 @@ jobs:
           fi
 
       # 投稿に失敗した場合は前のステップが非0で落ち、ここには来ない(投稿済みを記録しない)。
+      # 通知の稽古ではコミットしない(投稿していないので、記録するものが無い)。
       - name: 状態ファイルをコミット
-        if: steps.gate.outputs.go == 'true'
+        if: steps.gate.outputs.go == 'true' && github.event.inputs.notify_selftest != 'true'
         run: |
           git config user.name "boat-bot"
           git config user.email "boat-bot@users.noreply.github.com"
@@ -123,3 +135,33 @@ jobs:
             git pull --rebase origin main || exit 1
           done
           exit 1
+
+      # 通知の稽古(手動実行で notify_selftest=true のときだけ)。投稿も状態のコミットもしていない。
+      - name: 通知の稽古のため、わざと失敗させる
+        if: github.event.inputs.notify_selftest == 'true'
+        run: |
+          echo "通知の配線を試すため、わざと失敗させます(投稿していません・状態もコミットしていません)"
+          exit 1
+
+  # ---- 失敗の通知(2026-10-21) ----
+  # 本体が失敗したら GitHub Issue を立てる(weekly.yml・results.yml と同じ作り)。
+  # 状態のコミットが弾かれ続けて落ちた場合もここに来る(投稿は出たのに状態が残っていない=次の実行で
+  # 同じ投稿が出うるので、その前に気づけるようにする)。
+  notify-failure:
+    needs: [post]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 失敗を Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "今日の一問の投稿(x-post-quiz.yml)が失敗しました"
+          --hint "止まったところが「状態ファイルをコミット」なら、投稿は出ているのに状態が保存されていない。run を再実行しないこと(再実行すると、すぐに同じ投稿が出る)。次の定時の前に、Actions タブでこのワークフローを止めてから x_state/ を直す。投稿の段で止まっていれば、投稿は出ておらず状態も変わっていない(次の定時で出直す)。 出題ファイルが無い日(results.yml の作り置き)もここで止まる。"
