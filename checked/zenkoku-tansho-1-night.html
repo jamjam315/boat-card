@@ -20,6 +20,8 @@ body{margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,-ap
 .crumb{font-size:12px; color:var(--muted);}
 .crumb a{color:var(--muted);}
 h1{font-size:22px; line-height:1.5; margin:14px 0 4px;}
+/* スマホ幅では見出しを小さく(2026-10-21)。大きいままだと2行に折り返して1画面目の多くを使い、上の題名より大きく見えていた。文言は検索用なので変えない */
+@media (max-width:460px){ h1{font-size:16px;} }
 .cond{font-size:13px; color:var(--muted); margin-bottom:18px;}
 .nums{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
  border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}

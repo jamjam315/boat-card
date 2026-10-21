@@ -42,6 +42,8 @@ body{background:var(--bg); color:var(--ink);
 .topbar .site{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
 /* ページの主題(h1)と節の見出し(h2)。帯はブランド、h1 は中身の題という関係にする */
 .bt-h1{font-size:20px; font-weight:700; margin:0 0 8px; line-height:1.5; color:var(--ink); letter-spacing:.02em;}
+/* スマホ幅では見出しを小さく(2026-10-21)。大きいままだと2行に折り返して1画面目の多くを使い、上の題名より大きく見えていた。文言は検索用なので変えない */
+@media (max-width:460px){ .bt-h1{font-size:16px;} }
 .bt-h2{font-size:14px; font-weight:700; margin:20px 2px 8px; color:var(--ink);}
 .bt-about{margin-top:6px;}
 .bt-about p{margin:0 2px; font-size:12.5px; color:var(--ink2); line-height:1.85;}

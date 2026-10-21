@@ -51,6 +51,8 @@ body{background:var(--bg); color:var(--ink);
 .lanes i{display:block; border-radius:2px;}
 .topbar .site{font-size:18px; font-weight:600; margin:0; letter-spacing:.04em; position:relative; z-index:1;}
 .pl-h1{font-size:20px; font-weight:700; margin:14px 2px 6px; line-height:1.5; color:var(--ink);}
+/* スマホ幅では見出しを小さく(2026-10-21)。大きいままだと2行に折り返して1画面目の多くを使い、上の題名より大きく見えていた。文言は検索用なので変えない */
+@media (max-width:460px){ .pl-h1{font-size:16px;} }
 .topbar p{font-size:11.5px; margin:1px 0 0; color:#9fc3ba; letter-spacing:.02em; position:relative; z-index:1;}
 
 .back{display:block; margin:10px 2px 0; font-size:12px; color:var(--muted); text-decoration:none;}
