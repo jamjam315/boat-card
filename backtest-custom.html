@@ -1372,7 +1372,9 @@ body{background:var(--bg); color:var(--ink);
     var pr = progress;
     if(!pr) return;
     pr.el.innerHTML = (pr.heavy ? '<span class="bt-loading-heavy">読み込みに時間がかかります（全国・長い期間はデータが多いため）。</span>' : "") +
-      pr.label + "を読み込み中…　" + pr.done.toLocaleString("ja-JP") + "／" + pr.total.toLocaleString("ja-JP") + "本";
+      pr.label + "を読み込み中…" +
+      // 本数が決まるまで(材料の一覧を読むあいだ)は数を出さない(「0／0本」と出さないため)
+      (pr.total ? "　" + pr.done.toLocaleString("ja-JP") + "／" + pr.total.toLocaleString("ja-JP") + "本" : "");
   }
   /** 進み具合の表示をやめて、文言だけにする(集計中・失敗など)。 */
   function loadingText(loading, text){
