@@ -207,6 +207,7 @@ body{background:var(--bg); color:var(--ink);
 .bt-pick{margin-top:12px;}
 .bt-pick .bt-pill-note{margin:0 0 6px;}
 .bt-loading{font-size:12.5px; color:var(--muted); margin-top:10px;}
+.bt-loading-heavy{display:block; margin-bottom:2px;}
 
 .bt-checking{font-size:12.5px; color:var(--muted); margin-top:14px; padding:0 4px;}
 
@@ -1305,6 +1306,7 @@ body{background:var(--bg); color:var(--ink);
   /**
    * 材料を読む。pairs は [セット, 月](セットは all か会場のローマ字)、fields は要る材料の列。
    * 全国の月は鍵と要る列だけを読む(材料ごとに別のファイル)。会場の月は1本を丸ごと読む(数KB)。
+   * 鍵と列は同時に取りに行く(読む本数が初めに決まるので、進み具合を「何本中何本」で出せる)。
    */
   function loadMat(pairs, fields){
     return loadMatMeta().then(function(mm){
@@ -1312,22 +1314,70 @@ body{background:var(--bg); color:var(--ink);
         var set = p[0], month = p[1], id = set + "/" + month;
         if((mm.sets[set] || []).indexOf(month) === -1) return null;   // その月のファイルが無い
         if(set !== "all"){
-          return getJsonOnce("mat/" + id + ".json").then(function(doc){
+          return track(getJsonOnce("mat/" + id + ".json")).then(function(doc){
             if(!matChunks[id]){ matChunks[id] = doc; matStore.addChunk(set, month, doc); }
           });
         }
-        return getJsonOnce("mat/all/" + month + "/keys.json").then(function(kd){
+        var files = ["keys"].concat(fields).map(function(f){
+          return track(getJsonOnce("mat/all/" + month + "/" + f + ".json"));
+        });
+        return Promise.all(files).then(function(docs){
+          var kd = docs[0];
           var chunk = matChunks[id];
           if(!chunk){ chunk = matChunks[id] = { keys: kd.data }; matStore.addChunk("all", month, chunk); }
-          return Promise.all(fields.map(function(f){
-            return getJsonOnce("mat/all/" + month + "/" + f + ".json").then(function(fd){
-              // 列の長さが鍵と合わなければ使わない(書きかけ・取り違えのファイルを読まない)
-              if(fd.data.length === kd.data.length * (f === "k" ? 1 : 6)) chunk[f] = fd.data;
-            });
-          }));
+          fields.forEach(function(f, i){
+            var fd = docs[i + 1];
+            // 列の長さが鍵と合わなければ使わない(書きかけ・取り違えのファイルを読まない)
+            if(fd.data.length === kd.data.length * (f === "k" ? 1 : 6)) chunk[f] = fd.data;
+          });
         });
       }));
     });
+  }
+
+  // ---- 読み込みの進み具合(2026-10-22) ----
+  // 全国・長い期間は読み込みが重い(全国・過去10年で圧縮後 約15MB、材料を使うと +6〜20MB。
+  // スマホの回線では数十秒〜数分)。固まって見えないよう、段(データ→材料)ごとに何本中何本まで
+  // 読んだかを出し、重い条件では「時間がかかります」を先に出す。
+  var progress = null;
+  /** 全国で2年ぶん以上の年ファイルを読むとき(全国1年は約1.5MB、会場は10年でも1MB前後)。 */
+  function isHeavyLoad(win){
+    return !state.toban && state.venue === "zenkoku" && neededYears(win).length >= 2;
+  }
+  function startPhase(loading, label, heavy){
+    progress = { el: loading, label: label, heavy: !!heavy, total: 0, done: 0 };
+    showProgress();
+  }
+  /** 1本のファイルの読み込み p を数える(段の外で呼ばれたら数えない)。 */
+  function track(p){
+    expectFiles(1);
+    return countDone(p);
+  }
+  /** これから読む本数を足す(順番待ちで後から取りに行くファイルも、先に本数に入れておく)。 */
+  function expectFiles(n){
+    if(!progress) return;
+    progress.total += n;
+    showProgress();
+  }
+  /** 読み終わったら1本と数える。 */
+  function countDone(p){
+    var pr = progress;
+    if(!pr) return p;
+    return p.then(function(v){
+      if(progress === pr){ pr.done++; showProgress(); }
+      return v;
+    });
+  }
+  function showProgress(){
+    var pr = progress;
+    if(!pr) return;
+    pr.el.innerHTML = (pr.heavy ? '<span class="bt-loading-heavy">読み込みに時間がかかります（全国・長い期間はデータが多いため）。</span>' : "") +
+      pr.label + "を読み込み中…　" + pr.done.toLocaleString("ja-JP") + "／" + pr.total.toLocaleString("ja-JP") + "本";
+  }
+  /** 進み具合の表示をやめて、文言だけにする(集計中・失敗など)。 */
+  function loadingText(loading, text){
+    progress = null;
+    loading.textContent = text;
   }
 
   function venueLabel(){
@@ -1520,12 +1570,28 @@ body{background:var(--bg); color:var(--ink);
       return r.json();
     }).then(function(data){ fileCache[key] = data; return data; });
   }
-  // 会場×期間に必要な年ファイルだけ並行取得してつなげる(読み込み量が期間の長さに
+  // 会場×期間に必要な年ファイルだけ取得してつなげる(読み込み量が期間の長さに
   // ほぼ比例する。年をまたいでも、既に読み込み済みの年はfileCacheで再取得しない)。
+  // 同時に取りに行くのは2本まで(2026-10-22)。年ファイルは大きく(全国1年で約1.5MB)、全部を
+  // 同時に取ると回線を分け合って最後にまとめて届くため、「何本中何本」が0のまま進まず固まって見える。
+  // 待ち時間は回線の速さと量で決まるので、2本ずつにしてもほぼ変わらない。
   function loadVenuePeriod(romaji, win){
     var years = neededYears(win);
-    return Promise.all(years.map(function(y){ return loadYearFile(romaji, y); }))
+    expectFiles(years.length);
+    return inTurns(years, 2, function(y){ return countDone(loadYearFile(romaji, y)); })
       .then(function(arrays){ return arrays.reduce(function(acc,a){ return acc.concat(a); }, []); });
+  }
+  /** items を fn で順に処理する。同時に動かすのは n 個まで。結果は items の並びで返す。 */
+  function inTurns(items, n, fn){
+    var results = new Array(items.length), next = 0;
+    function worker(){
+      if(next >= items.length) return Promise.resolve();
+      var i = next++;
+      return fn(items[i]).then(function(v){ results[i] = v; return worker(); });
+    }
+    var workers = [];
+    for(var k=0;k<Math.min(n, items.length);k++) workers.push(worker());
+    return Promise.all(workers).then(function(){ return results; });
   }
 
   // ---------- 選手モードの読み込みと表示切り替え ----------
@@ -1697,8 +1763,8 @@ body{background:var(--bg); color:var(--ink);
       var years = Object.keys(idx.years || {}).filter(function(y){
         return Number(y) >= fromYear && Number(y) <= toYear;
       });
-      loading.textContent = years.length > 1 ? "データを読み込み中…(" + years.length + "年分)" : "集計中…";
-      return Promise.all(years.map(function(y){ return loadPlayerYear(state.toban, y); }))
+      startPhase(loading, "データ", false);
+      return Promise.all(years.map(function(y){ return track(loadPlayerYear(state.toban, y)); }))
         .then(function(lists){
           // 艇の材料の条件があるときだけ、その選手が走った会場×月の材料を読む
           if(!matConds().length) return lists;
@@ -1710,11 +1776,11 @@ body{background:var(--bg); color:var(--ink);
               if(v) pairs[v.romaji + "/" + r[0].slice(0, 7)] = [v.romaji, r[0].slice(0, 7)];
             });
           });
-          loading.textContent = "材料を読み込み中…";
+          startPhase(loading, "材料", false);
           return loadMat(Object.keys(pairs).map(function(k){ return pairs[k]; }), []).then(function(){ return lists; });
         })
         .then(function(lists){
-          loading.textContent = "集計中…";
+          loadingText(loading, "集計中…");
           var pass = buildFilter();
           var conds = matConds();
           var stake = (idx.stake && idx.stake[bet.stakeKey]) || 100;
@@ -2123,12 +2189,10 @@ body{background:var(--bg); color:var(--ink);
     var loading = document.getElementById("loadingMsg");
     var win = activeWindow();
     if(!win) return;
-    var years = neededYears(win);
     loading.style.display = "";
-    // 複数年ぶんダウンロードする場合(過去3年など)は時間がかかりうるため、固まって
-    // 見えないよう「読み込み中」であることを先に伝える。艇読みの静かなトーンに合わせ、
-    // スピナー画像等は使わず短い文言のみ。
-    loading.textContent = years.length > 1 ? "データを読み込み中…(過去" + years.length + "年分)" : "集計中…";
+    // ダウンロードに時間がかかりうるため、固まって見えないよう「読み込み中」と進み具合
+    // (何本中何本)を出す。艇読みの静かなトーンに合わせ、スピナー画像等は使わず短い文言のみ。
+    loadingText(loading, "集計中…");
     document.getElementById("runBtn").disabled = true;
 
     // 選手モードは読むファイルも集計の仕方も別(その選手の年ファイルだけを読む)。
@@ -2137,15 +2201,16 @@ body{background:var(--bg); color:var(--ink);
         loading.style.display = "none";
         syncRunEnabled();
       }).catch(function(){
-        loading.textContent = "データの読み込みに失敗しました。時間をおいて再度お試しください。";
+        loadingText(loading, "データの読み込みに失敗しました。時間をおいて再度お試しください。");
         syncRunEnabled();
       });
       return;
     }
 
+    startPhase(loading, "データ", isHeavyLoad(win));
     loadVenuePeriod(state.venue, win).then(function(records){
       if(usesMat()) return runMatBacktest(records, win, loading);
-      loading.textContent = "集計中…";
+      loadingText(loading, "集計中…");
       // しぼり込みが何も指定されていなければ pass は null になり、日付の窓だけで
       // 絞る従来どおりの計算になる(=しぼり込み追加前と1件も違わない)。
       var pass = buildFilter();
@@ -2188,7 +2253,7 @@ body{background:var(--bg); color:var(--ink);
       loading.style.display = "none";
       syncRunEnabled();
     }).catch(function(err){
-      loading.textContent = "データの読み込みに失敗しました。時間をおいて再度お試しください。";
+      loadingText(loading, "データの読み込みに失敗しました。時間をおいて再度お試しください。");
       syncRunEnabled();
     });
   }
@@ -2219,9 +2284,9 @@ body{background:var(--bg); color:var(--ink);
     var set = state.venue === "zenkoku" ? "all" : state.venue;
     var conds = matConds();
     var by = dynamicPick();
-    loading.textContent = "材料を読み込み中…(" + months.length + "か月分)";
+    startPhase(loading, "材料", isHeavyLoad(win));
     return loadMat(months.map(function(m){ return [set, m]; }), BM.fieldsFor(conds, by)).then(function(){
-      loading.textContent = "集計中…";
+      loadingText(loading, "集計中…");
       var pass = buildFilter();
       var bet = betDef(state.bet);
       // 艇番で決めた買い目(材料で決めないとき)と、材料で決まる艇ごとの買い目

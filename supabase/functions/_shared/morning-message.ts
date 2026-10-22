@@ -65,7 +65,7 @@ export const MAT_BANDS: Record<string, Band[]> = {
     { key: '7.0-', min: 7.0 }, { key: '6.5-7.0', min: 6.5, max: 7.0 }, { key: '6.0-6.5', min: 6.0, max: 6.5 },
     { key: '5.5-6.0', min: 5.5, max: 6.0 }, { key: '5.0-5.5', min: 5.0, max: 5.5 }, { key: '-5.0', max: 5.0 },
   ],
-  // 【仮】JAM の決定待ち(2026-10-20)
+  // 2026-10-22 決定(決め方は rule-match.js の MATS の注記)
   mo: [
     { key: '45-', min: 45 }, { key: '40-45', min: 40, max: 45 }, { key: '35-40', min: 35, max: 40 },
     { key: '30-35', min: 30, max: 35 }, { key: '-30', max: 30 },
