@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-22", "toban": "4448", "name": "青木玄太", "k": "A1", "age": 39, "br": "滋賀", "catch": "唐津巧者", "basis": "唐津で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "唐津", "races": [11], "reason": "home"};
+window.FEATURED = {"date": "2026-10-23", "toban": "5252", "name": "荒木颯斗", "k": "A2", "age": 23, "br": "愛知", "catch": "若き多摩川巧者", "basis": "多摩川で際立って好成績のため（詳しくは下の「当地」欄）。若手（23歳）", "venue": "多摩川", "races": [10], "reason": "home"};
