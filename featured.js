@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-23", "toban": "5252", "name": "荒木颯斗", "k": "A2", "age": 23, "br": "愛知", "catch": "若き多摩川巧者", "basis": "多摩川で際立って好成績のため（詳しくは下の「当地」欄）。若手（23歳）", "venue": "多摩川", "races": [10], "reason": "home"};
+window.FEATURED = {"date": "2026-10-24", "toban": "4809", "name": "外崎悟", "k": "A1", "age": 37, "br": "埼玉", "catch": "若松の隙を突く抜き屋", "basis": "若松で際立って好成績、かつ「抜き」が持ち味のため（詳しくは下の「当地」欄）", "venue": "若松", "races": [3, 11], "reason": "home"};
