@@ -549,6 +549,23 @@
     });
   }
 
+  /**
+   * 朝の便が送ってよい宛先か(2026-10-23)。表は supabase/functions/_shared/push-endpoint.ts と同じ。
+   * **片方を直したら、もう片方も直すこと。**
+   */
+  var PUSH_HOSTS = ["fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com"];
+  var PUSH_HOST_SUFFIXES = [".notify.windows.com"];
+  function pushEndpointAllowed(endpoint) {
+    var u;
+    try { u = new URL(endpoint); } catch (e) { return false; }
+    if (u.protocol !== "https:" || u.port !== "" || u.username !== "" || u.password !== "") return false;
+    var host = u.hostname.toLowerCase();
+    if (PUSH_HOSTS.indexOf(host) !== -1) return true;
+    return PUSH_HOST_SUFFIXES.some(function (s) {
+      return host.length > s.length && host.slice(-s.length) === s;
+    });
+  }
+
   /** 通知をONにする。許可ダイアログはこの中でだけ出す(=必ずタップ起点)。 */
   function enableNotify() {
     if (!notifySupported()) return Promise.reject(new Error("unsupported"));
@@ -568,6 +585,13 @@
       });
     }).then(function (sub) {
       var json = sub.toJSON();
+      // 朝の便は通知サービスのURLにしか送らない(supabase/functions/_shared/push-endpoint.ts)。
+      // それ以外の宛先は保存しても届かないので、購読を取り消して「オンにできない」にする
+      if (!pushEndpointAllowed(json.endpoint)) {
+        return sub.unsubscribe().catch(function () {}).then(function () {
+          throw new Error("unsupported-endpoint");
+        });
+      }
       return supaClient.from(SUBS_TABLE).upsert({
         user_id: supaUserId,
         endpoint: json.endpoint,

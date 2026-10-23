@@ -82,8 +82,11 @@ export const MAT_BANDS: Record<string, Band[]> = {
 
 /** 値が帯のどれかに入るか(rule-match.js の inMatBands と同じ)。値が分からなければ false。 */
 export function inMatBands(mat: string, value: unknown, bandKeys: string[] | undefined): boolean {
+  // 材料の名前は利用者が保存した値なので、表そのものの key だけを引く
+  // (普通のオブジェクトを引くと constructor・toString まで引けてしまう。2026-10-23 点検)
+  if (typeof mat !== 'string' || !Object.hasOwn(MAT_BANDS, mat)) return false
   const bands = MAT_BANDS[mat]
-  if (!bands || value === null || value === undefined || !bandKeys?.length) return false
+  if (value === null || value === undefined || !Array.isArray(bandKeys) || !bandKeys.length) return false
   for (const b of bands) {
     if (!bandKeys.includes(b.key)) continue
     if (mat === 'k') { if (value === b.key) return true; continue }
@@ -96,10 +99,12 @@ export function inMatBands(mat: string, value: unknown, bandKeys: string[] | und
 /** data.js の1艇から材料を作る(rule-match.js の matFromDataBoat と同じ)。 */
 // deno-lint-ignore no-explicit-any
 export function matFromDataBoat(b: any): BoatMat | null {
-  if (!b) return null
-  const ks = b.ks ?? {}
-  const s = (ks.s ?? []).filter((x: unknown) => typeof x === 'number') as number[]
-  const r = (ks.r ?? []).filter((x: unknown) => typeof x === 'number') as number[]
+  if (!b || typeof b !== 'object') return null
+  // ks の形が想定と違っても(配列でない等)落とさず「分からない」にする。材料のためだけの部分が、
+  // お気に入りの通知まで巻き込んで朝の便を止めないように(2026-10-23 点検の低-1)
+  const ks = b.ks && typeof b.ks === 'object' ? b.ks : {}
+  const s = (Array.isArray(ks.s) ? ks.s : []).filter((x: unknown) => typeof x === 'number') as number[]
+  const r = (Array.isArray(ks.r) ? ks.r : []).filter((x: unknown) => typeof x === 'number') as number[]
   const t = r.slice(-3)
   return {
     k: ['A1', 'A2', 'B1', 'B2'].includes(b.k) ? b.k : null,
@@ -147,6 +152,55 @@ export type AlertCond = {
   fixed?: boolean
   session?: 'night' | 'day' | 'all'
   mats?: MatCond[]
+}
+
+const LIST_KEYS = ['venues', 'races', 'months', 'frames', 'kinds', 'dists'] as const
+
+/**
+ * 保存された条件(cond)を、照合に使える形に整える。形が壊れていれば null(=どのレースにも当てはまらない)。
+ *
+ * 【なぜ要るのか(2026-10-23 点検の中-1)】
+ * cond は利用者の行として DB に直接書ける(RLS が見るのは「本人の行か・契約中か」だけ)。
+ * 画面から保存した条件はこの形に整っているが、直接書かれた壊れた形(mats が配列でない・
+ * 知らない材料名 constructor など)で照合が例外を出し、朝の便がその人の番で止まりえた。
+ *
+ * 【緩める側には倒さない】
+ * 壊れた行だけを黙って捨てると条件が緩み、届くはずのない通知が出る。壊れていれば丸ごと null。
+ * 次のものは今までどおり扱う(条件の意味が変わらないため):
+ *   cond が null/undefined → {}(絞らない) / 知らないキー → 無視 / fixed が真偽値でない → 無視 /
+ *   session が night・day 以外 → 無視 / 配列の中身の型違い → そのまま(どれにも一致しないだけ)
+ * rule-match.js の normalizeCond と同じ規則(rule_match_parity_test.ts が確かめる)。
+ */
+export function normalizeCond(raw: unknown): AlertCond | null {
+  if (raw === null || raw === undefined) return {}
+  if (typeof raw !== 'object' || Array.isArray(raw)) return null
+  const c = raw as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const k of LIST_KEYS) {
+    const v = c[k]
+    if (v === null || v === undefined) continue
+    if (!Array.isArray(v)) return null
+    out[k] = v
+  }
+  if (typeof c.fixed === 'boolean') out.fixed = c.fixed
+  if (c.session === 'night' || c.session === 'day') out.session = c.session
+  if (c.mats !== null && c.mats !== undefined) {
+    if (!Array.isArray(c.mats)) return null
+    const rows: MatCond[] = []
+    for (const m of c.mats) {
+      if (!m || typeof m !== 'object' || Array.isArray(m)) return null
+      const { lane, mat, bands } = m as Record<string, unknown>
+      if (typeof mat !== 'string' || !Object.hasOwn(MAT_BANDS, mat)) return null
+      if (!(lane === 'self' || (Number.isInteger(lane) && (lane as number) >= 1 && (lane as number) <= 6))) return null
+      if (!Array.isArray(bands)) return null
+      // 帯は表にある key だけを、表の並びで(知らない帯を混ぜても絞り方は変わらない)
+      const picked = MAT_BANDS[mat].map((b) => b.key).filter((key) => bands.includes(key))
+      if (!picked.length) return null
+      rows.push({ lane: lane as number | 'self', mat: mat as MatCond['mat'], bands: picked })
+    }
+    if (rows.length) out.mats = rows
+  }
+  return out as AlertCond
 }
 
 export type Alert = {
@@ -247,14 +301,29 @@ export async function loadToday(): Promise<{
   const data = await loadWindowJson(DATA_URL)
   const byToban = new Map<string, Entry>()
   const allByToban = new Map<string, Entry[]>()
-  for (const venue of data.venues ?? []) {
-    for (const race of venue.races ?? []) {
+  // data.js の形が想定と違っても(配列でない・null が混じる)全体を止めず、その会場・レース・艇だけを
+  // 飛ばす。ここで落ちると、お気に入りの通知も含めて全員に1通も届かない(2026-10-23 点検の低-1)
+  // deno-lint-ignore no-explicit-any
+  const list = (x: unknown): any[] => Array.isArray(x) ? x : []
+  // deno-lint-ignore no-explicit-any
+  const isObj = (x: unknown): x is Record<string, any> => !!x && typeof x === 'object' && !Array.isArray(x)
+  for (const venue of list(isObj(data) ? data.venues : null)) {
+    if (!isObj(venue)) continue
+    for (const race of list(venue.races)) {
+      if (!isObj(race)) continue
+      const raceBoats = list(race.boats)
+        .filter((b) => isObj(b) && (typeof b.t === 'string' || typeof b.t === 'number'))
       // そのレースの6艇の材料(艇番順)。同じレースの全員で同じものを指す
       const boats: (BoatMat | null)[] = [null, null, null, null, null, null]
-      for (const b of race.boats ?? []) {
-        if (b?.n >= 1 && b?.n <= 6) boats[b.n - 1] = matFromDataBoat(b)
+      for (const b of raceBoats) {
+        if (!(Number.isInteger(b.n) && b.n >= 1 && b.n <= 6)) continue
+        try {
+          boats[b.n - 1] = matFromDataBoat(b)
+        } catch {
+          boats[b.n - 1] = null   // 材料が作れない艇は「分からない」(お気に入りの通知は続ける)
+        }
       }
-      for (const boat of race.boats ?? []) {
+      for (const boat of raceBoats) {
         const entry: Entry = {
           toban: boat.t, name: boat.name, venue: venue.name,
           race: race.no, deadline: race.dl, frame: boat.n,
@@ -275,7 +344,7 @@ export async function loadToday(): Promise<{
       }
     }
   }
-  return { date: parseDataDate(data.date), byToban, allByToban }
+  return { date: parseDataDate(isObj(data) ? data.date : null), byToban, allByToban }
 }
 
 // ---- 条件アラートの照合 ----
@@ -309,9 +378,10 @@ export async function loadNightVenues(): Promise<Set<string> | null> {
  * (朝の便の日付ガードと同じ考え方)。
  */
 export function matchesCond(
-  e: Entry, cond: AlertCond, dateIso: string, nightVenues: Set<string> | null,
+  e: Entry, cond: AlertCond | null | undefined, dateIso: string, nightVenues: Set<string> | null,
 ): boolean {
-  const c = cond ?? {}
+  const c = normalizeCond(cond)
+  if (c === null) return false   // 形が壊れた条件は、どのレースにも当てはまらない
   if (c.venues?.length && !c.venues.includes(e.venue)) return false
   if (c.races?.length && !c.races.includes(e.race)) return false
   if (c.frames?.length && !c.frames.includes(e.frame)) return false
@@ -346,20 +416,32 @@ export function matchesCond(
  * その人の条件アラートに当てはまる本日の出走を集める。
  * 同じレースが複数の条件に当てはまっても1件として数える(通知は「何レースあるか」を伝えるため)。
  * 並びは締切の早い順(先に締め切るものから知らせたい)。
+ *
+ * 照合できなかった条件(形が壊れている 'shape'・照合で例外 'error')は飛ばし、onBroken で知らせる。
+ * 1件の壊れた条件で、その人やほかの人の通知を止めないため(2026-10-23 点検の中-1)。
  */
 export function matchAlerts(
   alerts: Alert[], allByToban: Map<string, Entry[]>, dateIso: string,
   nightVenues: Set<string> | null,
+  onBroken?: (alert: Alert, why: 'shape' | 'error') => void,
 ): Entry[] {
   const seen = new Set<string>()
   const out: Entry[] = []
   for (const a of alerts) {
-    for (const e of allByToban.get(a.toban) ?? []) {
-      if (!matchesCond(e, a.cond, dateIso, nightVenues)) continue
-      const key = `${e.venue}:${e.race}:${e.toban}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(e)
+    const cond = normalizeCond(a.cond)
+    if (cond === null) { onBroken?.(a, 'shape'); continue }
+    try {
+      for (const e of allByToban.get(a.toban) ?? []) {
+        if (!matchesCond(e, cond, dateIso, nightVenues)) continue
+        const key = `${e.venue}:${e.race}:${e.toban}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(e)
+      }
+    } catch (err) {
+      // ここに来るのは想定外(形を整えた条件で落ちた)。この条件だけを飛ばす
+      console.warn(`[morning-message] 条件アラート ${a.id} の照合で例外:`, err)
+      onBroken?.(a, 'error')
     }
   }
   out.sort((x, y) => (x.deadline ?? '').localeCompare(y.deadline ?? ''))

@@ -63,7 +63,11 @@
 
   /** condを「会場：下関」の形の配列にする。指定の無い軸は出さない。 */
   function condLabels(cond) {
-    var c = cond || {};
+    // 形を確かめてから読む(DB に直接書かれた壊れた形で、条件の一覧ごと止まらないように。2026-10-23 点検)。
+    // 壊れた条件は朝の照合でも当たらないので、そのことをそのまま見せる
+    var RM = window.TeiyomiRuleMatch;
+    var c = RM ? RM.normalizeCond(cond) : (cond || {});
+    if (c === null) return ["条件の形が読めません（この条件は通知に使われません）"];
     var out = [];
     function join(a) { return a.join("・"); }
     if (c.venues && c.venues.length) out.push("会場：" + join(c.venues));
@@ -79,9 +83,9 @@
     if (c.session === "night") out.push("開催区分：ナイター場");
     if (c.session === "day") out.push("開催区分：デイ場");
     // 艇の材料(2026-10-20)。帯の名前は rule-match.js の表から引く(同じ表を2つ持たない)
-    if (c.mats && c.mats.length && window.TeiyomiRuleMatch) {
+    if (c.mats && c.mats.length && RM) {
       c.mats.forEach(function (m) {
-        var t = TeiyomiRuleMatch.matCondLabel(m);
+        var t = RM.matCondLabel(m);
         if (t) out.push(t);
       });
     }

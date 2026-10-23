@@ -11,7 +11,7 @@
 // (CIの deno test はファイルの読み取り権限なしで走るため)。
 import { assert, assertEquals } from 'jsr:@std/assert@^1'
 import {
-  MAT_BANDS, matchesCond, matFromDataBoat, parseDataDate, type AlertCond, type BoatMat, type Entry,
+  MAT_BANDS, matchesCond, matFromDataBoat, normalizeCond, parseDataDate, type AlertCond, type BoatMat, type Entry,
 } from './morning-message.ts'
 
 await import('../../../rule-match.js')
@@ -266,6 +266,60 @@ Deno.test('艇の材料: matchesCond が TS版とJS版で同じ(艇番・この�
   assert(matchesCond(e, { mats: [{ lane: 4, mat: 'nw', bands: ['-5.0'] }] }, '2026-10-20', null))
   // 勝率0.00(まだ記録が無い)はどの帯にも入らない
   assert(!matchesCond(e, { mats: [{ lane: 2, mat: 'nw', bands: ['-5.0'] }] }, '2026-10-20', null))
+})
+
+// ---- 5. 壊れた形の条件(2026-10-23 点検の中-1) ----
+
+const SHAPES: unknown[] = [
+  null, undefined, {}, [], 'abc', 1, true,
+  { venues: ['桐生'], races: [1], session: 'night', fixed: false, weather: 'rain' },
+  { venues: [] }, { session: 'all' }, { fixed: 'yes' }, { races: ['1'] },
+  { venues: { length: 1 } }, { races: 1 }, { months: '9' }, { frames: { 0: 1 } }, { kinds: true }, { dists: {} },
+  { mats: [] }, { mats: null }, { mats: 1 }, { mats: {} }, { mats: [null] }, { mats: [[]] }, { mats: ['k'] },
+  { mats: [{ lane: 1, mat: 'nw', bands: ['6.0-6.5', '7.0-', 'zz'] }] },
+  { mats: [{ lane: 'self', mat: 'st', bands: ['-0.14'] }] },
+  { mats: [{ lane: 1, mat: 'constructor', bands: ['x'] }] },
+  { mats: [{ lane: 1, mat: 'hasOwnProperty', bands: ['A1'] }] },
+  { mats: [{ lane: 1, mat: 'k', bands: { length: 1 } }] },
+  { mats: [{ lane: 1, mat: 'k', bands: [] }] },
+  { mats: [{ lane: '1', mat: 'k', bands: ['A1'] }] },
+  { mats: [{ lane: 0, mat: 'k', bands: ['A1'] }] },
+  { mats: [{ lane: 2.5, mat: 'k', bands: ['A1'] }] },
+  { mats: [{ lane: 1, mat: 'k', bands: ['A1'] }, { lane: 1, mat: 'zz', bands: ['A1'] }] },
+]
+
+Deno.test('normalizeCond: TS版とJS版が同じ形に整え、同じものを「壊れている」とする', () => {
+  let broken = 0
+  for (const s of SHAPES) {
+    const ts = normalizeCond(s)
+    assertEquals(RM.normalizeCond(s), ts, JSON.stringify(s) ?? String(s))
+    if (ts === null) broken++
+  }
+  assert(broken > 10 && broken < SHAPES.length, `broken=${broken}`)
+  // 帯は表の並びに直し、知らない帯は落とす(絞り方は変わらない)
+  assertEquals(normalizeCond({ mats: [{ lane: 1, mat: 'nw', bands: ['6.0-6.5', '7.0-', 'zz'] }] }),
+    { mats: [{ lane: 1, mat: 'nw', bands: ['7.0-', '6.0-6.5'] }] })
+  // 壊れた行が1つでもあれば、正しい行だけを残して緩めることはしない
+  assertEquals(normalizeCond({ mats: [{ lane: 1, mat: 'k', bands: ['A1'] }, { lane: 1, mat: 'zz', bands: ['A1'] }] }), null)
+})
+
+Deno.test('matchesCond: 壊れた形の条件はどの出走にも当てはまらず、TS版とJS版で同じ(例外も出ない)', () => {
+  const boats: (BoatMat | null)[] = DATA_BOATS.map((b) => matFromDataBoat(b))
+  for (const s of SHAPES) {
+    for (const frame of [1, 3]) {
+      const e: Entry = { ...ENTRY_BASE, frame, boats }
+      const ts = matchesCond(e, s as AlertCond, '2026-10-20', null)
+      const js = RM.matchesCond(e, s, '2026-10-20', null)
+      assertEquals(js, ts, JSON.stringify(s) ?? String(s))
+      if (normalizeCond(s) === null) assertEquals(ts, false, JSON.stringify(s))
+    }
+  }
+})
+
+Deno.test('艇の材料: data.js の艇の形が崩れていても、TS版とJS版が同じ「分からない」を返す', () => {
+  for (const b of [null, 'x', 1, [], { k: 'A1', ks: 'x' }, { ks: { s: '0.1', r: 3 } }, { ks: { s: [0.1, 'x'], r: { 0: 1 } } }]) {
+    assertEquals(RM.matFromDataBoat(b), matFromDataBoat(b), JSON.stringify(b))
+  }
 })
 
 Deno.test('艇の材料: 検証ノートの filter.mats が cond.mats に入る(帯の並びは表の順・空の行は落とす)', () => {

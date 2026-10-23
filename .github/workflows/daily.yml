@@ -94,6 +94,8 @@ jobs:
     needs: check
     if: needs.check.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    outputs:
+      push_unreported: ${{ steps.push.outputs.push_unreported }}
     steps:
       - uses: actions/checkout@v7
 
@@ -192,6 +194,7 @@ jobs:
       # stale_dataが返ったら間を置いて数回やり直す。それでも駄目な場合は
       # 警告を出すだけにして、cron便に任せる(通知の遅れでCIを赤くしない)。
       - name: データ公開の反映を待って、朝の通知を叩く
+        id: push
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           FORCE: ${{ inputs.force_push_notice }}
@@ -246,6 +249,14 @@ jobs:
                 ;;
               *sentUsers*)
                 echo "朝の通知を送りました"
+                # 飛ばした利用者がいたのに、関数が知らせ(push-failures.yml)を起動できなかった
+                # (GITHUB_KICK_TOKEN の期限切れなど)。下の notify-push がこちらから Issue を立てる
+                case "$body" in
+                  *'"reported":false'*)
+                    echo "::warning::朝の通知で飛ばした利用者がいましたが、関数から知らせを起動できませんでした"
+                    echo "push_unreported=1" >> "$GITHUB_OUTPUT"
+                    ;;
+                esac
                 exit 0
                 ;;
               *)
@@ -307,3 +318,30 @@ jobs:
           --title "毎朝データ更新(daily.yml)が失敗しました"
           --hint "朝は3便(07:37 / 09:23 / 12:07)あり、後の便で追いつくことがある。まず data.js の日付を見る。
           10:15 までに今日の日付にならなければ、利用者には遅延の告知(send-delay-notice)が出る。"
+
+  # ---- 朝の通知で飛ばした利用者の知らせが、関数から届かなかったとき(2026-10-23) ----
+  # 飛ばした利用者は、ふだんは関数が push-failures.yml を起動して Issue で知らせる。その起動に
+  # 失敗した(応答が reported:false)ときだけ、こちらから立てる。CI便の応答しか見られないので、
+  # cron便で起動に失敗したときは Supabase のログにだけ残る。
+  notify-push:
+    needs: [update]
+    if: always() && needs.update.outputs.push_unreported == '1'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: 飛ばした利用者の知らせが届かなかったことを Issue で知らせる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          python3 scripts/notify_run_failure.py
+          --title "朝の通知で飛ばした利用者の知らせが届きませんでした(daily.yml)"
+          --what "update(朝の通知を叩く・応答が reported:false)"
+          --hint "朝の便(send-morning-push)が、壊れた条件や応答しない宛先などで誰かを飛ばしたのに、
+          知らせのワークフロー(push-failures.yml)を起動できなかった。Supabase の Edge Functions →
+          send-morning-push のログで [failure-report] の行を見る。HTTP 401/403 なら GITHUB_KICK_TOKEN の
+          期限切れか権限不足(kick-github と同じ鍵)。飛ばした人と中身は同じログの「送信失敗」「想定外の例外」の行にある。"

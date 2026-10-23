@@ -28,6 +28,7 @@ import {
   type Alert, type Entry,
 } from '../_shared/morning-message.ts'
 import { sendApns } from '../_shared/apns.ts'
+import { isAllowedPushEndpoint, PUSH_TIMEOUT_MS } from '../_shared/push-endpoint.ts'
 
 const ACTIVE_STATUSES = ['active', 'trialing']
 
@@ -164,11 +165,17 @@ export default {
         title: `[テスト] ${message.title}`,
       })
 
-      let sent = 0, removed = 0
+      let sent = 0, removed = 0, blocked = 0
       for (const s of subs ?? []) {
+        // 通知サービス以外の宛先には送らない・1件10秒で打ち切る(朝の便と同じ。2026-10-23 点検の中-2)
+        if (!isAllowedPushEndpoint(s.endpoint)) {
+          blocked++
+          continue
+        }
         try {
           await webPush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload,
+            { timeout: PUSH_TIMEOUT_MS },
           )
           sent++
         } catch (err) {
@@ -192,7 +199,7 @@ export default {
       }
 
       return Response.json({
-        sent, removedSubscriptions: removed,
+        sent, removedSubscriptions: removed, blockedSubscriptions: blocked,
         sentIos: ios.sent, removedIosTokens: ios.dropped.length, failedIos: ios.failed,
         // 呼び出した本人の端末についてだけ、APNsが返した理由を返す(トークンは含まない)。
         // 「sentIos が 0 で届かない」ときに、ダッシュボードのログを開かずに切り分けるため。

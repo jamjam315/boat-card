@@ -1,0 +1,73 @@
+name: 朝の通知の失敗を知らせる
+
+# 朝の便(Supabase の send-morning-push)が、想定外の失敗があった便の最後にこれを起動する
+# (supabase/functions/_shared/failure-report.ts・鍵は kick-github と同じ GITHUB_KICK_TOKEN)。
+# ここでは Issue を立てるだけ(scripts/notify_push_failures.py)。2026-10-23 点検の中-1・中-2 で、
+# 1人の失敗で全員を止めないよう、その人だけ飛ばして進むようにした。その「飛ばした」を黙って消さないため。
+#
+# 【稽古】drill を true にして手動実行すると、朝の便を「1通も送らない稽古モード」(x-drill)で叩く。
+# 便は全員ぶんの照合と宛先の確かめだけを通し、わざとの1件を足してこのワークフローをもう一度起動する。
+# その2回目の run が本物の Issue を立てる。立った Issue は稽古なので、確かめたら閉じる。
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: '便の日付(YYYY-MM-DD・関数が入れる)'
+        type: string
+        default: ''
+      trigger:
+        description: 'どの便か(ci / cron / drill・関数が入れる)'
+        type: string
+        default: ''
+      failures:
+        description: '失敗の一覧(JSON・関数が入れる。手で入れない)'
+        type: string
+        default: ''
+      drill:
+        description: '稽古: 朝の便を「1通も送らない稽古モード」で叩き、本物の Issue が立つところまで確かめる'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+# 同じ朝に CI便と cron便の知らせが重なっても、順番に処理する(同じ題の Issue を2枚立てないため)
+concurrency:
+  group: push-failures
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 応答に入るのは件数だけ(利用者IDは入らない)なので、公開のログに出してよい
+      - name: 稽古(朝の便を稽古モードで叩く・1通も送らない)
+        if: github.event.inputs.drill == 'true'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -u
+          body=$(curl -sS --max-time 150 -X POST \
+                  "https://vynbhssakpxiikmseoja.supabase.co/functions/v1/send-morning-push" \
+                  -H "x-cron-secret: ${CRON_SECRET}" -H "x-drill: 1" \
+                  -H "Content-Type: application/json" -d '{}')
+          echo "応答: ${body}"
+          if echo "$body" | grep -q '"drill":true' && echo "$body" | grep -q '"reported":true'; then
+            echo "稽古の知らせを起動しました。このあと、このワークフローの2回目の run が Issue を立てます"
+          else
+            echo "::error::稽古の応答が想定と違います(知らせを起動できていません)"
+            exit 1
+          fi
+
+      - name: Issue で知らせる
+        if: github.event.inputs.failures != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DATE: ${{ github.event.inputs.date }}
+          TRIGGER: ${{ github.event.inputs.trigger }}
+          FAILURES: ${{ github.event.inputs.failures }}
+        run: python3 scripts/notify_push_failures.py

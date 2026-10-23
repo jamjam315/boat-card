@@ -6,6 +6,7 @@
 //   condFromFilter  … 5bの filter を、朝に照らせる形(AlertCond)に直す
 //   unusableLabels  … レースが終わるまで分からないので照らせない条件の名前
 //   matchesCond     … 1つの出走が条件に当てはまるか
+//   normalizeCond   … 保存された条件の形を確かめて整える(壊れていれば null・2026-10-23)
 //   ruleFromNote    … 検証ノートの cond から、照合に使うもの一式を作る
 //   matchRaces      … 今日の data.js から、ルールに当てはまるレースを集める
 //   MATS など       … 艇の材料(級別・全国勝率・モーター2連率・平均ST・直近3走)の帯と判定(2026-10-20)
@@ -145,7 +146,7 @@
   /** 値が帯のどれかに入るか。級別は文字で比べる。値が分からなければ false。 */
   function inMatBands(matKey, value, bandKeys){
     var d = matDef(matKey);
-    if(!d || value === null || value === undefined || !has(bandKeys)) return false;
+    if(!d || value === null || value === undefined || !Array.isArray(bandKeys) || !bandKeys.length) return false;
     for(var i=0;i<d.bands.length;i++){
       var b = d.bands[i];
       if(bandKeys.indexOf(b.key) === -1) continue;
@@ -157,10 +158,11 @@
 
   /** data.js の1艇から材料を作る(朝の通知・マイページ用)。分からない値は null。 */
   function matFromDataBoat(b){
-    if(!b) return null;
-    var ks = b.ks || {};
-    var s = (ks.s || []).filter(function(x){ return typeof x === "number"; });
-    var r = (ks.r || []).filter(function(x){ return typeof x === "number"; });
+    if(!b || typeof b !== "object") return null;
+    // ks の形が想定と違っても落とさず「分からない」にする(morning-message.ts と同じ・2026-10-23)
+    var ks = b.ks && typeof b.ks === "object" ? b.ks : {};
+    var s = (Array.isArray(ks.s) ? ks.s : []).filter(function(x){ return typeof x === "number"; });
+    var r = (Array.isArray(ks.r) ? ks.r : []).filter(function(x){ return typeof x === "number"; });
     var t = r.slice(-3);
     return {
       k: (b.k === "A1" || b.k === "A2" || b.k === "B1" || b.k === "B2") ? b.k : null,
@@ -289,6 +291,46 @@
 
   function has(arr){ return !!(arr && arr.length); }
 
+  var LIST_KEYS = ["venues", "races", "months", "frames", "kinds", "dists"];
+
+  /**
+   * 保存された条件(cond)を、照合に使える形に整える。形が壊れていれば null(=どのレースにも当てはまらない)。
+   * morning-message.ts の normalizeCond と同じ規則(rule_match_parity_test.ts が確かめる。2026-10-23 点検の中-1)。
+   * 壊れた行だけを捨てると条件が緩むので、壊れていれば丸ごと null にする。
+   */
+  function normalizeCond(raw){
+    if(raw === null || raw === undefined) return {};
+    if(typeof raw !== "object" || Array.isArray(raw)) return null;
+    var out = {};
+    for(var i=0;i<LIST_KEYS.length;i++){
+      var v = raw[LIST_KEYS[i]];
+      if(v === null || v === undefined) continue;
+      if(!Array.isArray(v)) return null;
+      out[LIST_KEYS[i]] = v;
+    }
+    if(typeof raw.fixed === "boolean") out.fixed = raw.fixed;
+    if(raw.session === "night" || raw.session === "day") out.session = raw.session;
+    if(raw.mats !== null && raw.mats !== undefined){
+      if(!Array.isArray(raw.mats)) return null;
+      var rows = [];
+      for(var j=0;j<raw.mats.length;j++){
+        var m = raw.mats[j];
+        if(!m || typeof m !== "object" || Array.isArray(m)) return null;
+        var d = typeof m.mat === "string" ? matDef(m.mat) : null;
+        if(!d) return null;
+        var lane = m.lane;
+        if(!(lane === "self" || (typeof lane === "number" && lane % 1 === 0 && lane >= 1 && lane <= 6))) return null;
+        if(!Array.isArray(m.bands)) return null;
+        var picked = d.bands.map(function(b){ return b.key; })
+          .filter(function(k){ return m.bands.indexOf(k) !== -1; });
+        if(!picked.length) return null;
+        rows.push({lane: lane, mat: m.mat, bands: picked});
+      }
+      if(rows.length) out.mats = rows;
+    }
+    return out;
+  }
+
   /**
    * 1つの出走が条件に当てはまるか。morning-message.ts の matchesCond と同じ判定。
    * 条件で指定されているのにデータ側に無い項目は「当てはまらない」に倒す。
@@ -298,7 +340,8 @@
    *   nightVenues … ナイター会場名の Set。分からなければ null
    */
   function matchesCond(e, cond, dateIso, nightVenues){
-    var c = cond || {};
+    var c = normalizeCond(cond);
+    if(c === null) return false;   // 形が壊れた条件は、どのレースにも当てはまらない
     if(has(c.venues) && c.venues.indexOf(e.venue) === -1) return false;
     if(has(c.races) && c.races.indexOf(e.race) === -1) return false;
     if(has(c.frames) && c.frames.indexOf(e.frame) === -1) return false;
@@ -379,14 +422,19 @@
     if(!rule || !rule.narrowable || !data) return out;
     var dateIso = parseDataDate(data.date);
     if(!dateIso) return out;
-    (data.venues || []).forEach(function(v){
-      (v.races || []).forEach(function(r){
+    // data.js の形が想定と違っても(配列でない・null が混じる)その会場・レース・艇だけを飛ばす
+    function list(x){ return Array.isArray(x) ? x : []; }
+    list(data.venues).forEach(function(v){
+      if(!v || typeof v !== "object") return;
+      list(v.races).forEach(function(r){
+        if(!r || typeof r !== "object") return;
+        var raceBoats = list(r.boats).filter(function(b){ return b && typeof b === "object"; });
         var boats = [null, null, null, null, null, null];
-        (r.boats || []).forEach(function(b){ if(b && b.n >= 1 && b.n <= 6) boats[b.n - 1] = matFromDataBoat(b); });
+        raceBoats.forEach(function(b){ if(b.n % 1 === 0 && b.n >= 1 && b.n <= 6) boats[b.n - 1] = matFromDataBoat(b); });
         var base = {venue: v.name, race: r.no, kind: r.kind, dist: r.dist, fixed: r.fixed, boats: boats};
         var hit = false;
         if(rule.toban){
-          (r.boats || []).forEach(function(b){
+          raceBoats.forEach(function(b){
             if(hit || String(b.t) !== rule.toban) return;
             var e = {venue: base.venue, race: base.race, frame: b.n,
                      kind: base.kind, dist: base.dist, fixed: base.fixed, boats: boats};
@@ -408,6 +456,7 @@
     condFromFilter: condFromFilter,
     unusableLabels: unusableLabels,
     matchesCond: matchesCond,
+    normalizeCond: normalizeCond,
     ruleFromNote: ruleFromNote,
     nightVenuesFrom: nightVenuesFrom,
     parseDataDate: parseDataDate,
