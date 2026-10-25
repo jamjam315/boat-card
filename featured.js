@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-25", "toban": "4809", "name": "外崎悟", "k": "A1", "age": 37, "br": "埼玉", "catch": "若松の隙を突く抜き屋", "basis": "若松で際立って好成績、かつ「抜き」が持ち味のため（詳しくは下の「当地」欄）", "venue": "若松", "races": [6, 12], "reason": "home"};
+window.FEATURED = {"date": "2026-10-26", "toban": "4627", "name": "藤原菜希", "k": "A2", "age": 40, "br": "東京", "catch": "丸亀巧者", "basis": "丸亀で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "丸亀", "races": [3, 8], "reason": "home"};
