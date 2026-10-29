@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-29", "toban": "4846", "name": "佐藤駿介", "k": "B1", "age": 32, "br": "山口", "catch": "江戸川の逃げ切り屋", "basis": "江戸川で際立って好成績、かつ「逃げ」が持ち味のため（詳しくは下の「当地」欄）", "venue": "江戸川", "races": [1], "reason": "home"};
+window.FEATURED = {"date": "2026-10-30", "toban": "4907", "name": "小池修平", "k": "A1", "age": 31, "br": "大阪", "catch": "尼崎巧者", "basis": "尼崎で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "尼崎", "races": [10], "reason": "home"};
