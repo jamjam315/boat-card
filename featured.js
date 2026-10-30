@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-10-30", "toban": "4907", "name": "小池修平", "k": "A1", "age": 31, "br": "大阪", "catch": "尼崎巧者", "basis": "尼崎で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "尼崎", "races": [10], "reason": "home"};
+window.FEATURED = {"date": "2026-10-31", "toban": "4907", "name": "小池修平", "k": "A1", "age": 31, "br": "大阪", "catch": "尼崎巧者", "basis": "尼崎で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "尼崎", "races": [12], "reason": "home"};
