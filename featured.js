@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-11-08", "toban": "5221", "name": "竹間隆晟", "k": "A1", "age": 25, "br": "大阪", "catch": "江戸川巧者", "basis": "江戸川で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "江戸川", "races": [12], "reason": "home"};
+window.FEATURED = {"date": "2026-11-09", "toban": "5139", "name": "大場恒季", "k": "A1", "age": 26, "br": "愛知", "catch": "下関巧者", "basis": "下関で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "下関", "races": [4, 8], "reason": "home"};
