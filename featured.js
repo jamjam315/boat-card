@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-11-11", "toban": "5139", "name": "大場恒季", "k": "A1", "age": 26, "br": "愛知", "catch": "下関巧者", "basis": "下関で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "下関", "races": [4, 11], "reason": "home"};
+window.FEATURED = {"date": "2026-11-12", "toban": "4744", "name": "伊藤玲奈", "k": "B1", "age": 33, "br": "福岡", "catch": "唐津の差し込み屋", "basis": "唐津で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "唐津", "races": [4, 9], "reason": "home"};
