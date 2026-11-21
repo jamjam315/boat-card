@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-11-21", "toban": "3809", "name": "吉田光", "k": "B1", "age": 51, "br": "佐賀", "catch": "芦屋のイン差し込み屋", "basis": "芦屋で際立って好成績、かつ「まくり差し」が持ち味のため（詳しくは下の「当地」欄）", "venue": "芦屋", "races": [1, 6], "reason": "home"};
+window.FEATURED = {"date": "2026-11-22", "toban": "3833", "name": "中辻博訓", "k": "A2", "age": 51, "br": "福井", "catch": "住之江巧者", "basis": "住之江で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "住之江", "races": [2, 12], "reason": "home"};
