@@ -1,0 +1,61 @@
+# data/x_queue.json に並べたデータ検証ポストを、毎晩21:30 JST に1本だけ投稿するワークフロー。
+# 今日(JST)の date と一致する1本だけを投稿する。該当が無い日は何もしない。
+# 1日に2本以上一致したら、投稿せずに止める(連投を防ぐため)。
+# 手動実行は dry-run(今日分と次の3本を --dry-run で表示。投稿はしない)。
+# 本文にURLは入れない(URL入りの投稿はAPI料金が高い。x_post.py 側でも弾く)。
+name: データ検証ポスト（キュー）
+
+on:
+  schedule:
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: 依存を入れる
+        run: pip install requests requests-oauthlib
+      - name: 投稿する
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          python - "$TODAY" "$EVENT" <<'PY'
+          import json, subprocess, sys
+          today, event = sys.argv[1], sys.argv[2]
+          with open("data/x_queue.json", encoding="utf-8") as f:
+              queue = json.load(f)
+          hits = [q for q in queue if q["date"] == today]
+          if len(hits) > 1:
+              sys.exit(f"[x-post-queue] {today} の投稿が{len(hits)}本あります。1本にしてください")
+
+          if event != "schedule":
+              later = sorted((q for q in queue if q["date"] > today), key=lambda q: q["date"])[:3]
+              targets = hits + later
+              if not targets:
+                  print(f"[x-post-queue] {today} 以降の投稿はありません")
+              for q in targets:
+                  print(f"===== {q['date']} =====", flush=True)
+                  subprocess.run([sys.executable, "scripts/x_post.py", "--dry-run", "--text", q["text"]], check=True)
+              sys.exit(0)
+
+          if not hits:
+              print(f"[x-post-queue] {today} の投稿はありません。何もしません")
+              sys.exit(0)
+          q = hits[0]
+          print(f"[x-post-queue] {today} の1本を投稿します（集計: {q.get('source', '')}）", flush=True)
+          subprocess.run([sys.executable, "scripts/x_post.py", "--text", q["text"]], check=True)
+          PY
