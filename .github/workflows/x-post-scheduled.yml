@@ -1,0 +1,47 @@
+# 手動で決めたデータ検証ポストを、決めた日時に1回だけ投稿するワークフロー。
+# 2026-11-22 21:30 JST に②、2026-11-23 21:30 JST に③を投稿する。
+# 日付が一致しない日は何もしない（翌年に cron が動いても投稿しない）。
+# 手動実行は dry-run（本文の確認のみ）。
+name: 予約ポスト（データ検証）
+
+on:
+  schedule:
+    - cron: '30 12 22 11 *'
+    - cron: '30 12 23 11 *'
+  workflow_dispatch:
+
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: 依存を入れる
+        run: pip install requests requests-oauthlib
+      - name: 投稿する
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET: ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          P2=$(printf '%s\n' '同じ「1コース」でも、場でここまで違う。' '過去10年・進入が枠なりのレースで1コースの1着率を数えると、大村66.2%、戸田44.0%。その差は22ポイント、全24場の最高と最低です。' '「インが強い」は、どこでも同じではありません。' '#ボートレース #競艇')
+          P3=$(printf '%s\n' '1号艇が勝つ確率、1Rと12Rで同じだと思いますか？' '全国56万レース（2016年7月〜2026年10月）を数えると、3R 45.0%（最低）、11R 66.0%、12R 70.5%（最高）。' '同じ1号艇でも、25ポイント以上の差がありました。' '#ボートレース #競艇')
+          TODAY=$(TZ=Asia/Tokyo date +%F)
+          if [ "$EVENT" != "schedule" ]; then
+            python scripts/x_post.py --dry-run --text "$P2"
+            python scripts/x_post.py --dry-run --text "$P3"
+            exit 0
+          fi
+          case "$TODAY" in
+            2026-11-22) python scripts/x_post.py --text "$P2" ;;
+            2026-11-23) python scripts/x_post.py --text "$P3" ;;
+            *) echo "予定日ではないので投稿しません: $TODAY" ;;
+          esac
