@@ -11,6 +11,7 @@ import os, json, re, statistics, datetime
 import unicodedata
 
 import sitemap_util
+import ga_tag
 from xml.sax.saxutils import escape
 from build_profiles_v5 import LAST_PERIOD, load_fan_master, load_k_stats, build_profile
 
@@ -620,7 +621,7 @@ def main():
                 {"t": both[i + 1], "name": fan_master[both[i + 1]]["氏名"]} if i + 1 < len(both) else None,
             ]
             record_profile(history, t, prof["catch"], today_iso)
-            html = render_page(prof, history.get(t), nb)
+            html = ga_tag.add_ga(render_page(prof, history.get(t), nb))   # GA4 の計測タグ(ga_tag.py)
             with open(os.path.join(OUT_DIR, f"{t}.html"), "w", encoding="utf-8") as f:
                 f.write(html)
             n_ok += 1
@@ -663,7 +664,7 @@ def main():
         if not rows:
             continue
         with open(os.path.join(OUT_DIR, f"kana-{key}.html"), "w", encoding="utf-8") as f:
-            f.write(render_kana_index(key, label, rows, counts))
+            f.write(ga_tag.add_ga(render_kana_index(key, label, rows, counts)))   # GA4 の計測タグ(ga_tag.py)
         n_kana += 1
     missed = len(index_rows) - sum(counts.values())
     print(f"[kana] 五十音ページ {n_kana}枚 / 振り分け {sum(counts.values())}人"

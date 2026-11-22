@@ -24,7 +24,14 @@
      (TeiyomiBilling.buy の呼び出しは1か所)、他のページが読む billing.js は
      restore()しか使わず PaymentRequest を作らないため。
      他へ購入ボタンを足すときは、そのページのCSPにも同じ許可が要る。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://play.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://play.google.com https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>プレミアム｜艇読み</title>
 <meta name="description" content="艇読みのプレミアムプラン。条件を指定してのバックテスト（会場・期間・券種・買い目の自由指定）と、答案へのAI講評が使えます。">
 <!-- 課金が実際に動くまでの仮公開のためnoindex。サイト共通ナビからのリンクもまだ張らない。

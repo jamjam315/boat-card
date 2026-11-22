@@ -10,7 +10,14 @@
      'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>東潤樹の二つ名「堅実タイプ（勝ちパターンは平均的）」と成績｜艇読み選手図鑑</title>
 <meta name="description" content="東潤樹選手（A2・広島支部、37歳）の通算成績・進入コース傾向・決まり手・当地成績をデータで紹介。二つ名は「堅実タイプ（勝ちパターンは平均的）」。予想印は出さず、数字で選手の個性を伝える艇読みの選手図鑑ページです。">
 <link rel="canonical" href="https://teiyomi.com/players/4574.html">

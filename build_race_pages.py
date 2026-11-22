@@ -17,6 +17,7 @@ import json
 import os
 
 import sitemap_util
+import ga_tag
 import re
 import shutil
 from xml.sax.saxutils import escape
@@ -660,6 +661,7 @@ def main():
         os.makedirs(out_dir, exist_ok=True)
         for race in v["races"]:
             html = render_race_page(date_iso, date_jp, vname, romaji, race, motors, players, player_pages, stats)
+            html = ga_tag.add_ga(html)   # GA4 の計測タグ(ga_tag.py。CSP も合わせて直す)
             path = os.path.join(out_dir, f"{race['no']}R.html")
             with open(path, "w", encoding="utf-8") as f:
                 f.write(html)

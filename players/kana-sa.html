@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com 'sha256-vL6+VatJNqPGwWY2u1o32nVJhKNWQirW1faOcHHNkEo='; connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>さ行の選手一覧｜艇読み選手図鑑</title>
 <meta name="description" content="艇読みの選手図鑑、さ行の選手195人の一覧。二つ名・級別・支部から選手ページへ。">
 <link rel="canonical" href="https://teiyomi.com/players/kana-sa.html">

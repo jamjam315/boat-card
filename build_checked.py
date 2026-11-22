@@ -33,6 +33,8 @@ import os
 
 from PIL import Image, ImageDraw, ImageFont
 
+import ga_tag
+
 # 見た目は build_share_cards.py に揃える。2種のカードが別物に見えないように、
 # 定数はあちらからそのまま持ってきている(片方だけ変えないこと)。
 FONT_B = "C:/Windows/Fonts/YuGothB.ttc"
@@ -314,11 +316,11 @@ def main():
         img = render_card(it, measured_on)
         img.save(os.path.join(CARD_DIR, f"{it['slug']}.png"), optimize=True)
         with open(os.path.join(PAGE_DIR, f"{it['slug']}.html"), "w", encoding="utf-8") as f:
-            f.write(render_page(it, by_key, measured_on))
+            f.write(ga_tag.add_ga(render_page(it, by_key, measured_on)))   # GA4 の計測タグ(ga_tag.py)
         print(f"[checked] {it['key']} {it['slug']} 回収率{it['ret']} / {it['races']}レース")
 
     with open(os.path.join(PAGE_DIR, "index.html"), "w", encoding="utf-8") as f:
-        f.write(render_index(items, measured_on))
+        f.write(ga_tag.add_ga(render_index(items, measured_on)))   # GA4 の計測タグ(ga_tag.py)
 
     n = update_sitemap(items)
     print(f"\n[done] カード{len(items)}枚 / ページ{len(items) + 1}枚 / sitemap +{n}\n")

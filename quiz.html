@@ -6,7 +6,14 @@
 <!-- 【CSP】AI講評(ログイン確認とEdge Function)で Supabase に出る。supabase-js は favorites.js が jsdelivr から読む。
      script-src に 'unsafe-inline' を入れない(2026-09-18 点検 低4)。このページは <script src> だけで動き、
      インラインのスクリプトも on〜= の属性も持たない。足すときは別ファイルにすること。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.googletagmanager.com 'sha256-vL6+VatJNqPGwWY2u1o32nVJhKNWQirW1faOcHHNkEo='; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>今日の一問｜艇読み</title>
 <meta name="description" content="過去に実際にあったボートレースを1日1問。番組表の数字を読んで買い目を記録し、結果と読み採点の答案で振り返る練習です。予想印は出していません。">
 <link rel="canonical" href="https://teiyomi.com/quiz.html">

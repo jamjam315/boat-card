@@ -8,7 +8,14 @@
      つなげない・実行できないようにするための安全網。
      GitHub Pages はHTTPヘッダーを設定できないので meta で書いている。
      ※ このページは説明だけで、外部への通信もログインもしない。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>読み採点とは｜艇読み</title>
 <meta name="description" content="艇読みの「読み採点」の使い方。締切前に自分の買い目を記録しておくと、翌朝レースの結果が出たあとに、番組表の数字と結果だけで機械的に採点します。予想印は出しません。">
 <link rel="canonical" href="https://teiyomi.com/yomi-guide.html">

@@ -10,7 +10,14 @@
      'unsafe-inline' は、各HTMLに直接scriptとstyleを書いている作りのため
      現状は外せない。将来まとめて外部ファイルにできたら外すこと。
      ※ frame-ancestors は meta では効かない仕様のため書いていない。 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://vynbhssakpxiikmseoja.supabase.co https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.googletagmanager.com https://*.google-analytics.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M31X1QLSLM"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M31X1QLSLM');
+</script>
 <title>丸亀9R 2026年11月19日の出走表・データ｜艇読み</title>
 <meta name="description" content="2026年11月19日・丸亀9Rの出走表。出走選手の全国勝率・当地勝率・モーター2連率・スタートタイミングなど公式データをそのまま掲載し、会場の天候・決まり手のクセもあわせて確認できます。予想印は出さず、数字と傾向から自分で判断するための艇読みのレースページです。">
 <link rel="canonical" href="https://teiyomi.com/race/2026-11-19/marugame/9R.html">
