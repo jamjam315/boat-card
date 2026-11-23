@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-11-23", "toban": "4532", "name": "秋元哲", "k": "A1", "age": 37, "br": "埼玉", "catch": "蒲郡巧者", "basis": "蒲郡で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "蒲郡", "races": [6, 10], "reason": "home"};
+window.FEATURED = {"date": "2026-11-24", "toban": "4532", "name": "秋元哲", "k": "A1", "age": 37, "br": "埼玉", "catch": "蒲郡巧者", "basis": "蒲郡で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "蒲郡", "races": [12], "reason": "home"};
