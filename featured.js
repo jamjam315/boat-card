@@ -1,1 +1,1 @@
-window.FEATURED = {"date": "2026-11-25", "toban": "4823", "name": "中村桃佳", "k": "A2", "age": 33, "br": "香川", "catch": "常滑巧者", "basis": "常滑で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "常滑", "races": [9], "reason": "home"};
+window.FEATURED = {"date": "2026-11-26", "toban": "4823", "name": "中村桃佳", "k": "A2", "age": 33, "br": "香川", "catch": "常滑巧者", "basis": "常滑で際立って好成績のため（詳しくは下の「当地」欄）", "venue": "常滑", "races": [9], "reason": "home"};
